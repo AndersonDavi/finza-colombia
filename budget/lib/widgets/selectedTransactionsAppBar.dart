@@ -1,4 +1,5 @@
 import 'package:budget/database/tables.dart';
+import 'package:budget/database/tags.dart';
 import 'package:budget/functions.dart';
 import 'package:budget/pages/addTransactionPage.dart';
 import 'package:budget/pages/editBudgetPage.dart';
@@ -351,6 +352,32 @@ class SelectedTransactionsAppBarMenu extends StatelessWidget {
                           globalSelectedID.value[pageID] = [];
                           globalSelectedID.notifyListeners();
                         }
+                      },
+                    ),
+                    DropdownItemMenu(
+                      id: "pin",
+                      label: "pin".tr() + " / " + "unpin".tr().toLowerCase(),
+                      icon: Icons.push_pin_outlined,
+                      action: () async {
+                        // Pins them all, unless they all are pinned already
+                        List<Transaction> selected = await database
+                            .getTransactionsFromPk(selectedTransactionPks);
+                        bool pin = selected.any((t) => t.pinned != true);
+                        await database.setPinned(selectedTransactionPks, pin);
+                        openSnackbar(
+                          SnackbarMessage(
+                            icon: pin
+                                ? Icons.push_pin_rounded
+                                : Icons.push_pin_outlined,
+                            title: pin ? "pinned".tr() : "unpin".tr(),
+                            description:
+                                selectedTransactionPks.length.toString() +
+                                    " " +
+                                    "transactions".tr().toLowerCase(),
+                          ),
+                        );
+                        globalSelectedID.value[pageID] = [];
+                        globalSelectedID.notifyListeners();
                       },
                     ),
                     if (enableSettleAllButton)

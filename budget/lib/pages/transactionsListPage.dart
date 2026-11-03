@@ -3,6 +3,7 @@ import 'package:budget/pages/upcomingOverdueTransactionsPage.dart';
 import 'package:budget/struct/defaultPreferences.dart';
 import 'package:budget/struct/settings.dart';
 import 'package:budget/widgets/button.dart';
+import 'package:budget/widgets/pinnedTransactions.dart';
 import 'package:budget/widgets/framework/popupFramework.dart';
 import 'package:budget/widgets/navigationSidebar.dart';
 import 'package:budget/widgets/openBottomSheet.dart';
@@ -249,6 +250,13 @@ class TransactionsListPageState extends State<TransactionsListPage>
                                     .sliverOverlapAbsorberHandleFor(
                                         contextPageView),
                               ),
+                              // Filtered lists show only what matches
+                              if (searchFilters.isClear(
+                                  ignoreDateTimeRange: true))
+                                SliverToBoxAdapter(
+                                  child: PinnedTransactionsSection(
+                                      listID: pageId),
+                                ),
                               TransactionEntries(
                                 searchFilters: searchFilters,
                                 renderType: appStateSettings["appAnimations"] !=

@@ -14,6 +14,7 @@ import 'package:budget/widgets/util/watchForDayChange.dart';
 import 'package:budget/widgets/watchAllWallets.dart';
 import 'package:budget/database/tables.dart';
 import 'package:budget/database/walletGroups.dart';
+import 'package:budget/database/tags.dart';
 import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/settings.dart';
 import 'package:budget/struct/notificationsGlobal.dart';
@@ -55,6 +56,18 @@ void main() async {
           if (group.freeWalletFk != null) group.freeWalletFk!
       };
       database.markDetectedFreePockets(groups);
+    });
+    database.watchAllTags().listen((tags) {
+      tagsCache = {for (Tag tag in tags) tag.tagPk: tag};
+      tagPksByTransaction.value = Map.of(tagPksByTransaction.value);
+    });
+    database.watchAllTagLinks().listen((links) {
+      Map<String, List<String>> byTransaction = {};
+      for (TransactionToTagLink link in links) {
+        if (link.transactionPk == null || link.tagPk == null) continue;
+        byTransaction.putIfAbsent(link.transactionPk!, () => []).add(link.tagPk!);
+      }
+      tagPksByTransaction.value = byTransaction;
     });
     notificationPayload = await initializeNotifications();
     entireAppLoaded = false;
@@ -168,6 +181,20 @@ class App extends StatelessWidget {
             ),
           ),
         );
+
+        // Text size from Settings > Theme & Style, on top of the system one
+        double fontScale =
+            (appStateSettings["fontScale"] as num?)?.toDouble() ?? 1;
+        if (fontScale != 1) {
+          MediaQueryData mediaQuery = MediaQuery.of(context);
+          mainWidget = MediaQuery(
+            data: mediaQuery.copyWith(
+              textScaler: TextScaler.linear(
+                  mediaQuery.textScaler.scale(1) * fontScale),
+            ),
+            child: mainWidget,
+          );
+        }
 
         if (kIsWeb) {
           return FadeIn(

@@ -11,7 +11,9 @@ extension UndoDeleteTransactions on FinanceDatabase {
         .get();
   }
 
-  Future<void> restoreTransactions(List<Transaction> deleted) async {
+  // tags: the tags of the transactions before they were deleted
+  Future<void> restoreTransactions(List<Transaction> deleted,
+      {Map<String, List<String>> tags = const {}}) async {
     await batch((batch) {
       for (Transaction transaction in deleted) {
         batch.insert(
@@ -19,6 +21,15 @@ extension UndoDeleteTransactions on FinanceDatabase {
           transaction.copyWith(dateTimeModified: Value(DateTime.now())),
           mode: InsertMode.insertOrReplace,
         );
+        for (String tagPk in tags[transaction.transactionPk] ?? []) {
+          batch.insert(
+            transactionToTagLinks,
+            TransactionToTagLinksCompanion.insert(
+                transactionPk: Value(transaction.transactionPk),
+                tagPk: Value(tagPk)),
+            mode: InsertMode.insertOrIgnore,
+          );
+        }
       }
     });
     await (delete(deleteLogs)

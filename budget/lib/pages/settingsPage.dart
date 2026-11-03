@@ -602,6 +602,7 @@ class ThemeStyleSettingsPage extends StatelessWidget {
         HeaderHeightSetting(),
         SettingsHeader(title: "text".tr()),
         FontPickerSetting(),
+        FontScaleSetting(),
         IncreaseTextContrastSetting(),
       ],
     );
@@ -623,6 +624,28 @@ class NetTotalStyleSetting extends StatelessWidget {
       getLabel: (item) => item == "1" ? "colorful".tr() : "simple".tr(),
       onChanged: (value) {
         updateSettings("amountTotalsStyle", int.parse(value),
+            updateGlobalState: true);
+      },
+    );
+  }
+}
+
+class FontScaleSetting extends StatelessWidget {
+  const FontScaleSetting({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingsContainerDropdown(
+      title: "text-size".tr(),
+      icon: appStateSettings["outlinedIcons"]
+          ? Icons.format_size_outlined
+          : Icons.format_size_rounded,
+      initial: ((appStateSettings["fontScale"] as num?)?.toDouble() ?? 1)
+          .toString(),
+      items: ["0.9", "1.0", "1.1", "1.2", "1.3"],
+      getLabel: (item) => (double.parse(item) * 100).round().toString() + "%",
+      onChanged: (value) {
+        updateSettings("fontScale", double.parse(value),
             updateGlobalState: true);
       },
     );

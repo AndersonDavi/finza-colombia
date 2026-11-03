@@ -20,13 +20,14 @@ import 'package:flutter/foundation.dart';
 import 'schema_versions.dart';
 import 'package:flutter/material.dart' show DateTimeRange;
 import 'package:budget/pages/activityPage.dart';
+import 'package:budget/database/tags.dart';
 
 import 'package:flutter/material.dart' show RangeValues;
 part 'tables.g.dart';
 
 // 48 is the official 6.x schema; this build's own changes start at 100 so
 // later official versions (49, 50...) never collide with them
-int schemaVersionGlobal = 102;
+int schemaVersionGlobal = 103;
 
 // To update and migrate the database, check the README
 
@@ -224,6 +225,7 @@ enum DeleteLogType {
   Objective,
   Unused, // Was for the scanner template, but is now unused
   WalletGroup, // Own: groups of accounts
+  Tag, // Own: tags of the transactions
 }
 
 enum UpdateLogType {
@@ -237,6 +239,8 @@ enum UpdateLogType {
   Objective,
   Unused, // Was for the scanner template, but is now unused
   WalletGroup, // Own: groups of accounts
+  Tag, // Own: tags of the transactions
+  TagLinks, // Own: every tag of one transaction, pk is the transaction
 }
 
 @DataClassName('DeleteLog')
@@ -366,6 +370,8 @@ class Transactions extends Table {
       text().references(Objectives, #objectivePk).nullable()();
   TextColumn get budgetFksExclude =>
       text().map(const StringListInColumnConverter()).nullable()();
+  // Own: pinned transactions stay on top of the lists, null means not pinned
+  BoolColumn get pinned => boolean().nullable()();
 
   @override
   Set<Column> get primaryKey => {transactionPk};
@@ -1275,6 +1281,15 @@ class FinanceDatabase extends _$FinanceDatabase {
                     e.toString());
               }
               await m.createTable(schema.walletGroups);
+            },
+            from102To103: (m, schema) async {
+              try {
+                await m.addColumn(
+                    schema.transactions, schema.transactions.pinned);
+              } catch (e) {
+                print("Migration Error: Error creating column transactions.pinned " +
+                    e.toString());
+              }
             },
             from101To102: (m, schema) async {
               for (final column in [
@@ -3843,6 +3858,27 @@ class FinanceDatabase extends _$FinanceDatabase {
                   syncLog.transactionDateTime ?? DateTime.now(),
                 ),
           );
+        } else if (syncLog.deleteLogType == DeleteLogType.Tag) {
+          batch.deleteWhere(transactionToTagLinks,
+              (tbl) => tbl.tagPk.equals(syncLog.pk));
+          batch.deleteWhere(
+            tags,
+            (tbl) =>
+                tbl.tagPk.equals(syncLog.pk) &
+                tbl.dateTimeModified.isSmallerThanValue(
+                  syncLog.transactionDateTime ?? DateTime.now(),
+                ),
+          );
+        } else if (syncLog.updateLogType == UpdateLogType.Tag) {
+          batch.insert(tags, syncLog.itemToUpdate,
+              mode: InsertMode.insertOrReplace);
+        } else if (syncLog.updateLogType == UpdateLogType.TagLinks) {
+          batch.deleteWhere(transactionToTagLinks,
+              (tbl) => tbl.transactionPk.equals(syncLog.pk));
+          for (TransactionToTagLink link in syncLog.itemToUpdate) {
+            batch.insert(transactionToTagLinks, link,
+                mode: InsertMode.insertOrIgnore);
+          }
         } else if (syncLog.updateLogType == UpdateLogType.WalletGroup) {
           batch.insert(walletGroups, syncLog.itemToUpdate,
               mode: InsertMode.insertOrReplace);
@@ -5024,6 +5060,7 @@ class FinanceDatabase extends _$FinanceDatabase {
       }
     }
     await createDeleteLog(DeleteLogType.Transaction, transactionPk);
+    await deleteTagLinksOfTransactions([transactionPk]);
     return (delete(transactions)
           ..where((t) => t.transactionPk.equals(transactionPk)))
         .go();
@@ -5048,6 +5085,7 @@ class FinanceDatabase extends _$FinanceDatabase {
     }
 
     await createDeleteLogs(DeleteLogType.Transaction, transactionPks);
+    await deleteTagLinksOfTransactions(transactionPks);
     return (delete(transactions)
           ..where((t) => t.transactionPk.isIn(transactionPks)))
         .go();
@@ -5926,6 +5964,11 @@ class FinanceDatabase extends _$FinanceDatabase {
         onlyShowBasedOnObjectiveFks(tbl, searchFilters.objectivePks);
     Expression<bool> isInObjectiveLoanPks =
         onlyShowBasedOnObjectiveLoanFks(tbl, searchFilters.objectiveLoanPks);
+    Expression<bool> hasTagPks = searchFilters.tagPks.isEmpty
+        ? Constant(true)
+        : tbl.transactionPk.isInQuery(selectOnly(transactionToTagLinks)
+          ..addColumns([transactionToTagLinks.transactionPk])
+          ..where(transactionToTagLinks.tagPk.isIn(searchFilters.tagPks)));
 
     Expression<bool> isBalanceCorrectionAnd =
         searchFilters.categoryPks.contains("0")
@@ -6074,6 +6117,7 @@ class FinanceDatabase extends _$FinanceDatabase {
         isInExcludedBudgetPks &
         isInObjectivePks &
         isInObjectiveLoanPks &
+        hasTagPks &
         isInQuery &
         (isIncome | isExpense) &
         isPositiveCashFlow &

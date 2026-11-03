@@ -69,6 +69,8 @@ import 'package:budget/struct/linkHighlighter.dart';
 import 'package:budget/widgets/listItem.dart';
 import 'package:budget/widgets/outlinedButtonStacked.dart';
 import 'package:budget/widgets/tappableTextEntry.dart';
+import 'package:budget/database/tags.dart';
+import 'package:budget/widgets/tags.dart';
 
 //TODO
 //only show the tags that correspond to selected category
@@ -158,6 +160,8 @@ class _AddTransactionPageState extends State<AddTransactionPage>
   String selectedWalletPk = appStateSettings["selectedWalletPk"];
   bool notesInputFocused = false;
   bool showMoreOptions = false;
+  List<String> selectedTagPks = [];
+  late bool pinned = widget.transaction?.pinned == true;
   List<String> selectedExcludedBudgetPks = [];
   late bool isAddedToLoanObjective =
       widget.selectedObjective?.type == ObjectiveType.loan ||
@@ -558,11 +562,18 @@ class _AddTransactionPageState extends State<AddTransactionPage>
         originalTransaction: widget.transaction,
       );
 
+      if (rowId == null && widget.transaction != null) {
+        await database.setTransactionTags(
+            widget.transaction!.transactionPk, selectedTagPks);
+      }
+
       if (rowId != null) {
         final Transaction transactionJustAdded =
             await database.getTransactionFromRowId(rowId);
         print("Transaction just added:");
         print(transactionJustAdded);
+        await database.setTransactionTags(
+            transactionJustAdded.transactionPk, selectedTagPks);
 
         // Do the flash animation only if the date was changed
         if (transactionJustAdded.dateCreated !=
@@ -703,6 +714,7 @@ class _AddTransactionPageState extends State<AddTransactionPage>
       objectiveLoanFk: selectedObjectiveLoanPk,
       budgetFksExclude:
           selectedExcludedBudgetPks.isEmpty ? null : selectedExcludedBudgetPks,
+      pinned: pinned ? true : null,
     );
 
     return createdTransaction;
@@ -729,6 +741,11 @@ class _AddTransactionPageState extends State<AddTransactionPage>
   void initState() {
     super.initState();
     if (widget.transaction != null) {
+      database
+          .getTagPksOfTransaction(widget.transaction!.transactionPk)
+          .then((tagPks) {
+        if (mounted) setState(() => selectedTagPks = tagPks);
+      });
       //We are editing a transaction
       //Fill in the information from the passed in transaction
       _titleInputController =
@@ -1092,6 +1109,14 @@ class _AddTransactionPageState extends State<AddTransactionPage>
             setSelectedNoteController: setSelectedNoteController,
           ),
         ),
+        Container(height: 14),
+        Padding(
+          padding: const EdgeInsetsDirectional.symmetric(horizontal: 22),
+          child: SelectTags(
+            selectedTagPks: selectedTagPks,
+            onChanged: (tagPks) => setState(() => selectedTagPks = tagPks),
+          ),
+        ),
       ],
     );
 
@@ -1413,7 +1438,12 @@ class _AddTransactionPageState extends State<AddTransactionPage>
                               ),
                             );
                           },
-                          items: Provider.of<AllWallets>(context).list,
+                          items: Provider.of<AllWallets>(context)
+                              .list
+                              .where((w) =>
+                                  w.archived == false ||
+                                  w.walletPk == selectedWalletPk)
+                              .toList(),
                           getSelected: (TransactionWallet wallet) {
                             return getSelectedWallet(listen: false)?.walletPk ==
                                 wallet.walletPk;
@@ -2069,6 +2099,20 @@ class _AddTransactionPageState extends State<AddTransactionPage>
           }
         },
         actions: [
+          if (widget.transaction != null)
+            IconButton(
+              padding: EdgeInsetsDirectional.all(15),
+              tooltip: pinned ? "unpin".tr() : "pin".tr(),
+              onPressed: () async {
+                setState(() => pinned = !pinned);
+                await database.setPinned(
+                    [widget.transaction!.transactionPk], pinned);
+              },
+              icon: Icon(
+                pinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+                color: pinned ? Theme.of(context).colorScheme.primary : null,
+              ),
+            ),
           widget.transaction != null
               ? IconButton(
                   padding: EdgeInsetsDirectional.all(15),
@@ -3459,6 +3503,7 @@ void deleteTransactionPopup(
       popRoute(context);
     }
     openLoadingPopupTryCatch(() async {
+      Map<String, List<String>> tagsBefore = tagPksByTransaction.value;
       await database.deleteTransaction(transaction.transactionPk);
       openSnackbar(
         SnackbarMessage(
@@ -3466,7 +3511,8 @@ void deleteTransactionPopup(
           icon: Icons.delete,
           description: (transactionName ?? "") + " · " + "tap-to-undo".tr(),
           timeout: Duration(milliseconds: 6000),
-          onTap: () => database.restoreTransactions([transaction]),
+          onTap: () => database
+              .restoreTransactions([transaction], tags: tagsBefore),
         ),
       );
     });
@@ -3551,6 +3597,7 @@ Future deleteTransactionsPopup(
     openLoadingPopupTryCatch(() async {
       List<Transaction> deleted =
           await database.getTransactionsFromPks(transactionPks);
+      Map<String, List<String>> tagsBefore = tagPksByTransaction.value;
       await database.deleteTransactions(transactionPks);
       openSnackbar(
         SnackbarMessage(
@@ -3564,7 +3611,8 @@ Future deleteTransactionsPopup(
               " · " +
               "tap-to-undo".tr(),
           timeout: Duration(milliseconds: 6000),
-          onTap: () => database.restoreTransactions(deleted),
+          onTap: () =>
+              database.restoreTransactions(deleted, tags: tagsBefore),
         ),
       );
     });

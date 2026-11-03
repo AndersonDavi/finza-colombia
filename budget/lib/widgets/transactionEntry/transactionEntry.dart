@@ -22,6 +22,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:budget/colors.dart';
+import 'package:budget/widgets/tags.dart';
 import 'package:budget/widgets/openBottomSheet.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:budget/widgets/transactionEntry/swipeToSelectTransactions.dart';
@@ -407,18 +408,39 @@ class TransactionEntry extends StatelessWidget {
         transaction: transaction,
         category: category,
       );
-      Widget tags = TransactionEntryTag(
-        transaction: transaction,
-        showObjectivePercentage: showObjectivePercentage,
-        subCategory: subCategory,
-        budget: budget,
-        objective: objective,
-        objectiveLoan: objectiveLoan,
-        showExcludedBudgetTag: showExcludedBudgetTag,
+      Widget tags = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TransactionEntryTag(
+            transaction: transaction,
+            showObjectivePercentage: showObjectivePercentage,
+            subCategory: subCategory,
+            budget: budget,
+            objective: objective,
+            objectiveLoan: objectiveLoan,
+            showExcludedBudgetTag: showExcludedBudgetTag,
+          ),
+          TransactionTagsLine(transactionPk: transaction.transactionPk),
+        ],
       );
-      Widget noteIcon = TransactionEntryNote(
-        transaction: transaction,
-        iconColor: iconColor,
+      Widget noteIcon = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (transaction.pinned == true)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(end: 4),
+              child: Icon(
+                Icons.push_pin_rounded,
+                size: 15,
+                color: getColor(context, "textLight"),
+              ),
+            ),
+          TransactionEntryNote(
+            transaction: transaction,
+            iconColor: iconColor,
+          ),
+        ],
       );
       bool showNote = transaction.note.toString().trim() != "";
       Widget note = Row(

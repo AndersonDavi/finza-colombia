@@ -1324,6 +1324,16 @@ class WalletDetailsPageState extends State<WalletDetailsPage>
                         //   },
                         // ),
                         DropdownItemMenu(
+                          id: "search",
+                          label: "search".tr(),
+                          icon: appStateSettings["outlinedIcons"]
+                              ? Icons.search_outlined
+                              : Icons.search_rounded,
+                          action: () {
+                            pushRoute(context, TransactionsSearchPage());
+                          },
+                        ),
+                        DropdownItemMenu(
                           id: "filters",
                           label: "filters".tr(),
                           icon: appStateSettings["outlinedIcons"]

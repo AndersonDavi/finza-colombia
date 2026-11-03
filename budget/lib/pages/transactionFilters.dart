@@ -17,10 +17,14 @@ import 'package:budget/widgets/selectAmount.dart';
 import 'package:budget/widgets/selectCategory.dart';
 import 'package:budget/widgets/textInput.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:budget/database/walletGroups.dart';
+import 'package:budget/widgets/walletGroups.dart';
 import 'package:flutter/material.dart';
 import 'package:budget/colors.dart';
 import 'package:provider/provider.dart';
 import 'package:budget/widgets/selectChips.dart';
+import 'package:budget/database/tags.dart';
+import 'package:budget/widgets/tags.dart';
 import 'package:budget/widgets/amountRangeSlider.dart';
 
 class SearchFilters {
@@ -44,8 +48,10 @@ class SearchFilters {
     this.searchQuery,
     this.titleContains,
     this.noteContains,
+    this.tagPks = const [],
   }) {
     walletPks = this.walletPks.isEmpty ? [] : this.walletPks;
+    tagPks = this.tagPks.isEmpty ? [] : this.tagPks;
     categoryPks = this.categoryPks.isEmpty ? [] : this.categoryPks;
     subcategoryPks =
         this.subcategoryPks?.isEmpty == true ? [] : this.subcategoryPks;
@@ -88,6 +94,8 @@ class SearchFilters {
   String? searchQuery;
   String? titleContains;
   String? noteContains;
+  // Own: transactions with any of these tags
+  List<String> tagPks;
 
   SearchFilters copyWith({
     List<String>? walletPks,
@@ -109,8 +117,10 @@ class SearchFilters {
     String? searchQuery,
     String? titleContains,
     String? noteContains,
+    List<String>? tagPks,
   }) {
     return SearchFilters(
+      tagPks: tagPks ?? this.tagPks,
       walletPks: walletPks ?? this.walletPks,
       categoryPks: categoryPks ?? this.categoryPks,
       subcategoryPks: subcategoryPks ?? this.subcategoryPks,
@@ -155,6 +165,7 @@ class SearchFilters {
     searchQuery = null;
     titleContains = null;
     noteContains = null;
+    tagPks = [];
   }
 
   bool isClear({bool? ignoreDateTimeRange, bool? ignoreSearchQuery}) {
@@ -176,7 +187,8 @@ class SearchFilters {
         (ignoreDateTimeRange == true || dateTimeRange == null) &&
         (ignoreSearchQuery == true || searchQuery == null) &&
         titleContains == null &&
-        noteContains == null)
+        noteContains == null &&
+        tagPks.isEmpty)
       return true;
     else
       return false;
@@ -217,6 +229,9 @@ class SearchFilters {
             break;
           case 'excludedBudgetPks':
             excludedBudgetPks.add(value);
+            break;
+          case 'tagPks':
+            tagPks.add(value);
             break;
           case 'objectivePks':
             if (value == "null") {
@@ -336,6 +351,9 @@ class SearchFilters {
     }
     for (String? element in budgetPks) {
       outString += "budgetPks:-:" + element.toString() + ":-:";
+    }
+    for (String element in tagPks) {
+      outString += "tagPks:-:" + element + ":-:";
     }
     for (String? element in excludedBudgetPks) {
       outString += "excludedBudgetPks:-:" + element.toString() + ":-:";
@@ -609,7 +627,7 @@ class _TransactionFiltersSelectionState
     return Column(
       children: [
         SelectCategory(
-          horizontalList: true,
+          horizontalList: false,
           showSelectedAllCategoriesIfNoneSelected: true,
           addButton: false,
           selectedCategories: selectedFilters.categoryPks,
@@ -635,7 +653,7 @@ class _TransactionFiltersSelectionState
           },
         ),
         SelectCategory(
-          horizontalList: true,
+          horizontalList: false,
           showSelectedAllCategoriesIfNoneSelected: true,
           addButton: false,
           selectedCategories: selectedFilters.subcategoryPks,
@@ -695,6 +713,7 @@ class _TransactionFiltersSelectionState
         ),
         SizedBox(height: 10),
         SelectChips(
+          wrapped: true,
           items: ExpenseIncome.values,
           getLabel: (ExpenseIncome item) {
             return item == ExpenseIncome.expense
@@ -730,6 +749,7 @@ class _TransactionFiltersSelectionState
           },
         ),
         SelectChips(
+          wrapped: true,
           items: [null, ...TransactionSpecialType.values],
           getLabel: (TransactionSpecialType? item) {
             return transactionTypeDisplayToEnum[item]
@@ -765,6 +785,7 @@ class _TransactionFiltersSelectionState
           },
         ),
         SelectChips(
+          wrapped: true,
           items: PaidStatus.values,
           getLabel: (PaidStatus item) {
             return item == PaidStatus.paid
@@ -795,6 +816,7 @@ class _TransactionFiltersSelectionState
                 return SizedBox.shrink();
               List<MethodAdded?> possibleMethodAdded = snapshot.data ?? [];
               return SelectChips(
+                wrapped: true,
                 items: possibleMethodAdded,
                 getLabel: (MethodAdded? item) {
                   return item?.name.capitalizeFirst ?? "default".tr();
@@ -814,7 +836,54 @@ class _TransactionFiltersSelectionState
             },
           ),
 
+        // Each group selects or clears all of its pockets at once
+        StreamBuilder<List<WalletGroup>>(
+          stream: database.watchAllWalletGroups(),
+          builder: (context, snapshot) {
+            List<WalletGroup> groups = snapshot.data ?? [];
+            if (groups.isEmpty) return SizedBox.shrink();
+            List<String> pocketsOf(WalletGroup group) => [
+                  for (TransactionWallet wallet
+                      in Provider.of<AllWallets>(context).list)
+                    if (wallet.walletGroupFk == group.walletGroupPk)
+                      wallet.walletPk
+                ];
+            return SelectChips(
+              wrapped: true,
+              items: groups,
+              getLabel: (WalletGroup group) => group.name,
+              getAvatar: (WalletGroup group) => Icon(
+                walletGroupKindIcon(group.kind),
+                size: 18,
+              ),
+              getSelected: (WalletGroup group) {
+                List<String> pockets = pocketsOf(group);
+                return pockets.isNotEmpty &&
+                    pockets.every(
+                        (pk) => selectedFilters.walletPks.contains(pk));
+              },
+              onSelected: (WalletGroup group) {
+                List<String> pockets = pocketsOf(group);
+                bool allSelected = pockets.every(
+                    (pk) => selectedFilters.walletPks.contains(pk));
+                selectedFilters.walletPks.removeWhere(pockets.contains);
+                if (!allSelected) selectedFilters.walletPks.addAll(pockets);
+                setSearchFilters();
+              },
+              getCustomBorderColor: (WalletGroup group) => dynamicPastel(
+                context,
+                lightenPastel(
+                  HexColor(group.colour,
+                      defaultColor: Theme.of(context).colorScheme.primary),
+                  amount: 0.3,
+                ),
+                amount: 0.4,
+              ),
+            );
+          },
+        ),
         SelectChips(
+          wrapped: true,
           items: Provider.of<AllWallets>(context).list,
           onLongPress: (TransactionWallet? item) {
             pushRoute(
@@ -850,6 +919,36 @@ class _TransactionFiltersSelectionState
                 amount: 0.3,
               ),
               amount: 0.4,
+            );
+          },
+        ),
+
+        StreamBuilder<List<Tag>>(
+          stream: database.watchAllTags(),
+          builder: (context, snapshot) {
+            List<Tag> tags = snapshot.data ?? [];
+            if (tags.isEmpty) return SizedBox.shrink();
+            return SelectChips(
+              wrapped: true,
+              items: tags,
+              getLabel: (Tag tag) => tag.name,
+              getAvatar: (Tag tag) => Icon(tagIcon(), size: 16),
+              onLongPress: (Tag? tag) => openEditTagPopup(context, tag: tag),
+              getSelected: (Tag tag) =>
+                  selectedFilters.tagPks.contains(tag.tagPk),
+              onSelected: (Tag tag) {
+                if (selectedFilters.tagPks.contains(tag.tagPk)) {
+                  selectedFilters.tagPks.remove(tag.tagPk);
+                } else {
+                  selectedFilters.tagPks.add(tag.tagPk);
+                }
+                setSearchFilters();
+              },
+              getCustomBorderColor: (Tag tag) => dynamicPastel(
+                context,
+                lightenPastel(tagColor(context, tag), amount: 0.3),
+                amount: 0.4,
+              ),
             );
           },
         ),
@@ -891,6 +990,7 @@ class _TransactionFiltersSelectionState
                   //   },
                   // ),
                   SelectChips(
+                    wrapped: true,
                     items: [null, ...snapshot.data!],
                     onLongPress: (Budget? item) {
                       pushRoute(
@@ -948,6 +1048,7 @@ class _TransactionFiltersSelectionState
               return Column(
                 children: [
                   SelectChips(
+                    wrapped: true,
                     items: snapshot.data!,
                     onLongPress: (Budget? item) {
                       pushRoute(
@@ -1006,6 +1107,7 @@ class _TransactionFiltersSelectionState
               return SizedBox.shrink();
             if (snapshot.hasData) {
               return SelectChips(
+                wrapped: true,
                 items: [null, ...snapshot.data!],
                 onLongPress: (Objective? item) {
                   pushRoute(
@@ -1063,6 +1165,7 @@ class _TransactionFiltersSelectionState
               return SizedBox.shrink();
             if (snapshot.hasData) {
               return SelectChips(
+                wrapped: true,
                 items: [null, ...snapshot.data!],
                 onLongPress: (Objective? item) {
                   pushRoute(
@@ -1431,6 +1534,15 @@ class AppliedFilterChips extends StatelessWidget {
         ),
         openFiltersSelection: openFiltersSelection,
       ));
+    }
+    // Tags
+    for (Tag tag in await database.getAllTags()) {
+      if (searchFilters.tagPks.contains(tag.tagPk))
+        out.add(AppliedFilterChip(
+          label: "# " + tag.name,
+          customBorderColor: tagColor(context, tag),
+          openFiltersSelection: openFiltersSelection,
+        ));
     }
     // Budgets
     for (Budget budget in await database.getAllBudgets()) {

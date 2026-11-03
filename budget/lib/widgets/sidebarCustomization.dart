@@ -17,6 +17,7 @@ import 'package:budget/widgets/outlinedButtonStacked.dart';
 import 'package:budget/widgets/tappable.dart';
 import 'package:budget/widgets/textWidgets.dart';
 import 'package:budget/widgets/walletGroups.dart';
+import 'package:budget/widgets/tags.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
@@ -136,6 +137,7 @@ class EditDataGrid extends StatelessWidget {
                 ? Icons.workspaces_outlined
                 : Icons.workspaces_rounded,
             WalletGroupsPage()),
+        option("tags", tagIcon(), TagsPage()),
       ],
     );
   }

@@ -39,8 +39,17 @@ class WalletGroupSection {
 }
 
 // Keeps the account order: a group shows up where its first account is
+// Hidden accounts (eye in Edit Accounts) are left out unless showHidden
 List<WalletGroupSection> groupWalletsForDisplay(
-    List<WalletWithDetails> wallets, List<WalletGroup> groups) {
+    List<WalletWithDetails> wallets, List<WalletGroup> groups,
+    {bool showHidden = false}) {
+  if (!showHidden) {
+    wallets = wallets
+        .where((w) =>
+            w.wallet.archived == false ||
+            w.wallet.walletPk == appStateSettings["selectedWalletPk"])
+        .toList();
+  }
   bool hideEmpty = appStateSettings["walletsHideEmpty"] == true;
   bool sortByAmount = appStateSettings["walletsSortByAmount"] == true;
   if (hideEmpty) {
@@ -263,10 +272,12 @@ class GroupedWalletRows extends StatefulWidget {
       {required this.wallets,
       required this.rowBuilder,
       this.showOrganizer = false,
+      this.showHidden = false,
       super.key});
   final List<WalletWithDetails> wallets;
   final Widget Function(WalletWithDetails wallet) rowBuilder;
   final bool showOrganizer;
+  final bool showHidden;
 
   @override
   State<GroupedWalletRows> createState() => _GroupedWalletRowsState();
@@ -295,7 +306,8 @@ class _GroupedWalletRowsState extends State<GroupedWalletRows> {
           children: [
             if (widget.showOrganizer) WalletsOrganizer(),
             for (WalletGroupSection section
-                in groupWalletsForDisplay(wallets, snapshot.data ?? []))
+                in groupWalletsForDisplay(wallets, snapshot.data ?? [],
+                    showHidden: widget.showHidden))
               // Keys keep each row with its account when the order changes,
               // so amounts do not count from another row's value
               if (section.group == null)
@@ -529,6 +541,25 @@ class _EditWalletGroupPopupState extends State<EditWalletGroupPopup> {
   late WalletGroupKind kind = widget.group?.kind ?? WalletGroupKind.digital;
   late String? freeWalletFk = widget.group?.freeWalletFk;
 
+  Future<void> deleteGroup() async {
+    dynamic confirmed = await openPopup(
+      context,
+      title: "delete-group".tr() + "?",
+      description: "delete-group-description".tr(),
+      icon: appStateSettings["outlinedIcons"]
+          ? Icons.delete_outlined
+          : Icons.delete_rounded,
+      onSubmit: () => popRoute(context, true),
+      onSubmitLabel: "delete".tr(),
+      onCancel: () => popRoute(context, false),
+      onCancelLabel: "cancel".tr(),
+    );
+    if (confirmed == true) {
+      await database.deleteWalletGroup(widget.group!.walletGroupPk);
+      popRoute(context);
+    }
+  }
+
   Future<void> save() async {
     if (name.trim() == "") return;
     String walletGroupPk = await database.createOrUpdateWalletGroup(
@@ -579,6 +610,14 @@ class _EditWalletGroupPopupState extends State<EditWalletGroupPopup> {
 
     return PopupFramework(
       title: widget.group == null ? "new-group".tr() : "edit-group".tr(),
+      outsideExtraWidget: widget.group == null
+          ? null
+          : OutsideExtraWidgetIconButton(
+              iconData: appStateSettings["outlinedIcons"]
+                  ? Icons.delete_outlined
+                  : Icons.delete_rounded,
+              onPressed: deleteGroup,
+            ),
       child: Column(
         children: [
           TextInput(
@@ -614,57 +653,6 @@ class _EditWalletGroupPopupState extends State<EditWalletGroupPopup> {
             disabled: name.trim() == "",
             onTap: save,
           ),
-          if (widget.group != null)
-            Padding(
-              padding: const EdgeInsetsDirectional.only(top: 4),
-              child: Center(
-                child: Tappable(
-                borderRadius: 14,
-                color: getColor(context, "expenseAmount").withOpacity(0.12),
-                child: Padding(
-                  padding: const EdgeInsetsDirectional.symmetric(
-                      horizontal: 18, vertical: 11),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        appStateSettings["outlinedIcons"]
-                            ? Icons.delete_outlined
-                            : Icons.delete_rounded,
-                        color: getColor(context, "expenseAmount"),
-                        size: 22,
-                      ),
-                      SizedBox(width: 8),
-                      TextFont(
-                        text: "delete-group".tr(),
-                        fontSize: 15,
-                        textColor: getColor(context, "expenseAmount"),
-                      ),
-                    ],
-                  ),
-                ),
-                onTap: () async {
-                  dynamic confirmed = await openPopup(
-                    context,
-                    title: "delete-group".tr() + "?",
-                    description: "delete-group-description".tr(),
-                    icon: appStateSettings["outlinedIcons"]
-                        ? Icons.delete_outlined
-                        : Icons.delete_rounded,
-                    onSubmit: () => popRoute(context, true),
-                    onSubmitLabel: "delete".tr(),
-                    onCancel: () => popRoute(context, false),
-                    onCancelLabel: "cancel".tr(),
-                  );
-                  if (confirmed == true) {
-                    await database
-                        .deleteWalletGroup(widget.group!.walletGroupPk);
-                    popRoute(context);
-                  }
-                },
-              ),
-              ),
-            ),
         ],
       ),
     );
@@ -810,37 +798,15 @@ class FreeMoneySummary extends StatelessWidget {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        TextFont(
-                          text: "total-in-accounts".tr() +
-                              " " +
-                              money(allTotal),
-                          fontSize: 12,
-                          textColor: getColor(context, "textLight"),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 8),
-                    TextFont(
-                      text: money(freeTotal),
-                      fontSize: 21,
-                      fontWeight: FontWeight.bold,
-                      textAlign: TextAlign.end,
-                      textColor: amountColor(freeTotal),
-                    ),
-                    SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
                         Tappable(
-                          borderRadius: 8,
-                          color: Theme.of(context).colorScheme.secondaryContainer,
+                          borderRadius: 10,
+                          color:
+                              Theme.of(context).colorScheme.secondaryContainer,
                           onTap: () => pushRoute(context,
                               DistributePage(sourceWalletPk: richestFreePk)),
                           child: Padding(
                             padding: const EdgeInsetsDirectional.symmetric(
-                                horizontal: 8, vertical: 3),
+                                horizontal: 12, vertical: 6),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -848,15 +814,47 @@ class FreeMoneySummary extends StatelessWidget {
                                   appStateSettings["outlinedIcons"]
                                       ? Icons.call_split_outlined
                                       : Icons.call_split_rounded,
-                                  size: 14,
+                                  size: 17,
                                 ),
-                                SizedBox(width: 4),
+                                SizedBox(width: 6),
                                 TextFont(
-                                    text: "distribute".tr(), fontSize: 12),
+                                  text: "distribute".tr(),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ],
                             ),
                           ),
                         ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: TextFont(
+                            text: "total-in-accounts".tr() +
+                                " " +
+                                money(allTotal),
+                            fontSize: 12,
+                            maxLines: 2,
+                            textColor: getColor(context, "textLight"),
+                          ),
+                        ),
+                        TextFont(
+                          text: money(freeTotal),
+                          fontSize: 21,
+                          fontWeight: FontWeight.bold,
+                          textColor: amountColor(freeTotal),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
                         for (var (group, amount) in freeByGroup)
                           Container(
                             padding: const EdgeInsetsDirectional.symmetric(
@@ -1073,8 +1071,8 @@ class WalletGroupCard extends StatelessWidget {
 
 // Home cards: first row with each group as one card (plus the accounts
 // without a group), second row with every pocket. The pockets of the open
-// group come first, on a tinted background with a button to add one, then the
-// pockets of the other groups. The open group is remembered in the settings.
+// group are highlighted with a tinted background, the row keeps the groups'
+// order and ends with a button to add a pocket. The open group is remembered in the settings.
 class CompactWalletSwitcher extends StatefulWidget {
   const CompactWalletSwitcher({
     required this.sections,
@@ -1099,19 +1097,24 @@ class _CompactWalletSwitcherState extends State<CompactWalletSwitcher> {
     });
     updateSettings("expandedWalletGroupPk", expandedGroupPk,
         updateGlobalState: false);
-    // Bring the open group's pockets into view, the order never changes
+    // Bring the open group's pockets into view, the order never changes.
+    // Only this row scrolls (ensureVisible would also scroll the page).
     if (expandedGroupPk != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        BuildContext? pocketsContext =
-            pocketsKeys[expandedGroupPk]?.currentContext;
-        if (pocketsContext != null) {
-          Scrollable.ensureVisible(
-            pocketsContext,
-            alignment: 0,
-            duration: Duration(milliseconds: 450),
-            curve: Curves.easeOutCubic,
-          );
-        }
+        RenderObject? pockets =
+            pocketsKeys[expandedGroupPk]?.currentContext?.findRenderObject();
+        if (pockets is! RenderBox ||
+            !pocketsScrollController.hasClients ||
+            !pockets.attached) return;
+        ScrollPosition position = pocketsScrollController.position;
+        RenderObject? viewport = position.context.storageContext
+            .findRenderObject();
+        if (viewport is! RenderBox) return;
+        double x = pockets.localToGlobal(Offset.zero, ancestor: viewport).dx;
+        double target = (position.pixels + x - 7)
+            .clamp(position.minScrollExtent, position.maxScrollExtent);
+        pocketsScrollController.animateTo(target,
+            duration: Duration(milliseconds: 450), curve: Curves.easeOutCubic);
       });
     }
   }
@@ -1157,17 +1160,6 @@ class _CompactWalletSwitcherState extends State<CompactWalletSwitcher> {
         children: [
           for (WalletWithDetails wallet in section.wallets)
             widget.walletEntry(wallet),
-          if (open)
-            CardSizedAddButton(
-              label: "pocket".tr(),
-              onTap: () => pushRoute(
-                context,
-                AddWalletPage(
-                  routesToPopAfterDelete: RoutesToPopAfterDelete.None,
-                  initialWalletGroupFk: group.walletGroupPk,
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -1207,6 +1199,17 @@ class _CompactWalletSwitcherState extends State<CompactWalletSwitcher> {
             [
               for (WalletGroupSection section in groupSections)
                 pocketsOfGroup(section, open: section == open),
+              // New pocket, inside the open group if there is one
+              CardSizedAddButton(
+                label: "pocket".tr(),
+                onTap: () => pushRoute(
+                  context,
+                  AddWalletPage(
+                    routesToPopAfterDelete: RoutesToPopAfterDelete.None,
+                    initialWalletGroupFk: open?.group?.walletGroupPk,
+                  ),
+                ),
+              ),
             ],
           ),
         ],
@@ -1553,23 +1556,24 @@ class GroupedWalletPicker extends StatelessWidget {
   }
 }
 
-// Small "Free" tag shown next to the free pocket of a group
+// Icon next to the name of a group's free pocket, "Free" on hover
 class FreePocketTag extends StatelessWidget {
-  const FreePocketTag({super.key});
+  const FreePocketTag({this.size = 17, super.key});
+  final double size;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsetsDirectional.only(start: 6),
-      padding: const EdgeInsetsDirectional.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(6),
-        color: getColor(context, "incomeAmount").withOpacity(0.18),
-      ),
-      child: TextFont(
-        text: "free-money".tr(),
-        fontSize: 11,
-        textColor: getColor(context, "incomeAmount"),
+    return Tooltip(
+      message: "free-money".tr(),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.only(start: 5),
+        child: Icon(
+          appStateSettings["outlinedIcons"]
+              ? Icons.savings_outlined
+              : Icons.savings_rounded,
+          size: size,
+          color: getColor(context, "incomeAmount"),
+        ),
       ),
     );
   }

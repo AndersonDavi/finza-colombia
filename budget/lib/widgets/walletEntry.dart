@@ -14,12 +14,12 @@ import 'package:budget/widgets/tappable.dart';
 import 'package:budget/widgets/textWidgets.dart';
 import 'package:budget/widgets/transactionEntry/incomeAmountArrow.dart';
 import 'package:budget/widgets/watchAllWallets.dart';
-import 'package:budget/widgets/walletGroups.dart';
 import 'package:budget/widgets/pocketGoals.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:budget/pages/walletDetailsPage.dart';
 import 'package:budget/colors.dart';
+import 'package:budget/widgets/pocketIcons.dart';
 import 'package:provider/provider.dart';
 import 'package:budget/widgets/countNumber.dart';
 
@@ -68,16 +68,9 @@ class WalletEntry extends StatelessWidget {
                     PositionedDirectional(
                       end: -11,
                       top: -5,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadiusDirectional.circular(100),
-                          color: HexColor(walletWithDetails.wallet.colour,
-                                  defaultColor:
-                                      Theme.of(context).colorScheme.primary)
-                              .withOpacity(0.7),
-                        ),
-                        width: 20,
-                        height: 20,
+                      child: WalletColorDot(
+                        wallet: walletWithDetails.wallet,
+                        filled: true,
                       ),
                     ),
                     Container(
@@ -87,17 +80,9 @@ class WalletEntry extends StatelessWidget {
                         children: [
                           Padding(
                             padding: const EdgeInsetsDirectional.only(end: 17),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                TextFont(
-                                  text: walletWithDetails.wallet.name,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                if (freeWalletPksCache.contains(
-                                    walletWithDetails.wallet.walletPk))
-                                  FreePocketTag(),
-                              ],
+                            child: TextFont(
+                              text: walletWithDetails.wallet.name,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                           AmountAccount(
@@ -153,6 +138,61 @@ class WalletEntry extends StatelessWidget {
   }
 }
 
+// Colour dot of an account. The free pocket of a group carries a piggy bank
+// inside, so it takes no room next to the name.
+class WalletColorDot extends StatelessWidget {
+  const WalletColorDot({
+    required this.wallet,
+    required this.filled,
+    this.showFree = true,
+    super.key,
+  });
+  final TransactionWallet wallet;
+  final bool filled;
+  final bool showFree;
+
+  @override
+  Widget build(BuildContext context) {
+    Color color = HexColor(wallet.colour,
+            defaultColor: Theme.of(context).colorScheme.primary)
+        .withOpacity(0.7);
+    bool isFree = showFree && freeWalletPksCache.contains(wallet.walletPk);
+    // Own icon of the pocket, else the piggy bank for the free one
+    IconData? icon = showFree
+        ? (pocketIconOf(wallet) ?? (isFree ? Icons.savings_rounded : null))
+        : null;
+    String? emoji = showFree ? pocketEmojiOf(wallet) : null;
+    bool hasSymbol = icon != null || emoji != null;
+    // A bit bigger with an icon inside so it can be read
+    double size = hasSymbol ? 26 : 20;
+    Widget dot = Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadiusDirectional.circular(100),
+        color: filled
+            ? color
+            : hasSymbol
+                ? color.withOpacity(0.18)
+                : null,
+        border: filled ? null : Border.all(width: 2, color: color),
+      ),
+      child: icon != null
+          ? Icon(
+              icon,
+              size: 16,
+              color: filled ? dotIconColor(color) : color.withOpacity(1),
+            )
+          : emoji != null
+              ? Text(emoji, style: TextStyle(fontSize: 14, height: 1))
+              : null,
+    );
+    if (!isFree) return dot;
+    return Tooltip(message: "free-money".tr(), child: dot);
+  }
+}
+
 class WalletEntryRow extends StatelessWidget {
   const WalletEntryRow({
     super.key,
@@ -184,7 +224,9 @@ class WalletEntryRow extends StatelessWidget {
             )
           : WatchedWalletDetailsPage(
               walletPk: walletWithDetails.wallet.walletPk),
-      closedColor: getColor(context, "lightDarkAccentHeavyLight"),
+      // Takes the background of the list box, a colour of its own showed as
+      // a band beside the group branches
+      closedColor: Colors.transparent,
       button: (openContainer) {
         return Tappable(
           color: Colors.transparent,
@@ -201,48 +243,37 @@ class WalletEntryRow extends StatelessWidget {
                   Expanded(
                     child: Row(
                       children: [
-                        ScaledAnimatedSwitcher(
-                          keyToWatch: selected.toString(),
-                          child: selected
-                              ? Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius:
-                                        BorderRadiusDirectional.circular(100),
-                                    color: HexColor(
-                                      walletWithDetails.wallet.colour,
-                                      defaultColor:
-                                          Theme.of(context).colorScheme.primary,
-                                    ).withOpacity(0.7),
-                                  ),
-                                  width: 20,
-                                  height: 20,
-                                )
-                              : Transform.scale(
-                                  scale: 0.9,
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      borderRadius:
-                                          BorderRadiusDirectional.circular(100),
-                                      border: Border.all(
-                                        width: 2,
-                                        color: HexColor(
-                                          walletWithDetails.wallet.colour,
-                                          defaultColor: Theme.of(context)
-                                              .colorScheme
-                                              .primary,
-                                        ).withOpacity(0.7),
+                        // Same width for every dot, with an icon or not,
+                        // so the names stay aligned
+                        SizedBox(
+                          width: 26,
+                          child: Center(
+                            child: ScaledAnimatedSwitcher(
+                              keyToWatch: selected.toString(),
+                              child: selected
+                                  ? WalletColorDot(
+                                      key: ValueKey(true),
+                                      wallet: walletWithDetails.wallet,
+                                      filled: true,
+                                      showFree: !isCurrencyRow,
+                                    )
+                                  : Transform.scale(
+                                      key: ValueKey(false),
+                                      scale: 0.9,
+                                      child: WalletColorDot(
+                                        wallet: walletWithDetails.wallet,
+                                        filled: false,
+                                        showFree: !isCurrencyRow,
                                       ),
                                     ),
-                                    width: 20,
-                                    height: 20,
-                                  ),
-                                ),
+                            ),
+                          ),
                         ),
                         Flexible(
                           child: Padding(
                             padding: const EdgeInsetsDirectional.only(
                               end: 17,
-                              start: 10,
+                              start: 7,
                             ),
                             child: TextFont(
                               textAlign: TextAlign.start,
@@ -264,18 +295,6 @@ class WalletEntryRow extends StatelessWidget {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                if (!isCurrencyRow &&
-                                    freeWalletPksCache.contains(
-                                        walletWithDetails.wallet.walletPk))
-                                  TextSpan(
-                                    text: "  " + "free-money".tr(),
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: getColor(context, "incomeAmount"),
-                                      fontFamily: appStateSettings["font"],
-                                      fontFamilyFallback: ['Inter'],
-                                    ),
-                                  ),
                                 if (percent != null)
                                   TextSpan(
                                     text: "  " +
@@ -358,18 +377,16 @@ class AmountAccount extends StatelessWidget {
     double? roundedWalletWithTotal = (double.tryParse(
         absoluteZero(walletWithDetails.totalSpent ?? 0)
             .toStringAsFixed(walletWithDetails.wallet.decimals)));
-    Color textColor =
-        amountTotalsColorful()
-            ? roundedWalletWithTotal == 0
-                ? getColor(context, "black")
-                : (walletWithDetails.totalSpent ?? 0) > 0
-                    ? getColor(context, "incomeAmount")
-                    : getColor(context, "expenseAmount")
-            : getColor(context, "black");
-    double finalTotal =
-        amountTotalsColorful()
-            ? (walletWithDetails.totalSpent ?? 0).abs()
-            : (absoluteZero(walletWithDetails.totalSpent ?? 0));
+    Color textColor = amountTotalsColorful()
+        ? roundedWalletWithTotal == 0
+            ? getColor(context, "black")
+            : (walletWithDetails.totalSpent ?? 0) > 0
+                ? getColor(context, "incomeAmount")
+                : getColor(context, "expenseAmount")
+        : getColor(context, "black");
+    double finalTotal = amountTotalsColorful()
+        ? (walletWithDetails.totalSpent ?? 0).abs()
+        : (absoluteZero(walletWithDetails.totalSpent ?? 0));
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

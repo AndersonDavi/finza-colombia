@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:budget/database/binary_string_conversion.dart';
 import 'package:budget/database/tables.dart';
 import 'package:budget/database/walletGroups.dart';
+import 'package:budget/database/tags.dart';
 import 'package:budget/functions.dart';
 import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/settings.dart';
@@ -473,6 +474,31 @@ Future<bool> _syncData(BuildContext context) async {
           updateLogType: UpdateLogType.WalletGroup,
           pk: newEntry.walletGroupPk,
           itemToUpdate: newEntry,
+          transactionDateTime: newEntry.dateTimeModified,
+        ));
+      }
+
+      for (Tag newEntry in await databaseSync.getAllNewTags(lastSynced)) {
+        syncLogs.add(SyncLog(
+          deleteLogType: null,
+          updateLogType: UpdateLogType.Tag,
+          pk: newEntry.tagPk,
+          itemToUpdate: newEntry,
+          transactionDateTime: newEntry.dateTimeModified,
+        ));
+      }
+
+      List<Transaction> transactionsWithTags =
+          await databaseSync.getAllNewTransactions(lastSynced);
+      Map<String, List<TransactionToTagLink>> tagLinks =
+          await databaseSync.getTagLinksOfTransactions(
+              [for (Transaction t in transactionsWithTags) t.transactionPk]);
+      for (Transaction newEntry in transactionsWithTags) {
+        syncLogs.add(SyncLog(
+          deleteLogType: null,
+          updateLogType: UpdateLogType.TagLinks,
+          pk: newEntry.transactionPk,
+          itemToUpdate: tagLinks[newEntry.transactionPk] ?? [],
           transactionDateTime: newEntry.dateTimeModified,
         ));
       }

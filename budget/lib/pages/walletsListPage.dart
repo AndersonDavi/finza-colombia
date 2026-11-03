@@ -82,6 +82,7 @@ class WalletsListPageState extends State<WalletsListPage> {
                         // Same as the home list: tap selects, tap again opens
                         GroupedWalletRows(
                           showOrganizer: true,
+                          showHidden: true,
                           wallets: wallets,
                           rowBuilder: (wallet) => WalletEntryRow(
                             walletWithDetails: wallet,

@@ -2429,6 +2429,14 @@ class $TransactionsTable extends Transactions
               type: DriftSqlType.string, requiredDuringInsert: false)
           .withConverter<List<String>?>(
               $TransactionsTable.$converterbudgetFksExcluden);
+  static const VerificationMeta _pinnedMeta = const VerificationMeta('pinned');
+  @override
+  late final GeneratedColumn<bool> pinned = GeneratedColumn<bool>(
+      'pinned', aliasedName, true,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("pinned" IN (0, 1))'));
   @override
   List<GeneratedColumn> get $columns => [
         transactionPk,
@@ -2461,7 +2469,8 @@ class $TransactionsTable extends Transactions
         sharedReferenceBudgetPk,
         objectiveFk,
         objectiveLoanFk,
-        budgetFksExclude
+        budgetFksExclude,
+        pinned
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2623,6 +2632,10 @@ class $TransactionsTable extends Transactions
           objectiveLoanFk.isAcceptableOrUnknown(
               data['objective_loan_fk']!, _objectiveLoanFkMeta));
     }
+    if (data.containsKey('pinned')) {
+      context.handle(_pinnedMeta,
+          pinned.isAcceptableOrUnknown(data['pinned']!, _pinnedMeta));
+    }
     return context;
   }
 
@@ -2704,6 +2717,8 @@ class $TransactionsTable extends Transactions
       budgetFksExclude: $TransactionsTable.$converterbudgetFksExcluden.fromSql(
           attachedDatabase.typeMapping.read(DriftSqlType.string,
               data['${effectivePrefix}budget_fks_exclude'])),
+      pinned: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}pinned']),
     );
   }
 
@@ -2769,6 +2784,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
   final String? objectiveFk;
   final String? objectiveLoanFk;
   final List<String>? budgetFksExclude;
+  final bool? pinned;
   const Transaction(
       {required this.transactionPk,
       this.pairedTransactionFk,
@@ -2800,7 +2816,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       this.sharedReferenceBudgetPk,
       this.objectiveFk,
       this.objectiveLoanFk,
-      this.budgetFksExclude});
+      this.budgetFksExclude,
+      this.pinned});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -2887,6 +2904,9 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           .$converterbudgetFksExcluden
           .toSql(budgetFksExclude));
     }
+    if (!nullToAbsent || pinned != null) {
+      map['pinned'] = Variable<bool>(pinned);
+    }
     return map;
   }
 
@@ -2966,6 +2986,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       budgetFksExclude: budgetFksExclude == null && nullToAbsent
           ? const Value.absent()
           : Value(budgetFksExclude),
+      pinned:
+          pinned == null && nullToAbsent ? const Value.absent() : Value(pinned),
     );
   }
 
@@ -3017,6 +3039,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       objectiveLoanFk: serializer.fromJson<String?>(json['objectiveLoanFk']),
       budgetFksExclude:
           serializer.fromJson<List<String>?>(json['budgetFksExclude']),
+      pinned: serializer.fromJson<bool?>(json['pinned']),
     );
   }
   @override
@@ -3063,6 +3086,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       'objectiveFk': serializer.toJson<String?>(objectiveFk),
       'objectiveLoanFk': serializer.toJson<String?>(objectiveLoanFk),
       'budgetFksExclude': serializer.toJson<List<String>?>(budgetFksExclude),
+      'pinned': serializer.toJson<bool?>(pinned),
     };
   }
 
@@ -3097,7 +3121,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           Value<String?> sharedReferenceBudgetPk = const Value.absent(),
           Value<String?> objectiveFk = const Value.absent(),
           Value<String?> objectiveLoanFk = const Value.absent(),
-          Value<List<String>?> budgetFksExclude = const Value.absent()}) =>
+          Value<List<String>?> budgetFksExclude = const Value.absent(),
+          Value<bool?> pinned = const Value.absent()}) =>
       Transaction(
         transactionPk: transactionPk ?? this.transactionPk,
         pairedTransactionFk: pairedTransactionFk.present
@@ -3157,6 +3182,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
         budgetFksExclude: budgetFksExclude.present
             ? budgetFksExclude.value
             : this.budgetFksExclude,
+        pinned: pinned.present ? pinned.value : this.pinned,
       );
   Transaction copyWithCompanion(TransactionsCompanion data) {
     return Transaction(
@@ -3231,6 +3257,7 @@ class Transaction extends DataClass implements Insertable<Transaction> {
       budgetFksExclude: data.budgetFksExclude.present
           ? data.budgetFksExclude.value
           : this.budgetFksExclude,
+      pinned: data.pinned.present ? data.pinned.value : this.pinned,
     );
   }
 
@@ -3270,7 +3297,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           ..write('sharedReferenceBudgetPk: $sharedReferenceBudgetPk, ')
           ..write('objectiveFk: $objectiveFk, ')
           ..write('objectiveLoanFk: $objectiveLoanFk, ')
-          ..write('budgetFksExclude: $budgetFksExclude')
+          ..write('budgetFksExclude: $budgetFksExclude, ')
+          ..write('pinned: $pinned')
           ..write(')'))
         .toString();
   }
@@ -3307,7 +3335,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
         sharedReferenceBudgetPk,
         objectiveFk,
         objectiveLoanFk,
-        budgetFksExclude
+        budgetFksExclude,
+        pinned
       ]);
   @override
   bool operator ==(Object other) =>
@@ -3346,7 +3375,8 @@ class Transaction extends DataClass implements Insertable<Transaction> {
           other.sharedReferenceBudgetPk == this.sharedReferenceBudgetPk &&
           other.objectiveFk == this.objectiveFk &&
           other.objectiveLoanFk == this.objectiveLoanFk &&
-          other.budgetFksExclude == this.budgetFksExclude);
+          other.budgetFksExclude == this.budgetFksExclude &&
+          other.pinned == this.pinned);
 }
 
 class TransactionsCompanion extends UpdateCompanion<Transaction> {
@@ -3381,6 +3411,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
   final Value<String?> objectiveFk;
   final Value<String?> objectiveLoanFk;
   final Value<List<String>?> budgetFksExclude;
+  final Value<bool?> pinned;
   final Value<int> rowid;
   const TransactionsCompanion({
     this.transactionPk = const Value.absent(),
@@ -3414,6 +3445,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.objectiveFk = const Value.absent(),
     this.objectiveLoanFk = const Value.absent(),
     this.budgetFksExclude = const Value.absent(),
+    this.pinned = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TransactionsCompanion.insert({
@@ -3448,6 +3480,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     this.objectiveFk = const Value.absent(),
     this.objectiveLoanFk = const Value.absent(),
     this.budgetFksExclude = const Value.absent(),
+    this.pinned = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : name = Value(name),
         amount = Value(amount),
@@ -3485,6 +3518,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
     Expression<String>? objectiveFk,
     Expression<String>? objectiveLoanFk,
     Expression<String>? budgetFksExclude,
+    Expression<bool>? pinned,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -3525,6 +3559,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       if (objectiveFk != null) 'objective_fk': objectiveFk,
       if (objectiveLoanFk != null) 'objective_loan_fk': objectiveLoanFk,
       if (budgetFksExclude != null) 'budget_fks_exclude': budgetFksExclude,
+      if (pinned != null) 'pinned': pinned,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -3561,6 +3596,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       Value<String?>? objectiveFk,
       Value<String?>? objectiveLoanFk,
       Value<List<String>?>? budgetFksExclude,
+      Value<bool?>? pinned,
       Value<int>? rowid}) {
     return TransactionsCompanion(
       transactionPk: transactionPk ?? this.transactionPk,
@@ -3599,6 +3635,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
       objectiveFk: objectiveFk ?? this.objectiveFk,
       objectiveLoanFk: objectiveLoanFk ?? this.objectiveLoanFk,
       budgetFksExclude: budgetFksExclude ?? this.budgetFksExclude,
+      pinned: pinned ?? this.pinned,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -3711,6 +3748,9 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
           .$converterbudgetFksExcluden
           .toSql(budgetFksExclude.value));
     }
+    if (pinned.present) {
+      map['pinned'] = Variable<bool>(pinned.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -3754,6 +3794,7 @@ class TransactionsCompanion extends UpdateCompanion<Transaction> {
           ..write('objectiveFk: $objectiveFk, ')
           ..write('objectiveLoanFk: $objectiveLoanFk, ')
           ..write('budgetFksExclude: $budgetFksExclude, ')
+          ..write('pinned: $pinned, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -10204,6 +10245,7 @@ typedef $$TransactionsTableCreateCompanionBuilder = TransactionsCompanion
   Value<String?> objectiveFk,
   Value<String?> objectiveLoanFk,
   Value<List<String>?> budgetFksExclude,
+  Value<bool?> pinned,
   Value<int> rowid,
 });
 typedef $$TransactionsTableUpdateCompanionBuilder = TransactionsCompanion
@@ -10239,6 +10281,7 @@ typedef $$TransactionsTableUpdateCompanionBuilder = TransactionsCompanion
   Value<String?> objectiveFk,
   Value<String?> objectiveLoanFk,
   Value<List<String>?> budgetFksExclude,
+  Value<bool?> pinned,
   Value<int> rowid,
 });
 
@@ -10458,6 +10501,9 @@ class $$TransactionsTableFilterComposer
       get budgetFksExclude => $composableBuilder(
           column: $table.budgetFksExclude,
           builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<bool> get pinned => $composableBuilder(
+      column: $table.pinned, builder: (column) => ColumnFilters(column));
 
   $$TransactionsTableFilterComposer get pairedTransactionFk {
     final $$TransactionsTableFilterComposer composer = $composerBuilder(
@@ -10704,6 +10750,9 @@ class $$TransactionsTableOrderingComposer
       column: $table.budgetFksExclude,
       builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<bool> get pinned => $composableBuilder(
+      column: $table.pinned, builder: (column) => ColumnOrderings(column));
+
   $$TransactionsTableOrderingComposer get pairedTransactionFk {
     final $$TransactionsTableOrderingComposer composer = $composerBuilder(
         composer: this,
@@ -10919,6 +10968,9 @@ class $$TransactionsTableAnnotationComposer
       get budgetFksExclude => $composableBuilder(
           column: $table.budgetFksExclude, builder: (column) => column);
 
+  GeneratedColumn<bool> get pinned =>
+      $composableBuilder(column: $table.pinned, builder: (column) => column);
+
   $$TransactionsTableAnnotationComposer get pairedTransactionFk {
     final $$TransactionsTableAnnotationComposer composer = $composerBuilder(
         composer: this,
@@ -11125,6 +11177,7 @@ class $$TransactionsTableTableManager extends RootTableManager<
             Value<String?> objectiveFk = const Value.absent(),
             Value<String?> objectiveLoanFk = const Value.absent(),
             Value<List<String>?> budgetFksExclude = const Value.absent(),
+            Value<bool?> pinned = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TransactionsCompanion(
@@ -11159,6 +11212,7 @@ class $$TransactionsTableTableManager extends RootTableManager<
             objectiveFk: objectiveFk,
             objectiveLoanFk: objectiveLoanFk,
             budgetFksExclude: budgetFksExclude,
+            pinned: pinned,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -11193,6 +11247,7 @@ class $$TransactionsTableTableManager extends RootTableManager<
             Value<String?> objectiveFk = const Value.absent(),
             Value<String?> objectiveLoanFk = const Value.absent(),
             Value<List<String>?> budgetFksExclude = const Value.absent(),
+            Value<bool?> pinned = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TransactionsCompanion.insert(
@@ -11227,6 +11282,7 @@ class $$TransactionsTableTableManager extends RootTableManager<
             objectiveFk: objectiveFk,
             objectiveLoanFk: objectiveLoanFk,
             budgetFksExclude: budgetFksExclude,
+            pinned: pinned,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

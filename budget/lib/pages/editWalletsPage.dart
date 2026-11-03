@@ -252,6 +252,28 @@ class _EditWalletsPageState extends State<EditWalletsPage> {
                               Provider.of<AllWallets>(context, listen: false),
                         );
                       },
+                      // Hidden accounts leave the home page and the
+                      // pickers, they still count in the totals
+                      extraWidget: Tappable(
+                        color: Colors.transparent,
+                        borderRadius: 15,
+                        onTap: () => database.createOrUpdateWallet(
+                            wallet.copyWith(archived: !wallet.archived)),
+                        child: Container(
+                          height: double.infinity,
+                          width: 40,
+                          child: Icon(
+                            wallet.archived
+                                ? appStateSettings["outlinedIcons"]
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_off_rounded
+                                : appStateSettings["outlinedIcons"]
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_rounded,
+                          ),
+                        ),
+                      ),
+                      opacity: wallet.archived ? 0.5 : 1,
                       canDelete: (wallet.walletPk != "0" ||
                           Provider.of<AllWallets>(context, listen: true)
                                   .indexedByPk
@@ -268,7 +290,8 @@ class _EditWalletsPageState extends State<EditWalletsPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           TextFont(
-                            text: wallet.name,
+                            text: getWalletStringName(
+                                Provider.of<AllWallets>(context), wallet),
                             fontWeight: FontWeight.bold,
                             fontSize: 21,
                           ),

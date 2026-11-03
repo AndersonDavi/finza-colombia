@@ -35,6 +35,7 @@ import 'package:budget/colors.dart';
 import 'package:budget/pages/balancePages.dart';
 import 'package:budget/widgets/walletGroups.dart';
 import 'package:budget/widgets/pocketGoals.dart';
+import 'package:budget/widgets/pocketIcons.dart';
 import 'package:provider/provider.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 
@@ -72,6 +73,7 @@ class _AddWalletPageState extends State<AddWalletPage> {
       getDevicesDefaultCurrencyCode(); //if no currency selected use empty string
   int selectedDecimals = 2;
   late double? selectedGoalAmount = widget.wallet?.goalAmount;
+  late String? selectedEmojiIconName = widget.wallet?.emojiIconName;
   late DateTime? selectedGoalDate = widget.wallet?.goalDate;
   late String? selectedWalletGroupFk =
       widget.wallet?.walletGroupFk ?? widget.initialWalletGroupFk;
@@ -126,7 +128,7 @@ class _AddWalletPageState extends State<AddWalletPage> {
     int numberOfWallets = (await database.getTotalCountOfWallets())[0] ?? 0;
     return TransactionWallet(
       archived: widget.wallet?.archived ?? false,
-      emojiIconName: widget.wallet?.emojiIconName,
+      emojiIconName: selectedEmojiIconName,
       walletGroupFk: selectedWalletGroupFk,
       goalAmount: selectedGoalAmount,
       goalDate: selectedGoalDate,
@@ -570,6 +572,23 @@ class _AddWalletPageState extends State<AddWalletPage> {
                 selectedWalletGroupFk: selectedWalletGroupFk,
                 onSelected: (walletGroupPk) {
                   setState(() => selectedWalletGroupFk = walletGroupPk);
+                  determineBottomButton();
+                },
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsetsDirectional.only(
+                start: 24,
+                end: 24,
+                bottom: 10,
+              ),
+              child: PocketIconSetting(
+                emojiIconName: selectedEmojiIconName,
+                colour: selectedColor ?? Theme.of(context).colorScheme.primary,
+                onChanged: (value) {
+                  setState(() => selectedEmojiIconName = value);
                   determineBottomButton();
                 },
               ),
