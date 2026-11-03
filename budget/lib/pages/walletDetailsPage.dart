@@ -50,6 +50,8 @@ import 'package:budget/colors.dart';
 import 'package:budget/pages/balancePages.dart';
 import 'package:budget/widgets/viewAllTransactionsButton.dart';
 import 'package:flutter_sticky_header/flutter_sticky_header.dart';
+import 'package:budget/pages/monthlySummaryExportPage.dart';
+import 'package:budget/widgets/spendingPatterns.dart';
 import 'package:provider/provider.dart';
 import 'package:budget/widgets/fab.dart';
 import 'package:budget/widgets/fadeIn.dart';
@@ -189,6 +191,11 @@ class WalletDetailsPageState extends State<WalletDetailsPage>
       context,
       PopupFramework(
         title: "select-period".tr(),
+        // The left side (totals and pie) and the history share this setting,
+        // the subtitle says which one is being changed
+        subtitle: onlyShowCycleOption
+            ? "history-period-description".tr()
+            : "summary-period-description".tr(),
         child: WalletPickerPeriodCycle(
           allWalletsSettingKey: null,
           cycleSettingsExtension: "",
@@ -282,7 +289,18 @@ class WalletDetailsPageState extends State<WalletDetailsPage>
     //   }
     // }
 
+    Widget monthlySummaryButton = IconButton(
+      tooltip: "monthly-summary".tr(),
+      onPressed: () => pushRoute(context, MonthlySummaryExportPage()),
+      icon: Icon(appStateSettings["outlinedIcons"]
+          ? Icons.image_outlined
+          : Icons.image_rounded),
+    );
+
     List<Widget> historyTabPage = [
+      // Projection and patterns first, they are what the history is for
+      if (widget.wallet == null)
+        SliverToBoxAdapter(child: SpendingPatterns()),
       AllSpendingPastSpendingGraph(
         appStateSettingsNetAllSpendingTotal:
             appStateSettingsNetAllSpendingTotal,
@@ -304,7 +322,9 @@ class WalletDetailsPageState extends State<WalletDetailsPage>
           });
         },
         selectedDateTimeRange: selectedDateTimeRange,
-      )
+      ),
+      // Room so the add button does not cover the end of the list
+      if (widget.wallet == null) SliverToBoxAdapter(child: SizedBox(height: 90)),
     ];
 
     Widget selectedTabCurrent = SelectedPeriodHeaderLabel(
@@ -1252,6 +1272,7 @@ class WalletDetailsPageState extends State<WalletDetailsPage>
         capitalizeTitle: widget.wallet == null,
         actions: enableDoubleColumn(context) && widget.wallet == null
             ? [
+                monthlySummaryButton,
                 historySettingsButtonAlwaysShow,
                 selectFiltersButton,
                 SizedBox(width: 20),
@@ -1306,6 +1327,7 @@ class WalletDetailsPageState extends State<WalletDetailsPage>
                       ),
                     ],
                   ),
+                if (widget.wallet == null) monthlySummaryButton,
                 if (widget.wallet == null)
                   AppBarIconAppear(
                     scrollController: _scrollController,

@@ -11,6 +11,8 @@ import 'package:budget/widgets/openBottomSheet.dart';
 import 'package:budget/widgets/openPopup.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:budget/struct/currencyFunctions.dart';
+import 'package:budget/widgets/walletEntry.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:provider/provider.dart';
 import 'package:budget/pages/addWalletPage.dart';
@@ -155,6 +157,9 @@ Future updateWidgetColorsAndText(BuildContext context) async {
     await HomeWidget.updateWidget(
       name: 'TransferWidgetProvider',
     );
+    await HomeWidget.updateWidget(
+      name: 'PocketsWidgetProvider',
+    );
   });
 
   return;
@@ -175,6 +180,12 @@ class RenderHomePageWidgetsState extends State<RenderHomePageWidgets> {
 
   @override
   Widget build(BuildContext context) {
+    return Column(
+      children: [netWorthWidget(context), PocketsWidgetData()],
+    );
+  }
+
+  Widget netWorthWidget(BuildContext context) {
     return StreamBuilder<List<TransactionWallet>>(
       stream: database.getAllPinnedWallets(HomePageWidgetDisplay.NetWorth).$1,
       builder: (context, snapshot) {
@@ -224,6 +235,53 @@ class RenderHomePageWidgetsState extends State<RenderHomePageWidgets> {
             },
           ),
         );
+      },
+    );
+  }
+}
+
+// Pockets widget: free money of all the groups and the pockets chosen in the
+// widget settings (the free pockets when none is chosen)
+class PocketsWidgetData extends StatelessWidget {
+  const PocketsWidgetData({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<WalletWithDetails>>(
+      stream: database.watchAllWalletsWithDetails(),
+      builder: (context, snapshot) {
+        if (snapshot.data == null) return SizedBox.shrink();
+        AllWallets allWallets = Provider.of<AllWallets>(context, listen: false);
+        double inPrimary(WalletWithDetails w) =>
+            (w.totalSpent ?? 0) *
+            amountRatioToPrimaryCurrencyGivenPk(allWallets, w.wallet.walletPk);
+        double freeTotal = snapshot.data!
+            .where((w) => freeWalletPksCache.contains(w.wallet.walletPk))
+            .fold(0.0, (sum, w) => sum + inPrimary(w));
+        List<String> chosen =
+            List<String>.from(appStateSettings["widgetPocketPks"] ?? []);
+        List<WalletWithDetails> shown = snapshot.data!
+            .where((w) => chosen.isEmpty
+                ? freeWalletPksCache.contains(w.wallet.walletPk)
+                : chosen.contains(w.wallet.walletPk))
+            .take(6)
+            .toList();
+        String lines = [
+          for (WalletWithDetails w in shown)
+            getWalletStringName(allWallets, w.wallet) +
+                "  " +
+                convertToMoney(allWallets, w.totalSpent ?? 0,
+                    currencyKey: w.wallet.currency)
+        ].join("\n");
+        Future.delayed(Duration.zero, () async {
+          await HomeWidget.saveWidgetData<String>(
+              'pocketsTitle', "free-money".tr());
+          await HomeWidget.saveWidgetData<String>(
+              'pocketsAmount', convertToMoney(allWallets, freeTotal));
+          await HomeWidget.saveWidgetData<String>('pocketsLines', lines);
+          await HomeWidget.updateWidget(name: 'PocketsWidgetProvider');
+        });
+        return SizedBox.shrink();
       },
     );
   }

@@ -90,17 +90,21 @@ class WalletEntry extends StatelessWidget {
                             textAlign: TextAlign.start,
                             fontSize: 17,
                           ),
-                          TextFont(
-                            textAlign: TextAlign.start,
-                            text: walletWithDetails.numberTransactions
-                                    .toString() +
-                                " " +
-                                (walletWithDetails.numberTransactions == 1
-                                    ? "transaction".tr().toLowerCase()
-                                    : "transactions".tr().toLowerCase()),
-                            fontSize: 14,
-                            textColor:
-                                getColor(context, "black").withOpacity(0.65),
+                          PocketScheduledLine(
+                            wallet: walletWithDetails.wallet,
+                            balance: walletWithDetails.totalSpent ?? 0,
+                            otherwise: TextFont(
+                              textAlign: TextAlign.start,
+                              text: walletWithDetails.numberTransactions
+                                      .toString() +
+                                  " " +
+                                  (walletWithDetails.numberTransactions == 1
+                                      ? "transaction".tr().toLowerCase()
+                                      : "transactions".tr().toLowerCase()),
+                              fontSize: 14,
+                              textColor:
+                                  getColor(context, "black").withOpacity(0.65),
+                            ),
                           ),
                           PocketGoalBar(
                             wallet: walletWithDetails.wallet,

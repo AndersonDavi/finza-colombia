@@ -251,6 +251,10 @@ class TransactionsListPageState extends State<TransactionsListPage>
                                         contextPageView),
                               ),
                               // Filtered lists show only what matches
+                              SliverToBoxAdapter(
+                                child:
+                                    ReviewTransactionsSection(listID: pageId),
+                              ),
                               if (searchFilters.isClear(
                                   ignoreDateTimeRange: true))
                                 SliverToBoxAdapter(

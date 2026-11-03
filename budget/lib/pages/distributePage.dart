@@ -8,6 +8,7 @@ import 'package:budget/pages/settingsPage.dart';
 import 'package:budget/struct/currencyFunctions.dart';
 import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/settings.dart';
+import 'package:budget/struct/syncClient.dart';
 import 'package:budget/widgets/centeredPageContent.dart';
 import 'package:budget/widgets/framework/pageFramework.dart';
 import 'package:budget/widgets/framework/popupFramework.dart';
@@ -55,9 +56,55 @@ List<Map<String, dynamic>> getDistributionTemplates() =>
         (appStateSettings["distributionTemplates"] ?? [])
             .map((t) => Map<String, dynamic>.from(t)));
 
+// A new income in the source account of a template (the quincena landing in
+// the Libre, say) offers to split it with that template from a snackbar.
+// Only from the template's "suggestFrom" amount up, so small incomes stay
+// quiet. Transfers between accounts never count as income here.
+void suggestDistributionAfterIncome(Transaction transaction) {
+  if (transaction.income != true ||
+      transaction.amount <= 0 ||
+      transaction.type != null ||
+      transaction.pairedTransactionFk != null ||
+      transaction.categoryFk == "0") return;
+  double suggestFrom(Map<String, dynamic> t) =>
+      (t["suggestFrom"] as num?)?.toDouble() ?? 0;
+  // The template with the highest minimum the income reaches
+  List<Map<String, dynamic>> matching = getDistributionTemplates()
+      .where((t) =>
+          t["source"] == transaction.walletFk &&
+          suggestFrom(t) > 0 &&
+          transaction.amount >= suggestFrom(t))
+      .toList()
+    ..sort((a, b) => suggestFrom(b).compareTo(suggestFrom(a)));
+  Map<String, dynamic>? template = matching.firstOrNull;
+  if (template == null) return;
+  openSnackbar(SnackbarMessage(
+    title: "distribute-income".tr(),
+    description: "tap-to-use-template".tr(namedArgs: {"name": template["name"] ?? ""}),
+    icon: appStateSettings["outlinedIcons"]
+        ? Icons.call_split_outlined
+        : Icons.call_split_rounded,
+    timeout: Duration(seconds: 8),
+    onTap: () => pushRoute(
+      null,
+      DistributePage(
+        sourceWalletPk: transaction.walletFk,
+        initialTotal: transaction.amount,
+        initialTemplateId: template["id"],
+      ),
+    ),
+  ));
+}
+
 class DistributePage extends StatefulWidget {
-  const DistributePage({this.sourceWalletPk, super.key});
+  const DistributePage(
+      {this.sourceWalletPk,
+      this.initialTotal,
+      this.initialTemplateId,
+      super.key});
   final String? sourceWalletPk;
+  final double? initialTotal;
+  final String? initialTemplateId;
 
   @override
   State<DistributePage> createState() => _DistributePageState();
@@ -66,10 +113,19 @@ class DistributePage extends StatefulWidget {
 class _DistributePageState extends State<DistributePage> {
   late String? sourceWalletPk =
       widget.sourceWalletPk ?? appStateSettings["selectedWalletPk"];
-  double total = 0;
+  late double total = widget.initialTotal ?? 0;
   List<DistributionLine> lines = [];
   String? templateId;
   String? templateName;
+
+  @override
+  void initState() {
+    super.initState();
+    Map<String, dynamic>? template = getDistributionTemplates()
+        .where((t) => t["id"] == widget.initialTemplateId)
+        .firstOrNull;
+    if (template != null) applyTemplate(template);
+  }
 
   double lineAmount(DistributionLine line) {
     if (line.mode == DistributionMode.amount) return line.value;
@@ -84,15 +140,17 @@ class _DistributePageState extends State<DistributePage> {
   double get remaining => total - assigned;
 
   void loadTemplate(Map<String, dynamic> template) {
-    setState(() {
-      templateId = template["id"];
-      templateName = template["name"];
-      if (template["source"] != null) sourceWalletPk = template["source"];
-      lines = [
-        for (var line in (template["lines"] ?? []))
-          DistributionLine.fromJson(Map<String, dynamic>.from(line))
-      ];
-    });
+    setState(() => applyTemplate(template));
+  }
+
+  void applyTemplate(Map<String, dynamic> template) {
+    templateId = template["id"];
+    templateName = template["name"];
+    if (template["source"] != null) sourceWalletPk = template["source"];
+    lines = [
+      for (var line in (template["lines"] ?? []))
+        DistributionLine.fromJson(Map<String, dynamic>.from(line))
+    ];
   }
 
   void newTemplate() {
@@ -125,11 +183,17 @@ class _DistributePageState extends State<DistributePage> {
     );
     if (!submitted || name == null || name!.trim() == "") return;
     List<Map<String, dynamic>> templates = getDistributionTemplates();
+    Map<String, dynamic>? existing =
+        templates.where((t) => t["id"] == templateId).firstOrNull;
     Map<String, dynamic> template = {
       "id": templateId ?? uuid.v4(),
       "name": name!.trim(),
       "source": sourceWalletPk,
       "lines": [for (var line in lines) line.toJson()],
+      // New templates suggest themselves from half of the amount split now
+      "suggestFrom": existing == null
+          ? (total > 0 ? (total / 2).roundToDouble() : null)
+          : existing["suggestFrom"],
     };
     int index = templates.indexWhere((t) => t["id"] == template["id"]);
     if (index >= 0)
@@ -138,6 +202,7 @@ class _DistributePageState extends State<DistributePage> {
       templates.add(template);
     await updateSettings("distributionTemplates", templates,
         updateGlobalState: false);
+    await markSyncedSettingChanged("distributionTemplates");
     setState(() {
       templateId = template["id"];
       templateName = template["name"];
@@ -147,7 +212,7 @@ class _DistributePageState extends State<DistributePage> {
   Future<void> deleteTemplate(Map<String, dynamic> template) async {
     dynamic confirmed = await openPopup(
       context,
-      title: "delete-template".tr() + "?",
+      title: asQuestion("delete-template".tr()),
       description: template["name"],
       icon: appStateSettings["outlinedIcons"]
           ? Icons.delete_outlined
@@ -162,7 +227,27 @@ class _DistributePageState extends State<DistributePage> {
       ..removeWhere((t) => t["id"] == template["id"]);
     await updateSettings("distributionTemplates", templates,
         updateGlobalState: false);
+    await markSyncedSettingChanged("distributionTemplates");
     if (templateId == template["id"]) newTemplate();
+    setState(() {});
+  }
+
+  Future<void> setSuggestFrom(Map<String, dynamic> template) async {
+    double? amount = await enterNumber(
+      title: "suggest-from-title".tr(),
+      initial: (template["suggestFrom"] as num?)?.toDouble(),
+      currency: Provider.of<AllWallets>(context, listen: false)
+          .indexedByPk[template["source"]]
+          ?.currency,
+    );
+    if (amount == null) return;
+    List<Map<String, dynamic>> templates = getDistributionTemplates();
+    int index = templates.indexWhere((t) => t["id"] == template["id"]);
+    if (index < 0) return;
+    templates[index]["suggestFrom"] = amount <= 0 ? null : amount;
+    await updateSettings("distributionTemplates", templates,
+        updateGlobalState: false);
+    await markSyncedSettingChanged("distributionTemplates");
     setState(() {});
   }
 
@@ -228,7 +313,9 @@ class _DistributePageState extends State<DistributePage> {
     openSnackbar(
       SnackbarMessage(
         title: "distributed".tr(),
-        description: count.toString() + " " + "pockets".tr(),
+        description: count.toString() +
+            " " +
+            (count == 1 ? "pocket".tr() : "pockets".tr()).toLowerCase(),
         icon: appStateSettings["outlinedIcons"]
             ? Icons.call_split_outlined
             : Icons.call_split_rounded,
@@ -304,6 +391,32 @@ class _DistributePageState extends State<DistributePage> {
                         ),
                       ],
                     ),
+                    // When the selected template pops up after an income
+                    for (var template
+                        in templates.where((t) => t["id"] == templateId))
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(top: 8),
+                        child: Align(
+                          alignment: AlignmentDirectional.centerStart,
+                          child: DistributeChip(
+                            label: (template["suggestFrom"] as num?) == null
+                                ? "never-suggest".tr()
+                                : "suggest-from".tr() +
+                                    " " +
+                                    money(
+                                        (template["suggestFrom"] as num)
+                                            .toDouble(),
+                                        currency: allWallets
+                                            .indexedByPk[template["source"]]
+                                            ?.currency),
+                            selected: false,
+                            icon: appStateSettings["outlinedIcons"]
+                                ? Icons.notifications_outlined
+                                : Icons.notifications_rounded,
+                            onTap: () => setSuggestFrom(template),
+                          ),
+                        ),
+                      ),
                     SizedBox(height: 16),
                     // From
                     DistributeCard(

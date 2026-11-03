@@ -1,3 +1,7 @@
+import 'package:budget/struct/databaseGlobal.dart';
+import 'package:budget/widgets/globalSnackbar.dart';
+import 'package:budget/widgets/openSnackbar.dart';
+import 'dart:convert';
 import 'package:budget/colors.dart';
 import 'package:budget/database/tables.dart' hide AppSettings;
 import 'package:budget/pages/aboutPage.dart';
@@ -53,6 +57,7 @@ import 'package:budget/widgets/textWidgets.dart';
 import 'package:budget/widgets/util/checkWidgetLaunch.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:budget/widgets/selectItems.dart';
 import 'package:budget/main.dart';
 import 'package:flutter/services.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
@@ -603,6 +608,16 @@ class ThemeStyleSettingsPage extends StatelessWidget {
         SettingsHeader(title: "text".tr()),
         FontPickerSetting(),
         FontScaleSetting(),
+        SettingsContainerSwitch(
+          title: "left-handed-mode".tr(),
+          description: "left-handed-mode-description".tr(),
+          icon: appStateSettings["outlinedIcons"]
+              ? Icons.back_hand_outlined
+              : Icons.back_hand_rounded,
+          initialValue: appStateSettings["leftHandedMode"] == true,
+          onSwitched: (value) => updateSettings("leftHandedMode", value,
+              updateGlobalState: true),
+        ),
         IncreaseTextContrastSetting(),
       ],
     );
@@ -692,6 +707,7 @@ class LocalizationSettingsPage extends StatelessWidget {
       children: [
         SettingsHeader(title: "language".tr()),
         LanguageSetting(),
+        TranslateDefaultCategoriesSetting(),
         SettingsHeader(title: "currency".tr()),
         SettingsContainerOpenPage(
           openPage: ExchangeRates(),
@@ -810,6 +826,70 @@ class MaterialYouSetting extends StatelessWidget {
       icon: appStateSettings["outlinedIcons"]
           ? Icons.brush_outlined
           : Icons.brush_rounded,
+    );
+  }
+}
+
+// The example categories keep the name they got in the language the app had
+// when they were made ("Dining", "Groceries"...). This renames the ones that
+// still have that default name to the current language.
+class TranslateDefaultCategoriesSetting extends StatelessWidget {
+  const TranslateDefaultCategoriesSetting({super.key});
+
+  Future<void> translate(BuildContext context) async {
+    Map<String, dynamic> english = json.decode(
+        await rootBundle.loadString("assets/translations/generated/en.json"));
+    Map<String, String> byEnglishName = {
+      for (String key in english.keys)
+        if (key.startsWith("default-category-")) english[key]: key.tr()
+    };
+    List<TransactionCategory> toRename = [
+      for (TransactionCategory category
+          in await database.getAllCategories(includeSubCategories: true))
+        if (byEnglishName[category.name] != null &&
+            byEnglishName[category.name] != category.name)
+          category
+    ];
+    if (toRename.isEmpty) {
+      openSnackbar(SnackbarMessage(
+        title: "nothing-to-translate".tr(),
+        icon: appStateSettings["outlinedIcons"]
+            ? Icons.translate_outlined
+            : Icons.translate_rounded,
+      ));
+      return;
+    }
+    dynamic confirmed = await openPopup(
+      context,
+      title: "translate-categories-question".tr(),
+      description: [
+        for (TransactionCategory category in toRename)
+          category.name + " → " + byEnglishName[category.name]!
+      ].join("\n"),
+      icon: appStateSettings["outlinedIcons"]
+          ? Icons.translate_outlined
+          : Icons.translate_rounded,
+      onSubmit: () => popRoute(context, true),
+      onSubmitLabel: "rename".tr(),
+      onCancel: () => popRoute(context, false),
+      onCancelLabel: "cancel".tr(),
+    );
+    if (confirmed != true) return;
+    for (TransactionCategory category in toRename) {
+      await database.createOrUpdateCategory(
+          category.copyWith(name: byEnglishName[category.name]!));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingsContainer(
+      title: "translate-categories".tr(),
+      description: "translate-categories-description".tr(),
+      icon: appStateSettings["outlinedIcons"]
+          ? Icons.translate_outlined
+          : Icons.translate_rounded,
+      onTap: () => translate(context),
     );
   }
 }
@@ -960,6 +1040,34 @@ class WidgetSettings extends StatelessWidget {
           icon: appStateSettings["outlinedIcons"]
               ? Icons.area_chart_outlined
               : Icons.area_chart_rounded,
+        ),
+        SettingsContainer(
+          title: "pockets-widget".tr(),
+          description: "pockets-widget-description".tr(),
+          icon: appStateSettings["outlinedIcons"]
+              ? Icons.savings_outlined
+              : Icons.savings_rounded,
+          onTap: () async {
+            AllWallets allWallets =
+                Provider.of<AllWallets>(context, listen: false);
+            await openBottomSheet(
+              context,
+              PopupFramework(
+                title: "pockets-widget".tr(),
+                child: SelectItems(
+                  initialItems: List<String>.from(
+                      appStateSettings["widgetPocketPks"] ?? []),
+                  items: [for (TransactionWallet w in allWallets.list) w.walletPk],
+                  displayFilter: (pk) => getWalletStringName(
+                      allWallets, allWallets.indexedByPk[pk]),
+                  onChanged: (items) => updateSettings(
+                      "widgetPocketPks", items,
+                      updateGlobalState: false),
+                ),
+              ),
+            );
+            homePageStateKey.currentState?.refreshState();
+          },
         ),
         SettingsContainerDropdown(
           title: "widget-theme".tr(),

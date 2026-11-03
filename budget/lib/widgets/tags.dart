@@ -207,7 +207,7 @@ class _EditTagPopupState extends State<EditTagPopup> {
   Future<void> deleteTag() async {
     dynamic confirmed = await openPopup(
       context,
-      title: "delete-tag".tr() + "?",
+      title: asQuestion("delete-tag".tr()),
       description: "delete-tag-description".tr(),
       icon: appStateSettings["outlinedIcons"]
           ? Icons.delete_outlined
@@ -397,6 +397,39 @@ class TagsPage extends StatelessWidget {
         ),
         SliverToBoxAdapter(child: SizedBox(height: 90)),
       ],
+    );
+  }
+}
+
+// Picks tags to add to several transactions at once (multi select menu)
+class AddTagsPopup extends StatefulWidget {
+  const AddTagsPopup({super.key});
+
+  @override
+  State<AddTagsPopup> createState() => _AddTagsPopupState();
+}
+
+class _AddTagsPopupState extends State<AddTagsPopup> {
+  List<String> selectedTagPks = [];
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupFramework(
+      title: "add-tags".tr(),
+      child: Column(
+        children: [
+          SelectTags(
+            selectedTagPks: selectedTagPks,
+            onChanged: (tagPks) => setState(() => selectedTagPks = tagPks),
+          ),
+          SizedBox(height: 15),
+          Button(
+            label: "add-tags".tr(),
+            disabled: selectedTagPks.isEmpty,
+            onTap: () => popRoute(context, selectedTagPks),
+          ),
+        ],
+      ),
     );
   }
 }

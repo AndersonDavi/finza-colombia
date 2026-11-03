@@ -167,6 +167,24 @@ bool hasDecimalPoints(double? value) {
   return false;
 }
 
+// Questions built from a translated text; in Spanish they open with ¿
+String asQuestion(String text) {
+  bool spanish =
+      navigatorKey.currentContext?.locale.languageCode == "es";
+  return (spanish && !text.startsWith("¿") ? "¿" : "") +
+      text +
+      (text.endsWith("?") ? "" : "?");
+}
+
+// Privacy mode: the digits become dots, the sign and the symbol stay
+String maskAmount(String formatted) =>
+    formatted.replaceAll(RegExp(r"\d([\d.,\s]*\d)?"), "•••");
+
+Future<void> togglePrivacyMode() async {
+  await updateSettings("privacyMode", appStateSettings["privacyMode"] != true,
+      updateGlobalState: true, forceGlobalStateUpdate: true);
+}
+
 String convertToMoney(AllWallets allWallets, double amount,
     {String? currencyKey,
     double? finalNumber,
@@ -182,6 +200,7 @@ String convertToMoney(AllWallets allWallets, double amount,
     bool forceCompactNumberFormatter = false,
     bool forceDefaultNumberFormatter = false,
     bool forceAbsoluteZero = true,
+    bool ignorePrivacy = false,
     NumberFormat Function(int? decimalDigits, String? locale, String? symbol)?
         getCustomNumberFormat}) {
   int numberDecimals = decimals ??
@@ -273,6 +292,10 @@ String convertToMoney(AllWallets allWallets, double amount,
     );
   } else if (useCustomNumberFormat == false && currencyName != null) {
     formatOutput = formatOutput + currencyName;
+  }
+
+  if (ignorePrivacy == false && appStateSettings["privacyMode"] == true) {
+    formatOutput = maskAmount(formatOutput);
   }
 
   if (editFormattedOutput != null) {

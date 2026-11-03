@@ -155,13 +155,7 @@ class PocketIconPopup extends StatelessWidget {
       );
     }
 
-    return PopupFramework(
-      title: "icon".tr(),
-      child: Wrap(
-        spacing: 10,
-        runSpacing: 10,
-        alignment: WrapAlignment.center,
-        children: [
+    List<Widget> options = [
           option(
             "",
             Icon(
@@ -181,8 +175,21 @@ class PocketIconPopup extends StatelessWidget {
                     : getColor(context, "black"),
               ),
             ),
-        ],
-      ),
+    ];
+    // Even grid: the last row starts at the left like the others
+    return PopupFramework(
+      title: "icon".tr(),
+      child: LayoutBuilder(builder: (context, constraints) {
+        int columns = ((constraints.maxWidth + 10) / 56).floor().clamp(1, 99);
+        double cellWidth = constraints.maxWidth / columns;
+        return Wrap(
+          runSpacing: 10,
+          children: [
+            for (Widget child in options)
+              SizedBox(width: cellWidth, child: Center(child: child)),
+          ],
+        );
+      }),
     );
   }
 }

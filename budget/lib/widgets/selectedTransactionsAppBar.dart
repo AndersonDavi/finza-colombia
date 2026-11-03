@@ -27,6 +27,7 @@ import 'package:drift/drift.dart' hide Column;
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:budget/widgets/tags.dart';
 import 'package:provider/provider.dart';
 import 'package:budget/widgets/countNumber.dart';
 import 'package:budget/widgets/framework/popupFramework.dart';
@@ -370,6 +371,34 @@ class SelectedTransactionsAppBarMenu extends StatelessWidget {
                                 ? Icons.push_pin_rounded
                                 : Icons.push_pin_outlined,
                             title: pin ? "pinned".tr() : "unpin".tr(),
+                            description:
+                                selectedTransactionPks.length.toString() +
+                                    " " +
+                                    "transactions".tr().toLowerCase(),
+                          ),
+                        );
+                        globalSelectedID.value[pageID] = [];
+                        globalSelectedID.notifyListeners();
+                      },
+                    ),
+                    DropdownItemMenu(
+                      id: "add-tags",
+                      label: "add-tags".tr(),
+                      icon: appStateSettings["outlinedIcons"]
+                          ? Icons.sell_outlined
+                          : Icons.sell_rounded,
+                      action: () async {
+                        dynamic tagPks =
+                            await openBottomSheet(context, AddTagsPopup());
+                        if (tagPks is! List<String> || tagPks.isEmpty) return;
+                        await database.addTagsToTransactions(
+                            selectedTransactionPks, tagPks);
+                        openSnackbar(
+                          SnackbarMessage(
+                            icon: appStateSettings["outlinedIcons"]
+                                ? Icons.sell_outlined
+                                : Icons.sell_rounded,
+                            title: "tags".tr(),
                             description:
                                 selectedTransactionPks.length.toString() +
                                     " " +

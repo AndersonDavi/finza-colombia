@@ -18,6 +18,7 @@ import 'package:budget/widgets/transactionsAmountBox.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:budget/widgets/walletGroups.dart';
 import 'package:flutter/material.dart';
+import 'package:budget/pages/newLoanPage.dart';
 import 'package:provider/provider.dart';
 
 class HomePageNetWorth extends StatelessWidget {
@@ -119,6 +120,18 @@ class HomePageNetWorth extends StatelessWidget {
                     ),
                   ],
                 ),
+                  ),
+                  // Loans are not in the accounts, this says what is out
+                  Transform.translate(
+                    offset: Offset(0, -8),
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.only(
+                          start: 26, end: 26, bottom: 4),
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: LoansBalanceSummary(compact: true),
+                      ),
+                    ),
                   ),
                 ],
               );

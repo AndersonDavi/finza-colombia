@@ -686,6 +686,7 @@ class _SelectAmountState extends State<SelectAmount> {
             .replaceAll(".", getDecimalSeparator())
         : convertToMoney(
             forceAbsoluteZero: false,
+            ignorePrivacy: true,
             Provider.of<AllWallets>(context),
             calculateResult(amountConverted),
             currencyKey: widget.currencyKey ??

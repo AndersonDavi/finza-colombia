@@ -76,6 +76,35 @@ Future<bool> setDateOfLastSyncedWithClient(
 // if changeMadeSync show loading and check if syncEveryChange is turned on
 Timer? syncTimeoutTimer;
 Debouncer backupDebounce = Debouncer(milliseconds: 5000);
+// Settings shared between devices. The sync file carries the whole settings
+// JSON, each key keeps "<key>Modified" so the newest copy wins.
+const List<String> syncedSettingKeys = ["distributionTemplates"];
+
+Future<void> markSyncedSettingChanged(String key) async {
+  await updateSettings(key + "Modified", DateTime.now().toIso8601String(),
+      updateGlobalState: false);
+}
+
+Future<void> mergeSyncedSettings(FinanceDatabase databaseSync) async {
+  try {
+    Map<String, dynamic> theirs =
+        json.decode((await databaseSync.getSettings()).settingsJSON);
+    for (String key in syncedSettingKeys) {
+      DateTime? theirTime =
+          DateTime.tryParse(theirs[key + "Modified"]?.toString() ?? "");
+      DateTime? ourTime = DateTime.tryParse(
+          appStateSettings[key + "Modified"]?.toString() ?? "");
+      if (theirTime == null) continue;
+      if (ourTime != null && !theirTime.isAfter(ourTime)) continue;
+      await updateSettings(key, theirs[key], updateGlobalState: false);
+      await updateSettings(key + "Modified", theirs[key + "Modified"],
+          updateGlobalState: false);
+    }
+  } catch (e) {
+    print("Could not merge synced settings: " + e.toString());
+  }
+}
+
 Future<bool> createSyncBackup(
     {bool changeMadeSync = false,
     bool changeMadeSyncWaitForDebounce = true}) async {
@@ -502,6 +531,8 @@ Future<bool> _syncData(BuildContext context) async {
           transactionDateTime: newEntry.dateTimeModified,
         ));
       }
+
+      await mergeSyncedSettings(databaseSync);
 
       List<DeleteLog> deleteLogs =
           await databaseSync.getAllNewDeleteLogs(lastSynced);

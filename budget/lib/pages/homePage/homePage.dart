@@ -273,17 +273,37 @@ class HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                 ),
                               )
                             : SizedBox.shrink(),
-                        Tooltip(
-                          message: "edit-home".tr(),
-                          child: IconButton(
-                            padding: EdgeInsetsDirectional.all(15),
-                            onPressed: () {
-                              pushRoute(context, EditHomePage());
-                            },
-                            icon: Icon(appStateSettings["outlinedIcons"]
-                                ? Icons.more_vert_outlined
-                                : Icons.more_vert_rounded),
-                          ),
+                        // Privacy eye next to the edit home button
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Tooltip(
+                              message: "privacy-mode".tr(),
+                              child: IconButton(
+                                padding: EdgeInsetsDirectional.all(15),
+                                onPressed: () => togglePrivacyMode(),
+                                icon: Icon(appStateSettings["privacyMode"] == true
+                                    ? appStateSettings["outlinedIcons"]
+                                        ? Icons.visibility_off_outlined
+                                        : Icons.visibility_off_rounded
+                                    : appStateSettings["outlinedIcons"]
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_rounded),
+                              ),
+                            ),
+                            Tooltip(
+                              message: "edit-home".tr(),
+                              child: IconButton(
+                                padding: EdgeInsetsDirectional.all(15),
+                                onPressed: () {
+                                  pushRoute(context, EditHomePage());
+                                },
+                                icon: Icon(appStateSettings["outlinedIcons"]
+                                    ? Icons.more_vert_outlined
+                                    : Icons.more_vert_rounded),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),

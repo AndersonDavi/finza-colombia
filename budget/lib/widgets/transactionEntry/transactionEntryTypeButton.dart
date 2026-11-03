@@ -252,21 +252,21 @@ bool isTransactionActionDealtWith(Transaction transaction) {
 String getTransactionActionNameFromType(Transaction transaction) {
   return transaction.type == TransactionSpecialType.credit
       ? transaction.paid
-          ? "collect".tr() + "?"
+          ? asQuestion("collect".tr())
           : "collected".tr()
       : transaction.type == TransactionSpecialType.debt
           ? transaction.paid
-              ? "settle".tr() + "?"
+              ? asQuestion("settle".tr())
               : "settled".tr()
           : transaction.income
               ? (transaction.paid
                   ? "deposited".tr()
                   : transaction.skipPaid
                       ? "skipped".tr()
-                      : "deposit".tr() + "?")
+                      : asQuestion("deposit".tr()))
               : (transaction.paid
                   ? "paid".tr()
                   : transaction.skipPaid
                       ? "skipped".tr()
-                      : "pay".tr() + "?");
+                      : asQuestion("pay".tr()));
 }

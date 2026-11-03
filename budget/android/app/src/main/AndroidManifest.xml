@@ -1,5 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.budget.tracker_app">
+   >
   <uses-permission android:name="android.permission.INTERNET"/>
   <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
@@ -84,12 +84,9 @@
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
             </intent-filter>
         </receiver>
-        <service android:label="notifications" android:name="notification.listener.service.NotificationListener"
-          android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE" android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
-        </service>
+        <!-- The notification listener (transactions from bank notifications) is off:
+             Play Protect blocks sideloaded apps that can read notifications.
+             Bank movements will come from the emails instead. -->
         <receiver android:name="PlusWidgetProvider"
             android:exported="true" android:label="Transaction Shortcut">
             <intent-filter>
@@ -113,6 +110,14 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider"
                 android:resource="@xml/net_worth_plus_widget" />
+        </receiver>
+        <receiver android:name="PocketsWidgetProvider"
+            android:exported="true" android:label="Bolsillos">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider"
+                android:resource="@xml/pockets_widget" />
         </receiver>
         <receiver android:name="NetWorthWidgetProvider"
             android:exported="true" android:label="Net Total">

@@ -58,12 +58,14 @@ import 'package:budget/colors.dart';
 import 'package:budget/pages/balancePages.dart';
 import 'package:flutter/services.dart' hide TextInput;
 import 'package:image_picker/image_picker.dart';
+import 'package:budget/pages/distributePage.dart';
 import 'package:provider/provider.dart';
 import 'package:budget/widgets/util/showTimePicker.dart';
 import 'package:budget/widgets/framework/pageFramework.dart';
 import 'package:budget/widgets/framework/popupFramework.dart';
 import 'package:budget/struct/currencyFunctions.dart';
 import 'package:budget/widgets/animatedExpanded.dart';
+import 'package:budget/pages/upcomingOverdueTransactionsPage.dart';
 import 'package:budget/widgets/iconButtonScaled.dart';
 import 'package:budget/struct/linkHighlighter.dart';
 import 'package:budget/widgets/listItem.dart';
@@ -574,6 +576,8 @@ class _AddTransactionPageState extends State<AddTransactionPage>
         print(transactionJustAdded);
         await database.setTransactionTags(
             transactionJustAdded.transactionPk, selectedTagPks);
+        if (widget.transaction == null)
+          suggestDistributionAfterIncome(transactionJustAdded);
 
         // Do the flash animation only if the date was changed
         if (transactionJustAdded.dateCreated !=
@@ -1058,11 +1062,17 @@ class _AddTransactionPageState extends State<AddTransactionPage>
               getTransactionSpecialTypesToShowGivenInitialTypeWhenAddingTransaction(
             widget.selectedType,
             isAddedToLoanObjective,
+            keepLoanTypes: isLoanTransaction,
           ),
         ),
       ),
     );
   }
+
+  bool get isLoanTransaction => [
+        TransactionSpecialType.credit,
+        TransactionSpecialType.debt
+      ].contains(widget.transaction?.type);
 
   @override
   Widget build(BuildContext context) {
@@ -1178,7 +1188,8 @@ class _AddTransactionPageState extends State<AddTransactionPage>
                     ),
                     items:
                         getTransactionSpecialTypesToShowGivenInitialTypeWhenAddingTransaction(
-                            widget.selectedType, isAddedToLoanObjective),
+                            widget.selectedType, isAddedToLoanObjective,
+                            keepLoanTypes: isLoanTransaction),
                     getLabel: (item) {
                       if (item is TransactionSpecialType || item == null) {
                         return transactionTypeDisplayToEnum[item]
@@ -1224,6 +1235,7 @@ class _AddTransactionPageState extends State<AddTransactionPage>
                   ),
                 ),
               ),
+              ScheduledAutoPayLine(type: selectedType),
               AnimatedExpanded(
                 expand: selectedType == TransactionSpecialType.repetitive ||
                     selectedType == TransactionSpecialType.subscription,
@@ -1918,6 +1930,7 @@ class _AddTransactionPageState extends State<AddTransactionPage>
                         copyToClipboard(
                           convertToMoney(
                             Provider.of<AllWallets>(context, listen: false),
+                            ignorePrivacy: true,
                             currencyKey:
                                 Provider.of<AllWallets>(context, listen: false)
                                     .indexedByPk[selectedWalletPk]
@@ -1964,6 +1977,7 @@ class _AddTransactionPageState extends State<AddTransactionPage>
                                   textAlign: TextAlign.end,
                                   text: convertToMoney(
                                     Provider.of<AllWallets>(context),
+                                    ignorePrivacy: true,
                                     selectedAmount ?? 0,
                                     decimals: getSelectedWallet(listen: true)
                                         ?.decimals,
@@ -2016,6 +2030,7 @@ class _AddTransactionPageState extends State<AddTransactionPage>
                                         textAlign: TextAlign.end,
                                         text: convertToMoney(
                                           Provider.of<AllWallets>(context),
+                                          ignorePrivacy: true,
                                           (selectedAmount ?? 0) *
                                               (amountRatioToPrimaryCurrencyGivenPk(
                                                   Provider.of<AllWallets>(
@@ -4911,10 +4926,19 @@ class SelectSubcategoryChips extends StatelessWidget {
 
 List<dynamic>
     getTransactionSpecialTypesToShowGivenInitialTypeWhenAddingTransaction(
-        TransactionSpecialType? transactionType, bool isAddedToLoanObjective) {
+        TransactionSpecialType? transactionType, bool isAddedToLoanObjective,
+        {bool keepLoanTypes = false}) {
+  // Loans are made from the loans page (Presté / Me prestaron), the lent and
+  // borrowed chips only stay for transactions that already are one
   List<dynamic> defaultList = [
     null,
-    ...TransactionSpecialType.values,
+    TransactionSpecialType.upcoming,
+    TransactionSpecialType.subscription,
+    TransactionSpecialType.repetitive,
+    if (keepLoanTypes) ...[
+      TransactionSpecialType.credit,
+      TransactionSpecialType.debt,
+    ],
     //"installments"
   ];
   if (isAddedToLoanObjective)
@@ -5258,6 +5282,86 @@ class _TitleInputState extends State<TitleInput> {
                     ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// Under the type chips of a scheduled transaction: whether it gets marked paid
+// by itself on its date. The switches are per type (upcoming, repetitive,
+// subscriptions), tapping opens them.
+class ScheduledAutoPayLine extends StatefulWidget {
+  const ScheduledAutoPayLine({required this.type, super.key});
+  final TransactionSpecialType? type;
+
+  @override
+  State<ScheduledAutoPayLine> createState() => _ScheduledAutoPayLineState();
+}
+
+class _ScheduledAutoPayLineState extends State<ScheduledAutoPayLine> {
+  @override
+  Widget build(BuildContext context) {
+    String? settingKey = {
+      TransactionSpecialType.upcoming: "automaticallyPayUpcoming",
+      TransactionSpecialType.repetitive: "automaticallyPayRepetitive",
+      TransactionSpecialType.subscription: "automaticallyPaySubscriptions",
+    }[widget.type];
+    bool autoPay = settingKey != null && appStateSettings[settingKey] == true;
+    return AnimatedExpanded(
+      expand: settingKey != null,
+      child: Padding(
+        padding: const EdgeInsetsDirectional.only(
+            start: 20, end: 20, top: 4, bottom: 6),
+        child: Tappable(
+          borderRadius: 12,
+          color: Colors.transparent,
+          onTap: () async {
+            await openBottomSheet(
+              context,
+              PopupFramework(
+                hasPadding: false,
+                child: UpcomingOverdueSettings(),
+              ),
+            );
+            setState(() {});
+          },
+          child: Padding(
+            padding: const EdgeInsetsDirectional.symmetric(
+                horizontal: 8, vertical: 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  autoPay
+                      ? appStateSettings["outlinedIcons"]
+                          ? Icons.check_circle_outlined
+                          : Icons.check_circle_rounded
+                      : appStateSettings["outlinedIcons"]
+                          ? Icons.touch_app_outlined
+                          : Icons.touch_app_rounded,
+                  size: 18,
+                  color: getColor(context, "textLight"),
+                ),
+                SizedBox(width: 6),
+                Flexible(
+                  child: TextFont(
+                    text: (autoPay ? "auto-pay-on" : "auto-pay-off").tr(),
+                    fontSize: 14,
+                    maxLines: 2,
+                    textColor: getColor(context, "textLight"),
+                  ),
+                ),
+                SizedBox(width: 6),
+                TextFont(
+                  text: "change".tr(),
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  textColor: Theme.of(context).colorScheme.primary,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

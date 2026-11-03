@@ -625,7 +625,7 @@ void mergeCategoryPopup(
           Future.delayed(Duration(milliseconds: 90), () async {
             final result = await openPopup(
               context,
-              title: "merge-into".tr() + " " + category.name + "?",
+              title: asQuestion("merge-into".tr() + " " + category.name),
               description: "merge-into-description-categories".tr(),
               icon: appStateSettings["outlinedIcons"]
                   ? Icons.merge_outlined
@@ -685,7 +685,7 @@ void mergeSubcategoryPopup(
           Future.delayed(Duration(milliseconds: 90), () async {
             final result = await openPopup(
               context,
-              title: "merge-into".tr() + " " + subcategory.name + "?",
+              title: asQuestion("merge-into".tr() + " " + subcategory.name),
               description: "merge-into-description-subcategories".tr(),
               icon: appStateSettings["outlinedIcons"]
                   ? Icons.merge_outlined
@@ -787,7 +787,7 @@ void makeSubCategoryPopup(
           Future.delayed(Duration(milliseconds: 90), () async {
             final result = await openPopup(
               context,
-              title: "make-subcategory-of".tr() + " " + category.name + "?",
+              title: asQuestion("make-subcategory-of".tr() + " " + category.name),
               description: "make-subcategory-description-categories".tr(),
               icon: appStateSettings["outlinedIcons"]
                   ? Icons.move_up_outlined

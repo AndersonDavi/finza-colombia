@@ -470,7 +470,7 @@ void mergeWalletPopup(
   if (selectedWalletResult != null) {
     final result = await openPopup(
       context,
-      title: "merge-into".tr() + " " + selectedWalletResult.name + "?",
+      title: asQuestion("merge-into".tr() + " " + selectedWalletResult.name),
       description: "merge-into-description-accounts".tr(),
       icon: appStateSettings["outlinedIcons"]
           ? Icons.merge_outlined

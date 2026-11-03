@@ -516,11 +516,15 @@ class PageNavigationFrameworkState extends State<PageNavigationFramework> {
         ),
       ),
       Align(
-        alignment: AlignmentDirectional.bottomEnd,
+        // Left handed mode puts the add button on the other side
+        alignment: appStateSettings["leftHandedMode"] == true
+            ? AlignmentDirectional.bottomStart
+            : AlignmentDirectional.bottomEnd,
         child: Padding(
           padding: EdgeInsetsDirectional.only(
             bottom: getHeightNavigationSidebar(context) + 15,
             end: 15,
+            start: 15,
           ),
           child: AnimateFAB(
             key: ValueKey(1),

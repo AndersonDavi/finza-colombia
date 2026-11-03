@@ -544,7 +544,7 @@ class _EditWalletGroupPopupState extends State<EditWalletGroupPopup> {
   Future<void> deleteGroup() async {
     dynamic confirmed = await openPopup(
       context,
-      title: "delete-group".tr() + "?",
+      title: asQuestion("delete-group".tr()),
       description: "delete-group-description".tr(),
       icon: appStateSettings["outlinedIcons"]
           ? Icons.delete_outlined
@@ -1057,7 +1057,9 @@ class WalletGroupCard extends StatelessWidget {
                     " · " +
                     wallets.length.toString() +
                     " " +
-                    "pockets".tr(),
+                    (wallets.length == 1
+                        ? "pocket".tr().toLowerCase()
+                        : "pockets".tr().toLowerCase()),
                 fontSize: 14,
                 textColor: getColor(context, "black").withOpacity(0.65),
               ),

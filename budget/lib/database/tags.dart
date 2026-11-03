@@ -86,6 +86,16 @@ extension TagQueries on FinanceDatabase {
     });
   }
 
+  // Adds the tags to every transaction, keeping the ones they already have
+  Future<void> addTagsToTransactions(
+      List<String> transactionPks, List<String> tagPks) async {
+    for (String transactionPk in transactionPks) {
+      List<String> current = await getTagPksOfTransaction(transactionPk);
+      await setTransactionTags(
+          transactionPk, {...current, ...tagPks}.toList());
+    }
+  }
+
   Future<void> deleteTagLinksOfTransactions(List<String> transactionPks) async {
     await (delete(transactionToTagLinks)
           ..where((l) => l.transactionPk.isIn(transactionPks)))
@@ -128,6 +138,26 @@ extension TagQueries on FinanceDatabase {
       pinned: Value(pinned ? true : null),
       dateTimeModified: Value(DateTime.now()),
     ));
+  }
+
+  // Transactions carrying a tag, newest first (the MCP's "Por revisar" ones)
+  Stream<List<Transaction>> watchTransactionsWithTag(String tagPk) {
+    return (select(transactions)
+          ..where((t) => t.transactionPk.isInQuery(
+              selectOnly(transactionToTagLinks)
+                ..addColumns([transactionToTagLinks.transactionPk])
+                ..where(transactionToTagLinks.tagPk.equals(tagPk))))
+          ..orderBy([(t) => OrderingTerm.desc(t.dateCreated)]))
+        .watch();
+  }
+
+  Future<void> removeTagFromTransactions(
+      List<String> transactionPks, String tagPk) async {
+    for (String transactionPk in transactionPks) {
+      List<String> current = await getTagPksOfTransaction(transactionPk);
+      await setTransactionTags(
+          transactionPk, current.where((pk) => pk != tagPk).toList());
+    }
   }
 
   Stream<List<Transaction>> watchPinnedTransactions() {

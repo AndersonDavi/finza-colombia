@@ -410,13 +410,31 @@ class _EditHomePageState extends State<EditHomePage> {
     super.initState();
   }
 
+  // Like 6.x: the shown sections can be reordered, the hidden ones wait in
+  // their own list below and come back at the end
+  bool isHiddenKey(String key) =>
+      !key.startsWith("ORDER:") &&
+      editHomePageItems[key] != null &&
+      editHomePageItems[key]!.isEnabled != true;
+
+  List<String> get visibleKeys =>
+      List<String>.from(keyOrder).where((key) => !isHiddenKey(key)).toList();
+  List<String> get hiddenKeys =>
+      List<String>.from(keyOrder).where(isHiddenKey).toList();
+
   toggleSwitch(String key) {
-    editHomePageItems[key]
-        ?.onSwitched(!(editHomePageItems[key]?.isEnabled ?? false));
+    bool enable = !(editHomePageItems[key]?.isEnabled ?? false);
+    editHomePageItems[key]?.onSwitched(enable);
     setState(() {
-      editHomePageItems[key]?.isEnabled =
-          !(editHomePageItems[key]?.isEnabled ?? false);
+      editHomePageItems[key]?.isEnabled = enable;
+      if (enable) {
+        keyOrder.remove(key);
+        keyOrder.insert(visibleKeys.length, key);
+      }
     });
+    if (enable)
+      updateSettings(getHomePageOrderSettingsKey(context), keyOrder,
+          pagesNeedingRefresh: [], updateGlobalState: false);
   }
 
   @override
@@ -486,6 +504,7 @@ class _EditHomePageState extends State<EditHomePage> {
               });
             },
             itemBuilder: (context, index) {
+              List<String> keyOrder = visibleKeys;
               if (keyOrder.length <= index)
                 return Container(
                   key: ValueKey(index),
@@ -517,19 +536,53 @@ class _EditHomePageState extends State<EditHomePage> {
                 index: index,
               );
             },
-            itemCount: keyOrder.length,
+            itemCount: visibleKeys.length,
             onReorder: (oldIndex, newIndex) async {
               setState(() {
                 if (oldIndex < newIndex) {
                   newIndex -= 1;
                 }
-                final String item = keyOrder.removeAt(oldIndex);
-                keyOrder.insert(newIndex, item);
+                List<String> visible = visibleKeys;
+                final String item = visible.removeAt(oldIndex);
+                visible.insert(newIndex, item);
+                keyOrder = [...visible, ...hiddenKeys];
               });
               updateSettings(getHomePageOrderSettingsKey(context), keyOrder,
                   pagesNeedingRefresh: [], updateGlobalState: false);
               return true;
             },
+          ),
+          if (hiddenKeys.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsetsDirectional.only(
+                    start: 20, end: 20, top: 25, bottom: 5),
+                child: TextFont(
+                  text: "hidden".tr().capitalizeFirst,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  textColor: getColor(context, "textLight"),
+                ),
+              ),
+            ),
+          SliverToBoxAdapter(
+            child: Column(
+              children: [
+                for (String key in hiddenKeys)
+                  HomePageEditRowEntry(
+                    key: ValueKey(key),
+                    text: editHomePageItems[key]!.name,
+                    iconData: editHomePageItems[key]!.icon,
+                    toggleSwitch: () => toggleSwitch(key),
+                    switchValue: false,
+                    canReorder: false,
+                    currentReorder: false,
+                    onTap: () => toggleSwitch(key),
+                    extraWidgetsBelow: null,
+                    index: 0,
+                  ),
+              ],
+            ),
           ),
         ],
       ),
@@ -567,21 +620,22 @@ class HomePageEditRowEntry extends StatelessWidget {
       currentReorder: currentReorder,
       padding:
           EdgeInsetsDirectional.only(start: 18, end: 0, top: 16, bottom: 16),
-      extraWidget: Row(
-        children: [
-          getPlatform() == PlatformOS.isIOS
-              ? CupertinoSwitch(
-                  activeColor: Theme.of(context).colorScheme.primary,
-                  value: switchValue,
-                  onChanged: (value) => toggleSwitch(),
-                )
-              : Switch(
-                  activeColor: Theme.of(context).colorScheme.primary,
-                  value: switchValue,
-                  onChanged: (value) => toggleSwitch(),
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-        ],
+      // - hides the section, + brings it back
+      extraWidget: IconButton(
+        tooltip: switchValue ? "hide".tr() : "show".tr(),
+        onPressed: toggleSwitch,
+        icon: Icon(
+          switchValue
+              ? appStateSettings["outlinedIcons"]
+                  ? Icons.remove_circle_outline
+                  : Icons.remove_circle_rounded
+              : appStateSettings["outlinedIcons"]
+                  ? Icons.add_circle_outline
+                  : Icons.add_circle_rounded,
+          color: switchValue
+              ? getColor(context, "expenseAmount")
+              : getColor(context, "incomeAmount"),
+        ),
       ),
       content: Row(
         crossAxisAlignment: CrossAxisAlignment.center,

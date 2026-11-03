@@ -29,6 +29,7 @@ import 'package:budget/widgets/transactionEntry/transactionEntry.dart';
 import 'package:budget/widgets/util/sliverPinnedOverlapInjector.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:budget/pages/newLoanPage.dart';
 import 'package:provider/provider.dart';
 import 'package:implicitly_animated_reorderable_list/implicitly_animated_reorderable_list.dart';
 import 'package:implicitly_animated_reorderable_list/transitions.dart';
@@ -177,46 +178,14 @@ class CreditDebtTransactionsState extends State<CreditDebtTransactions>
     ];
 
     List<Widget> loanInfoAppBar = [
+      // What they owe you and what you owe, side by side
       SliverToBoxAdapter(
         child: Padding(
-          padding: const EdgeInsetsDirectional.only(bottom: 8.0),
-          child: CenteredAmountAndNumTransactions(
-            totalWithCountStream: database.watchTotalWithCountOfCreditDebt(
-              allWallets: Provider.of<AllWallets>(context),
-              isCredit: isCredit,
-              searchString: searchValue,
-              selectedTab: _tabController.index,
-            ),
-            totalWithCountStream2:
-                database.watchTotalWithCountOfCreditDebtLongTermLoansOffset(
-              allWallets: Provider.of<AllWallets>(context),
-              isCredit: isCredit,
-              searchString: searchValue,
-              selectedTab: _tabController.index,
-            ),
-            showIncomeArrow: false,
-            getInitialText: (totalAmount) {
-              if (totalAmount < 0) {
-                return "you-get".tr();
-              } else if (totalAmount > 0) {
-                return "you-owe".tr();
-              } else {
-                return null;
-              }
-            },
-            getTextColor: (totalAmount) {
-              return isCredit == null
-                  ? totalAmount == 0
-                      ? getColor(context, "black")
-                      : totalAmount < 0
-                          ? getColor(context, "unPaidUpcoming")
-                          : getColor(context, "unPaidOverdue")
-                  : isCredit == true
-                      ? getColor(context, "unPaidUpcoming")
-                      : getColor(context, "unPaidOverdue");
-            },
-            textColor: Colors.black,
-          ),
+          padding: EdgeInsetsDirectional.only(
+              start: getHorizontalPaddingConstrained(context) + 13,
+              end: getHorizontalPaddingConstrained(context) + 13,
+              bottom: 12),
+          child: LoansBalanceSummary(),
         ),
       ),
       SliverToBoxAdapter(
@@ -566,89 +535,54 @@ class CreditDebtTransactionsState extends State<CreditDebtTransactions>
   }
 }
 
+// Lent or borrowed, both go to the new loan page (with optional installments)
 class AddLoanPopup extends StatelessWidget {
   const AddLoanPopup({required this.selectedTransactionType, super.key});
   final TransactionSpecialType selectedTransactionType;
 
   @override
   Widget build(BuildContext context) {
+    Widget option(bool lent) => Padding(
+          padding: const EdgeInsetsDirectional.only(bottom: 13),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButtonStacked(
+                  alignStart: true,
+                  alignBeside: true,
+                  padding: EdgeInsetsDirectional.symmetric(
+                      horizontal: 20, vertical: 20),
+                  text: (lent ? "lent-money" : "borrowed-money").tr(),
+                  iconData: lent
+                      ? Icons.north_east_rounded
+                      : Icons.south_west_rounded,
+                  onTap: () {
+                    popRoute(context);
+                    pushRoute(context, NewLoanPage(lent: lent));
+                  },
+                  afterWidget: Column(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ListItem(
+                        (lent
+                                ? "lent-money-description"
+                                : "borrowed-money-description")
+                            .tr(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
     return PopupFramework(
       title: "add-loan".tr(),
       child: Column(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButtonStacked(
-                  alignStart: true,
-                  alignBeside: true,
-                  padding: EdgeInsetsDirectional.symmetric(
-                      horizontal: 20, vertical: 20),
-                  text: "long-term-loan".tr(),
-                  iconData: appStateSettings["outlinedIcons"]
-                      ? Icons.av_timer_outlined
-                      : Icons.av_timer_rounded,
-                  onTap: () {
-                    popRoute(context);
-                    pushRoute(
-                      context,
-                      AddObjectivePage(
-                        routesToPopAfterDelete: RoutesToPopAfterDelete.None,
-                        objectiveType: ObjectiveType.loan,
-                        selectedIncome: selectedTransactionType ==
-                            TransactionSpecialType.credit,
-                      ),
-                    );
-                  },
-                  afterWidget: Column(
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ListItem(
-                        "long-term-loan-description-1".tr(),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 13),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButtonStacked(
-                  alignStart: true,
-                  alignBeside: true,
-                  padding: EdgeInsetsDirectional.symmetric(
-                      horizontal: 20, vertical: 20),
-                  text: "one-time-loan".tr(),
-                  iconData: appStateSettings["outlinedIcons"]
-                      ? Icons.event_available_outlined
-                      : Icons.event_available_rounded,
-                  onTap: () {
-                    popRoute(context);
-                    pushRoute(
-                      context,
-                      AddTransactionPage(
-                        routesToPopAfterDelete: RoutesToPopAfterDelete.None,
-                        selectedType: selectedTransactionType,
-                      ),
-                    );
-                  },
-                  afterWidget: Column(
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      ListItem(
-                        "one-time-loan-description-1".tr(),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+          option(selectedTransactionType == TransactionSpecialType.credit),
+          option(selectedTransactionType != TransactionSpecialType.credit),
         ],
       ),
     );

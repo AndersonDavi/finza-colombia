@@ -242,7 +242,7 @@ Future openPayPopup(
     icon: appStateSettings["outlinedIcons"]
         ? Icons.check_circle_outlined
         : Icons.check_circle_rounded,
-    title: (transaction.income ? "deposit".tr() : "pay".tr()) + "?",
+    title: asQuestion(transaction.income ? "deposit".tr() : "pay".tr()),
     subtitle: transactionName,
     description: (transaction.income
             ? "deposit-description".tr()
@@ -519,7 +519,7 @@ Future openRemoveSkipPopup(
     icon: appStateSettings["outlinedIcons"]
         ? Icons.unpublished_outlined
         : Icons.unpublished_rounded,
-    title: "remove-skip".tr() + "?",
+    title: asQuestion("remove-skip".tr()),
     subtitle: transactionName,
     description: "remove-skip-description".tr(),
     onCancelLabel: "cancel".tr(),
@@ -548,7 +548,7 @@ Future openUnpayPopup(
       icon: appStateSettings["outlinedIcons"]
           ? Icons.unpublished_outlined
           : Icons.unpublished_rounded,
-      title: "remove-payment".tr() + "?",
+      title: asQuestion("remove-payment".tr()),
       subtitle: transactionName,
       description: "remove-payment-description".tr(),
       onCancelLabel: "cancel".tr(),
@@ -583,7 +583,7 @@ Future openUnpayDebtCreditPopup(
     icon: appStateSettings["outlinedIcons"]
         ? Icons.unpublished_outlined
         : Icons.unpublished_rounded,
-    title: "remove-payment".tr() + "?",
+    title: asQuestion("remove-payment".tr()),
     subtitle: transactionName,
     description: "remove-payment-description".tr(),
     onCancelLabel: "cancel".tr(),

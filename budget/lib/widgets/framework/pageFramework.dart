@@ -723,7 +723,9 @@ class PageFrameworkState extends State<PageFramework>
         children: [
           dragDownToDismissScaffold ?? scaffold,
           Align(
-            alignment: AlignmentDirectional.bottomEnd,
+            alignment: appStateSettings["leftHandedMode"] == true
+                ? AlignmentDirectional.bottomStart
+                : AlignmentDirectional.bottomEnd,
             child: Padding(
               padding: EdgeInsetsDirectional.only(
                   bottom: getBottomInsetOfFAB(context), end: 15, start: 15),

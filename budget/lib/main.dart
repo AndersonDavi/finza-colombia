@@ -4,6 +4,7 @@ import 'package:budget/pages/autoTransactionsPageEmail.dart';
 import 'package:budget/struct/currencyFunctions.dart';
 import 'package:budget/struct/iconObjects.dart';
 import 'package:budget/struct/keyboardIntents.dart';
+import 'package:budget/widgets/pocketGoals.dart';
 import 'package:budget/struct/logging.dart';
 import 'package:budget/widgets/fadeIn.dart';
 import 'package:budget/struct/languageMap.dart';
@@ -57,6 +58,7 @@ void main() async {
       };
       database.markDetectedFreePockets(groups);
     });
+    listenToUpcomingSpend();
     database.watchAllTags().listen((tags) {
       tagsCache = {for (Tag tag in tags) tag.tagPk: tag};
       tagPksByTransaction.value = Map.of(tagPksByTransaction.value);
