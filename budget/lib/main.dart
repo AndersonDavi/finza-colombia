@@ -71,7 +71,12 @@ void main() async {
       }
       tagPksByTransaction.value = byTransaction;
     });
-    notificationPayload = await initializeNotifications();
+    // A failure here must not leave the app stuck on the launch screen
+    try {
+      notificationPayload = await initializeNotifications();
+    } catch (e) {
+      print("Notifications could not start: " + e.toString());
+    }
     entireAppLoaded = false;
     await loadCurrencyJSON();
     await loadLanguageNamesJSON();

@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Drawables are looked up by name from Dart (notification icon, quick
+     actions, widgets), so resource shrinking must not drop any of them -->
 <resources xmlns:tools="http://schemas.android.com/tools"
-tools:keep="@drawable/transfertransaction,@drawable/piggybank,@drawable/addtransaction"
+tools:keep="@drawable/*"
 />

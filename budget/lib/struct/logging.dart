@@ -50,7 +50,11 @@ captureLogs(Function body) {
     () async {
       await body();
     },
-    (error, stackTrace) {},
+    (error, stackTrace) {
+      // Nothing else shows these in a release build
+      Zone.root.print("Uncaught error: $error\n$stackTrace");
+      logService.log("Uncaught error: $error");
+    },
     zoneSpecification: ZoneSpecification(
       print: (Zone self, ZoneDelegate parent, Zone zone, String message) {
         logService.log(message);
