@@ -723,17 +723,23 @@ class FreePocketSetting extends StatelessWidget {
 
 // Money free to spend: the free pocket of each group, next to the total of
 // every account. Shown over the net worth when some group has a free pocket.
+// The initial lists let it show up in the same frame as the totals around it.
 class FreeMoneySummary extends StatelessWidget {
-  const FreeMoneySummary({super.key});
+  const FreeMoneySummary(
+      {this.initialGroups, this.initialWallets, super.key});
+  final List<WalletGroup>? initialGroups;
+  final List<WalletWithDetails>? initialWallets;
 
   @override
   Widget build(BuildContext context) {
     AllWallets allWallets = Provider.of<AllWallets>(context);
     return StreamBuilder<List<WalletGroup>>(
       stream: database.watchAllWalletGroups(),
+      initialData: initialGroups,
       builder: (context, groupsSnapshot) {
         return StreamBuilder<List<WalletWithDetails>>(
           stream: database.watchAllWalletsWithDetails(),
+          initialData: initialWallets,
           builder: (context, walletsSnapshot) {
             List<WalletWithDetails> wallets = walletsSnapshot.data ?? [];
             double inPrimary(WalletWithDetails w) =>

@@ -296,15 +296,11 @@ class _EditWalletsPageState extends State<EditWalletsPage> {
                             fontSize: 21,
                           ),
                           Container(height: 2),
-                          TextFont(
+                          // Same arrow and color as the accounts list, so a
+                          // debt does not read as money you have
+                          AmountAccount(
+                            walletWithDetails: walletWithDetails,
                             textAlign: TextAlign.start,
-                            text: convertToMoney(
-                              Provider.of<AllWallets>(context),
-                              walletWithDetails.totalSpent ?? 0,
-                              currencyKey: wallet.currency,
-                              decimals: wallet.decimals,
-                              addCurrencyName: true,
-                            ).toString(),
                             fontSize: 15,
                           ),
                           Row(

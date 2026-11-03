@@ -100,7 +100,10 @@ class TransactionsAmountBox extends StatelessWidget {
                 duration: Duration(milliseconds: 1000),
                 initialCount: (0),
                 textBuilder: (number) {
-                  return TextFont(
+                  // Blank while the total loads instead of a $0
+                  return Opacity(
+                    opacity: snapshot.hasData ? 1 : 0,
+                    child: TextFont(
                     text: convertToMoney(
                         Provider.of<AllWallets>(context), number,
                         currencyKey: currencyKey,
@@ -116,6 +119,7 @@ class TransactionsAmountBox extends StatelessWidget {
                     maxFontSize: 21,
                     minFontSize: 10,
                     maxLines: 1,
+                    ),
                   );
                 },
               ),
@@ -194,7 +198,9 @@ class TransactionsAmountBox extends StatelessWidget {
                               duration: Duration(milliseconds: 1000),
                               initialCount: (0),
                               textBuilder: (number) {
-                                return TextFont(
+                                return Opacity(
+                                  opacity: snapshot.hasData ? 1 : 0,
+                                  child: TextFont(
                                   text: convertToMoney(
                                       Provider.of<AllWallets>(context), number,
                                       currencyKey: currencyKey,
@@ -210,6 +216,7 @@ class TransactionsAmountBox extends StatelessWidget {
                                   maxFontSize: 21,
                                   minFontSize: 10,
                                   maxLines: 1,
+                                  ),
                                 );
                               },
                             ),

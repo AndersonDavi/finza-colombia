@@ -1,5 +1,6 @@
 import 'package:budget/colors.dart';
 import 'package:budget/database/tables.dart';
+import 'package:budget/database/walletGroups.dart';
 import 'package:budget/functions.dart';
 import 'package:budget/pages/addTransactionPage.dart';
 import 'package:budget/pages/homePage/homePageWalletSwitcher.dart';
@@ -38,9 +39,22 @@ class HomePageNetWorth extends StatelessWidget {
               if (walletPks.length <= 0 ||
                   appStateSettings["netWorthAllWallets"] == true)
                 walletPks = null;
+              // Wait for the accounts so the free money card does not pop in
+              // after the totals and push them down
+              return StreamBuilder<List<WalletGroup>>(
+                stream: database.watchAllWalletGroups(),
+                builder: (context, groups) =>
+                    StreamBuilder<List<WalletWithDetails>>(
+                stream: database.watchAllWalletsWithDetails(),
+                builder: (context, wallets) {
+              if (groups.data == null || wallets.data == null)
+                return SizedBox.shrink();
               return Column(
                 children: [
-                  FreeMoneySummary(),
+                  FreeMoneySummary(
+                    initialGroups: groups.data,
+                    initialWallets: wallets.data,
+                  ),
                   Padding(
                 padding: const EdgeInsetsDirectional.only(
                     bottom: 13, start: 13, end: 13),
@@ -128,6 +142,9 @@ class HomePageNetWorth extends StatelessWidget {
                     child: LoansBalanceSummary(compact: true),
                   ),
                 ],
+              );
+                },
+                ),
               );
             }
             return SizedBox.shrink();

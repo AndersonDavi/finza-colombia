@@ -203,6 +203,24 @@ class _EditTagPopupState extends State<EditTagPopup> {
   late String name = widget.tag?.name ?? "";
   late Color? colour =
       widget.tag?.colour == null ? null : HexColor(widget.tag!.colour);
+  final FocusNode nameFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    // autofocus gets lost on the web while the sheet slides in, so ask for
+    // the focus once it is open
+    if (widget.tag == null)
+      Future.delayed(Duration(milliseconds: 300), () {
+        if (mounted) nameFocus.requestFocus();
+      });
+  }
+
+  @override
+  void dispose() {
+    nameFocus.dispose();
+    super.dispose();
+  }
 
   Future<void> deleteTag() async {
     dynamic confirmed = await openPopup(
@@ -259,7 +277,7 @@ class _EditTagPopupState extends State<EditTagPopup> {
           TextInput(
             labelText: "name-placeholder".tr(),
             initialValue: name,
-            autoFocus: widget.tag == null,
+            focusNode: nameFocus,
             onChanged: (text) => setState(() => name = text),
             onSubmitted: (_) => save(),
             padding: EdgeInsetsDirectional.zero,
