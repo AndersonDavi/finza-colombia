@@ -4,14 +4,12 @@ import 'package:budget/pages/homePage/homePageLineGraph.dart';
 import 'package:budget/pages/objectivesListPage.dart';
 import 'package:budget/pages/transactionFilters.dart';
 import 'package:budget/struct/databaseGlobal.dart';
-import 'package:budget/struct/firebaseAuthGlobal.dart';
 import 'package:budget/struct/settings.dart';
 import 'package:budget/struct/shareBudget.dart';
 import 'package:budget/struct/syncClient.dart';
 import 'package:budget/widgets/navigationFramework.dart';
 import 'package:budget/widgets/periodCyclePicker.dart';
 import 'package:budget/widgets/walletEntry.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import 'package:async/async.dart';
 import 'package:drift/drift.dart';
@@ -26,7 +24,9 @@ import 'package:budget/pages/activityPage.dart';
 import 'package:flutter/material.dart' show RangeValues;
 part 'tables.g.dart';
 
-int schemaVersionGlobal = 46;
+// 48 is the official 6.x schema; this build's own changes start at 100 so
+// later official versions (49, 50...) never collide with them
+int schemaVersionGlobal = 102;
 
 // To update and migrate the database, check the README
 
@@ -48,6 +48,8 @@ enum TransactionSpecialType {
   credit, //lent, withdraw, owed
   debt, //borrowed, deposit, owe
 }
+
+enum WalletGroupKind { digital, cash }
 
 enum ObjectiveType {
   goal,
@@ -221,6 +223,7 @@ enum DeleteLogType {
   ScannerTemplate,
   Objective,
   Unused, // Was for the scanner template, but is now unused
+  WalletGroup, // Own: groups of accounts
 }
 
 enum UpdateLogType {
@@ -233,6 +236,7 @@ enum UpdateLogType {
   ScannerTemplate,
   Objective,
   Unused, // Was for the scanner template, but is now unused
+  WalletGroup, // Own: groups of accounts
 }
 
 @DataClassName('DeleteLog')
@@ -265,9 +269,37 @@ class Wallets extends Table {
       .nullable()
       .withDefault(const Constant(null))
       .map(const HomePageWidgetDisplayListInColumnConverter())();
+  // v48 columns, matching the official 6.x schema so its backups import
+  BoolColumn get archived => boolean().withDefault(const Constant(false))();
+  TextColumn get emojiIconName => text().nullable()();
+  // Own column (v100): the group (bank, cash...) this account is a pocket of
+  TextColumn get walletGroupFk => text().nullable()();
+  // Own columns (v102): savings goal of the pocket, the date is optional
+  RealColumn get goalAmount => real().nullable()();
+  DateTimeColumn get goalDate => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {walletPk};
+}
+
+// Where the money of a set of accounts is kept, e.g. Bancolombia or cash.
+// Its accounts are the pockets the money is set aside in.
+@DataClassName('WalletGroup')
+class WalletGroups extends Table {
+  TextColumn get walletGroupPk => text().clientDefault(() => uuid.v4())();
+  TextColumn get name => text().withLength(max: NAME_LIMIT)();
+  TextColumn get colour => text().withLength(max: COLOUR_LIMIT).nullable()();
+  IntColumn get kind =>
+      intEnum<WalletGroupKind>().withDefault(const Constant(0))();
+  IntColumn get order => integer()();
+  DateTimeColumn get dateCreated =>
+      dateTime().clientDefault(() => new DateTime.now())();
+  DateTimeColumn get dateTimeModified => dateTime().nullable()();
+  // v101: the pocket with the money that is free to spend
+  TextColumn get freeWalletFk => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {walletGroupPk};
 }
 
 @DataClassName('Transaction')
@@ -359,6 +391,7 @@ class Categories extends Table {
       .references(Categories, #categoryPk)
       .withDefault(const Constant(null))
       .nullable()();
+  BoolColumn get archived => boolean().withDefault(const Constant(false))();
 
   // Attributes to configure sharing of transactions:
   // sharedKey will have the key referencing the entry in the firebase database, if this is null, it is not shared
@@ -402,6 +435,7 @@ class AssociatedTitles extends Table {
       dateTime().withDefault(Constant(DateTime.now())).nullable()();
   IntColumn get order => integer()();
   BoolColumn get isExactMatch => boolean().withDefault(const Constant(false))();
+  BoolColumn get archived => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {associatedTitlePk};
@@ -505,9 +539,40 @@ class ScannerTemplates extends Table {
       text().references(Wallets, #walletPk).withDefault(const Constant("0"))();
   // TODO: if it contains certain keyword ignore these emails
   BoolColumn get ignore => boolean().withDefault(const Constant(false))();
+  TextColumn get defaultTitle =>
+      text().nullable().withDefault(const Constant(null))();
 
   @override
   Set<Column> get primaryKey => {scannerTemplatePk};
+}
+
+// Tags came with the official v48 schema. Nothing in this build uses them yet,
+// the tables exist so 6.x backups open and keep their tags.
+@DataClassName('Tag')
+class Tags extends Table {
+  DateTimeColumn get dateCreated =>
+      dateTime().clientDefault(() => new DateTime.now())();
+  DateTimeColumn get dateTimeModified => dateTime().nullable()();
+  IntColumn get order => integer()();
+  BoolColumn get archived => boolean().withDefault(const Constant(false))();
+  TextColumn get name => text().withLength(max: NAME_LIMIT)();
+  TextColumn get colour => text().withLength(max: COLOUR_LIMIT).nullable()();
+  TextColumn get iconName => text().nullable()();
+  TextColumn get emojiIconName => text().nullable()();
+  TextColumn get tagPk => text().clientDefault(() => uuid.v4())();
+
+  @override
+  Set<Column> get primaryKey => {tagPk};
+}
+
+@DataClassName('TransactionToTagLink')
+class TransactionToTagLinks extends Table {
+  TextColumn get transactionPk =>
+      text().references(Transactions, #transactionPk).nullable()();
+  TextColumn get tagPk => text().references(Tags, #tagPk).nullable()();
+
+  @override
+  Set<Column> get primaryKey => {transactionPk, tagPk};
 }
 
 // Objective, savings jars, payment goals, installments, targets etc.
@@ -688,6 +753,9 @@ class CategoryWithTotal {
   ScannerTemplates,
   DeleteLogs,
   Objectives,
+  Tags,
+  TransactionToTagLinks,
+  WalletGroups,
 ])
 class FinanceDatabase extends _$FinanceDatabase {
   // FinanceDatabase() : super(_openConnection());
@@ -713,6 +781,17 @@ class FinanceDatabase extends _$FinanceDatabase {
       // },
       onUpgrade: (migrator, from, to) async {
         print("Migrating from: " + from.toString() + " to " + to.toString());
+        if (from > to) {
+          // Backup from a newer official version: open it as is, any extra
+          // columns are ignored and anything this build needs is already there
+          print("Database is newer than this build, skipping migration");
+          return;
+        }
+        // There are no v47 steps, the v46->v48 step tolerates a v47 database
+        if (from == 47) from = 46;
+        // A backup from a newer official version (49 to 99) gets the same
+        // treatment: its extra columns stay, the v48->v100 step adds ours
+        if (from > 48 && from < 100) from = 48;
         if (from <= 9) {
           await migrator.createTable($AppSettingsTable(database));
         }
@@ -1162,6 +1241,63 @@ class FinanceDatabase extends _$FinanceDatabase {
                 print(
                     "Migration Error: Error creating column objectives.type " +
                         e.toString());
+              }
+            },
+            // Official 6.x schema (v47/v48). A v47 backup already has part of
+            // this, so every column is tried on its own.
+            from46To48: (m, schema) async {
+              final List<(TableInfo, GeneratedColumn)> newColumns = [
+                (schema.wallets, schema.wallets.archived),
+                (schema.wallets, schema.wallets.emojiIconName),
+                (schema.categories, schema.categories.archived),
+                (schema.associatedTitles, schema.associatedTitles.archived),
+                (schema.scannerTemplates, schema.scannerTemplates.defaultTitle),
+              ];
+              for (final (table, column) in newColumns) {
+                try {
+                  await m.addColumn(table, column);
+                } catch (e) {
+                  print("Migration Error: Error creating column " +
+                      column.name +
+                      " " +
+                      e.toString());
+                }
+              }
+              await m.createTable(schema.tags);
+              await m.createTable(schema.transactionToTagLinks);
+            },
+            // Own schema: groups of accounts (pockets)
+            from48To100: (m, schema) async {
+              try {
+                await m.addColumn(schema.wallets, schema.wallets.walletGroupFk);
+              } catch (e) {
+                print("Migration Error: Error creating column wallets.walletGroupFk " +
+                    e.toString());
+              }
+              await m.createTable(schema.walletGroups);
+            },
+            from101To102: (m, schema) async {
+              for (final column in [
+                schema.wallets.goalAmount,
+                schema.wallets.goalDate,
+              ]) {
+                try {
+                  await m.addColumn(schema.wallets, column);
+                } catch (e) {
+                  print("Migration Error: Error creating column wallets." +
+                      column.name +
+                      " " +
+                      e.toString());
+                }
+              }
+            },
+            from100To101: (m, schema) async {
+              try {
+                await m.addColumn(
+                    schema.walletGroups, schema.walletGroups.freeWalletFk);
+              } catch (e) {
+                print("Migration Error: Error creating column walletGroups.freeWalletFk " +
+                    e.toString());
               }
             },
           ),
@@ -2126,6 +2262,7 @@ class FinanceDatabase extends _$FinanceDatabase {
           .map((TransactionCategory category) {
         return TransactionAssociatedTitleWithCategory(
           title: TransactionAssociatedTitle(
+            archived: false,
             associatedTitlePk: "-1",
             categoryFk: category.categoryPk,
             title: category.name,
@@ -3697,6 +3834,18 @@ class FinanceDatabase extends _$FinanceDatabase {
                   syncLog.transactionDateTime ?? DateTime.now(),
                 ),
           );
+        } else if (syncLog.deleteLogType == DeleteLogType.WalletGroup) {
+          batch.deleteWhere(
+            walletGroups,
+            (tbl) =>
+                tbl.walletGroupPk.equals(syncLog.pk) &
+                tbl.dateTimeModified.isSmallerThanValue(
+                  syncLog.transactionDateTime ?? DateTime.now(),
+                ),
+          );
+        } else if (syncLog.updateLogType == UpdateLogType.WalletGroup) {
+          batch.insert(walletGroups, syncLog.itemToUpdate,
+              mode: InsertMode.insertOrReplace);
         } else if (syncLog.updateLogType == UpdateLogType.TransactionWallet) {
           batch.update(
             wallets,
@@ -4233,24 +4382,6 @@ class FinanceDatabase extends _$FinanceDatabase {
 
     budget = budget.copyWith(name: budget.name.trim());
     // print(budget);
-
-    if (budget.sharedKey != null && updateSharedEntry == true) {
-      FirebaseFirestore? db = await firebaseGetDBInstance();
-      if (db == null) {
-        return -1;
-      }
-      DocumentReference collectionRef =
-          db.collection('budgets').doc(budget.sharedKey);
-      collectionRef.update({
-        "name": budget.name,
-        "amount": budget.amount,
-        "colour": budget.colour,
-        "startDate": budget.startDate,
-        "endDate": budget.endDate,
-        "periodLength": budget.periodLength,
-        "reoccurrence": enumRecurrence[budget.reoccurrence],
-      });
-    }
 
     budget = budget.copyWith(dateTimeModified: Value(DateTime.now()));
     BudgetsCompanion companionToInsert = budget.toCompanion(true);

@@ -26,6 +26,10 @@ class TransactionsAmountBox extends StatelessWidget {
     this.invertSign = false,
     this.getTextColor,
     this.currencyKey,
+    this.labelIcon,
+    this.topEndLabel,
+    this.bottomEndLabel,
+    this.shortCount = false,
     super.key,
   });
   final Widget? openPage;
@@ -38,6 +42,104 @@ class TransactionsAmountBox extends StatelessWidget {
   final bool invertSign;
   final String? currencyKey;
   final Function(double)? getTextColor;
+  // Detailed layout (6.x style): label with an icon at the start, the number of
+  // accounts and the period in the corners and the amount aligned to the end.
+  // Used when any of these is set.
+  final Widget? labelIcon;
+  final String? topEndLabel;
+  final String? bottomEndLabel;
+  // "×11" instead of "×11 transactions", for the half width cards
+  final bool shortCount;
+
+  bool get detailedLayout =>
+      labelIcon != null || topEndLabel != null || bottomEndLabel != null;
+
+  Widget buildDetailed(BuildContext context) {
+    TextFont smallLabel(String text) => TextFont(
+          text: text,
+          fontSize: 12,
+          maxLines: 1,
+          textColor: getColor(context, "textLight"),
+        );
+    return Padding(
+      padding: const EdgeInsetsDirectional.symmetric(
+          horizontal: 15, vertical: 15),
+      child: DoubleTotalWithCountStreamBuilder(
+        totalWithCountStream: totalWithCountStream,
+        totalWithCountStream2: totalWithCountStream2,
+        builder: (context, snapshot) {
+          double totalSpent = snapshot.data?.total ?? 0;
+          int totalCount = snapshot.data?.count ?? 0;
+          double finalAmount = snapshot.hasData == false || snapshot.data == null
+              ? 0
+              : absolute == true
+                  ? (totalSpent).abs()
+                  : totalSpent * (invertSign == true ? -1 : 1);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  if (labelIcon != null) labelIcon!,
+                  if (labelIcon != null) SizedBox(width: 4),
+                  Expanded(
+                    child: TextFont(
+                      text: label,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      maxLines: 1,
+                    ),
+                  ),
+                  if (topEndLabel != null) smallLabel(topEndLabel!),
+                ],
+              ),
+              SizedBox(height: 8),
+              CountNumber(
+                count: finalAmount,
+                duration: Duration(milliseconds: 1000),
+                initialCount: (0),
+                textBuilder: (number) {
+                  return TextFont(
+                    text: convertToMoney(
+                        Provider.of<AllWallets>(context), number,
+                        currencyKey: currencyKey,
+                        addCurrencyName: currencyKey != null,
+                        finalNumber: finalAmount),
+                    textColor: getTextColor != null
+                        ? getTextColor!(totalSpent)
+                        : textColor,
+                    fontWeight: FontWeight.bold,
+                    textAlign: TextAlign.end,
+                    autoSizeText: true,
+                    fontSize: 21,
+                    maxFontSize: 21,
+                    minFontSize: 10,
+                    maxLines: 1,
+                  );
+                },
+              ),
+              SizedBox(height: 8),
+              Row(
+                children: [
+                  smallLabel("×" +
+                      totalCount.toString() +
+                      (shortCount
+                          ? ""
+                          : " " +
+                              (totalCount == 1
+                                  ? "transaction".tr().toLowerCase()
+                                  : "transactions".tr().toLowerCase()))),
+                  Spacer(),
+                  if (bottomEndLabel != null) smallLabel(bottomEndLabel!),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +159,7 @@ class TransactionsAmountBox extends StatelessWidget {
             onLongPress: () {
               if (onLongPress != null) onLongPress!();
             },
-            child: Container(
+            child: detailedLayout ? buildDetailed(context) : Container(
               child: Padding(
                 padding: const EdgeInsetsDirectional.symmetric(
                     horizontal: 15, vertical: 17),

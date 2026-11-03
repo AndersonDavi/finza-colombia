@@ -15,6 +15,8 @@ import 'package:budget/widgets/openBottomSheet.dart';
 import 'package:budget/widgets/openPopup.dart';
 import 'package:budget/widgets/selectItems.dart';
 import 'package:budget/widgets/walletEntry.dart';
+import 'package:budget/widgets/walletGroups.dart';
+import 'package:budget/database/walletGroups.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -34,65 +36,96 @@ class HomePageWalletSwitcher extends StatelessWidget {
               homePageWidgetDisplay: HomePageWidgetDisplay.WalletSwitcher),
           builder: (context, snapshot) {
             if (snapshot.hasData) {
-              return SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (WalletWithDetails walletDetails in snapshot.data!)
-                      WalletEntry(
-                        selected: Provider.of<SelectedWalletPk>(context)
-                                .selectedWalletPk ==
-                            walletDetails.wallet.walletPk,
-                        walletWithDetails: walletDetails,
+              Widget walletEntry(WalletWithDetails walletDetails) {
+                return WalletEntry(
+                  key: ValueKey(walletDetails.wallet.walletPk),
+                  selected:
+                      Provider.of<SelectedWalletPk>(context).selectedWalletPk ==
+                          walletDetails.wallet.walletPk,
+                  walletWithDetails: walletDetails,
+                );
+              }
+
+              Widget addButton = Stack(
+                children: [
+                  SizedBox(
+                    width: 130,
+                    child: IgnorePointer(
+                      child: Visibility(
+                        maintainSize: true,
+                        maintainAnimation: true,
+                        maintainState: true,
+                        child: Opacity(
+                          opacity: 0,
+                          child: WalletEntry(
+                            selected: false,
+                            walletWithDetails: WalletWithDetails(
+                              wallet: defaultWallet(),
+                            ),
+                          ),
+                        ),
                       ),
-                    Stack(
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.only(start: 6, end: 6),
+                      child: AddButton(
+                        onTap: () {
+                          openBottomSheet(
+                            context,
+                            EditHomePagePinnedWalletsPopup(
+                              homePageWidgetDisplay:
+                                  HomePageWidgetDisplay.WalletSwitcher,
+                            ),
+                            useCustomController: true,
+                          );
+                        },
+                        labelUnder: "account".tr(),
+                        icon: Icons.format_list_bulleted_add,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+
+              return StreamBuilder<List<WalletGroup>>(
+                stream: database.watchAllWalletGroups(),
+                builder: (context, groupsSnapshot) {
+                  List<WalletGroupSection> sections = groupWalletsForDisplay(
+                      snapshot.data!, groupsSnapshot.data ?? []);
+                  // Groups as single cards with their pockets in a second row
+                  if (appStateSettings["walletGroupsCompact"] != false) {
+                    return CompactWalletSwitcher(
+                      sections: sections,
+                      walletEntry: walletEntry,
+                    );
+                  }
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    clipBehavior: Clip.none,
+                    padding: EdgeInsetsDirectional.symmetric(horizontal: 7),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        SizedBox(
-                          width: 130,
-                          child: IgnorePointer(
-                            child: Visibility(
-                              maintainSize: true,
-                              maintainAnimation: true,
-                              maintainState: true,
-                              child: Opacity(
-                                opacity: 0,
-                                child: WalletEntry(
-                                  selected: false,
-                                  walletWithDetails: WalletWithDetails(
-                                    wallet: defaultWallet(),
-                                  ),
+                        for (WalletGroupSection section in sections)
+                          section.group == null
+                              ? walletEntry(section.wallets.first)
+                              : WalletGroupContainer(
+                                  group: section.group!,
+                                  wallets: section.wallets,
+                                  children: [
+                                    for (WalletWithDetails walletDetails
+                                        in section.wallets)
+                                      walletEntry(walletDetails),
+                                  ],
                                 ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        Positioned.fill(
-                          child: Padding(
-                            padding: const EdgeInsetsDirectional.only(
-                                start: 6, end: 6),
-                            child: AddButton(
-                              onTap: () {
-                                openBottomSheet(
-                                  context,
-                                  EditHomePagePinnedWalletsPopup(
-                                    homePageWidgetDisplay:
-                                        HomePageWidgetDisplay.WalletSwitcher,
-                                  ),
-                                  useCustomController: true,
-                                );
-                              },
-                              labelUnder: "account".tr(),
-                              icon: Icons.format_list_bulleted_add,
-                            ),
-                          ),
-                        ),
+                        addButton,
                       ],
                     ),
-                  ],
-                ),
-                clipBehavior: Clip.none,
-                padding: EdgeInsetsDirectional.symmetric(horizontal: 7),
+                  );
+                },
               );
             }
             return Container();
@@ -160,7 +193,8 @@ class EditHomePagePinnedWalletsPopup extends StatelessWidget {
                 },
                 displayFilter: (walletPk) {
                   TransactionWallet? wallet = walletsIndexedByPk[walletPk];
-                  return wallet?.name;
+                  return getWalletStringName(
+                      Provider.of<AllWallets>(context, listen: false), wallet);
                 },
                 initialItems: [
                   for (TransactionWallet wallet in allPinnedWallets)

@@ -129,6 +129,12 @@ Future<Map<String, dynamic>> getDefaultPreferences() async {
     "notificationScanning": false,
     "accountColorfulAmountsWithArrows": false,
     "netTotalsColorful": false,
+    // Same keys and values as the official 6.x, so its backups keep them
+    "amountTotalsStyle": 1, // 0: plain totals, 1: green/red with an arrow
+    "currencyLabelType": 0, // 0: symbol only, 1: currency code when mixed
+    "balanceTransferGroupTransfers": true, // transfer pair in one entry
+    // Own: home cards show each group as one card, its pockets in a 2nd row
+    "walletGroupsCompact": true,
     "EmailAutoTransactions-amountOfEmails": 10,
     "autoBackups": true,
     "autoBackupsFrequency": 3, //in days

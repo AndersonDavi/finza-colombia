@@ -11,6 +11,8 @@ import 'package:budget/widgets/navigationFramework.dart';
 import 'package:budget/widgets/openBottomSheet.dart';
 import 'package:budget/widgets/util/keepAliveClientMixin.dart';
 import 'package:budget/widgets/transactionsAmountBox.dart';
+import 'package:budget/widgets/transactionEntry/incomeAmountArrow.dart';
+import 'package:budget/widgets/periodCyclePicker.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -47,6 +49,17 @@ class HomePageAllSpendingSummary extends StatelessWidget {
                         homePageStateKey.currentState?.refreshState();
                       },
                       label: "expense".tr(),
+                      labelIcon: IncomeOutcomeArrow(
+                        isIncome: false,
+                        iconSize: 24,
+                        width: 14,
+                        height: 18,
+                      ),
+                      topEndLabel: accountsCountLabel(walletPks?.length ??
+                          Provider.of<AllWallets>(context).list.length),
+                      bottomEndLabel:
+                          getLabelOfSelectedCustomPeriod("AllSpendingSummary"),
+                      shortCount: true,
                       totalWithCountStream:
                           database.watchTotalWithCountOfWallet(
                         isIncome: false,
@@ -76,6 +89,17 @@ class HomePageAllSpendingSummary extends StatelessWidget {
                         homePageStateKey.currentState?.refreshState();
                       },
                       label: "income".tr(),
+                      labelIcon: IncomeOutcomeArrow(
+                        isIncome: true,
+                        iconSize: 24,
+                        width: 14,
+                        height: 18,
+                      ),
+                      topEndLabel: accountsCountLabel(walletPks?.length ??
+                          Provider.of<AllWallets>(context).list.length),
+                      bottomEndLabel:
+                          getLabelOfSelectedCustomPeriod("AllSpendingSummary"),
+                      shortCount: true,
                       totalWithCountStream:
                           database.watchTotalWithCountOfWallet(
                         isIncome: true,

@@ -24,6 +24,14 @@ import 'package:budget/widgets/framework/popupFramework.dart';
 import 'package:budget/pages/activityPage.dart';
 
 Map<String, dynamic> appStateSettings = {};
+
+bool amountTotalsColorful() =>
+    appStateSettings["amountTotalsStyle"] == 1 ||
+    appStateSettings["accountColorfulAmountsWithArrows"] == true;
+
+bool netTotalsColorful() =>
+    appStateSettings["amountTotalsStyle"] == 1 ||
+    appStateSettings["netTotalsColorful"] == true;
 bool isDatabaseCorrupted = false;
 String databaseCorruptedError = "";
 bool isDatabaseImportedOnThisSession = false;

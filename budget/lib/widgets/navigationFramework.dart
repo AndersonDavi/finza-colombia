@@ -1,10 +1,14 @@
 import 'package:animations/animations.dart';
 import 'package:budget/colors.dart';
+import 'package:budget/pages/balancePages.dart';
 import 'package:budget/database/initializeDefaultDatabase.dart';
 import 'package:budget/database/tables.dart';
 import 'package:budget/functions.dart';
 import 'package:budget/main.dart';
 import 'package:budget/pages/aboutPage.dart';
+import 'package:budget/pages/activityPage.dart';
+import 'package:budget/pages/calendarPage.dart';
+import 'package:budget/pages/walletsListPage.dart';
 import 'package:budget/pages/accountsPage.dart';
 import 'package:budget/pages/addBudgetPage.dart';
 import 'package:budget/pages/addCategoryPage.dart';
@@ -377,6 +381,9 @@ class PageNavigationFrameworkState extends State<PageNavigationFramework> {
         key: upcomingOverdueTransactionsStateKey,
         overdueTransactions: null), //16
     CreditDebtTransactions(key: creditDebtTransactionsKey, isCredit: null), //17
+    ActivityPage(), //18
+    WalletsListPage(), //19
+    CalendarPage(), //20
   ];
 
   late int currentPage = widget.widthSideNavigationBar <= 0
@@ -584,15 +591,7 @@ class AddMoreThingsPopup extends StatelessWidget {
             onSelected: (String selection) async {
               if (selection == "transfer-balance") {
                 popRoute(context);
-                openBottomSheet(
-                  context,
-                  fullSnap: true,
-                  TransferBalancePopup(
-                    allowEditWallet: true,
-                    wallet: Provider.of<AllWallets>(context, listen: false)
-                        .indexedByPk[appStateSettings["selectedWalletPk"]]!,
-                  ),
-                );
+                pushRoute(context, TransferBalancePage());
               } else if (selection == "correct-total-balance") {
                 TransactionWallet? wallet =
                     Provider.of<AllWallets>(context, listen: false)
@@ -608,11 +607,7 @@ class AddMoreThingsPopup extends StatelessWidget {
                 }
                 if (wallet != null) {
                   popRoute(context);
-                  openBottomSheet(
-                    context,
-                    fullSnap: true,
-                    CorrectBalancePopup(wallet: wallet),
-                  );
+                  pushRoute(context, CorrectBalancePage(wallet: wallet));
                 }
               }
             },

@@ -32,6 +32,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:budget/colors.dart';
+import 'package:budget/pages/balancePages.dart';
+import 'package:budget/widgets/walletGroups.dart';
+import 'package:budget/widgets/pocketGoals.dart';
 import 'package:provider/provider.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 
@@ -41,12 +44,15 @@ class AddWalletPage extends StatefulWidget {
     this.wallet,
     required this.routesToPopAfterDelete,
     this.runWhenOpen,
+    this.initialWalletGroupFk,
   }) : super(key: key);
 
   //When a wallet is passed in, we are editing that wallet
   final TransactionWallet? wallet;
   final RoutesToPopAfterDelete routesToPopAfterDelete;
   final VoidCallback? runWhenOpen;
+  // Group a new account starts in (the "+ pocket" button of a group)
+  final String? initialWalletGroupFk;
 
   @override
   _AddWalletPageState createState() => _AddWalletPageState();
@@ -65,6 +71,10 @@ class _AddWalletPageState extends State<AddWalletPage> {
   String selectedCurrency =
       getDevicesDefaultCurrencyCode(); //if no currency selected use empty string
   int selectedDecimals = 2;
+  late double? selectedGoalAmount = widget.wallet?.goalAmount;
+  late DateTime? selectedGoalDate = widget.wallet?.goalDate;
+  late String? selectedWalletGroupFk =
+      widget.wallet?.walletGroupFk ?? widget.initialWalletGroupFk;
   FocusNode _titleFocusNode = FocusNode();
 
   void setSelectedTitle(String title) {
@@ -115,6 +125,11 @@ class _AddWalletPageState extends State<AddWalletPage> {
   Future<TransactionWallet> createTransactionWallet() async {
     int numberOfWallets = (await database.getTotalCountOfWallets())[0] ?? 0;
     return TransactionWallet(
+      archived: widget.wallet?.archived ?? false,
+      emojiIconName: widget.wallet?.emojiIconName,
+      walletGroupFk: selectedWalletGroupFk,
+      goalAmount: selectedGoalAmount,
+      goalDate: selectedGoalDate,
       walletPk: widget.wallet != null ? widget.wallet!.walletPk : "-1",
       name: selectedTitle ?? "",
       colour: toHexString(selectedColor),
@@ -386,7 +401,7 @@ class _AddWalletPageState extends State<AddWalletPage> {
         },
         actions: [
           CustomPopupMenuButton(
-            showButtons: enableDoubleColumn(context),
+            showButtons: true,
             keepOutFirst: true,
             items: [
               if (widget.wallet != null &&
@@ -404,6 +419,28 @@ class _AddWalletPageState extends State<AddWalletPage> {
                       context,
                       wallet: widget.wallet!,
                       routesToPopAfterDelete: widget.routesToPopAfterDelete,
+                    );
+                  },
+                ),
+              if (widget.wallet != null)
+                DropdownItemMenu(
+                  id: "info",
+                  label: "info".tr(),
+                  icon: appStateSettings["outlinedIcons"]
+                      ? Icons.info_outlined
+                      : Icons.info_outline_rounded,
+                  action: () {
+                    openPopup(
+                      context,
+                      icon: appStateSettings["outlinedIcons"]
+                          ? Icons.account_balance_wallet_outlined
+                          : Icons.account_balance_wallet_rounded,
+                      title: widget.wallet!.name,
+                      description: "created".tr() +
+                          ": " +
+                          getWordedDateShortMore(widget.wallet!.dateCreated),
+                      onSubmit: () => popRoute(context),
+                      onSubmitLabel: "ok".tr(),
                     );
                   },
                 ),
@@ -457,10 +494,10 @@ class _AddWalletPageState extends State<AddWalletPage> {
             child: SizedBox(height: 14),
           ),
           SliverToBoxAdapter(
-            child: Container(
-              height: 65,
+            child: Padding(
+              padding: const EdgeInsetsDirectional.symmetric(horizontal: 20),
               child: SelectColor(
-                horizontalList: true,
+                popOnSelect: false,
                 selectedColor: selectedColor,
                 setSelectedColor: setSelectedColor,
               ),
@@ -497,8 +534,67 @@ class _AddWalletPageState extends State<AddWalletPage> {
                           : Icons.merge_rounded,
                       iconScale: 1,
                       isWideOutlined: true,
+                      afterWidget: IconButton(
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () {
+                          openPopup(
+                            context,
+                            icon: appStateSettings["outlinedIcons"]
+                                ? Icons.merge_outlined
+                                : Icons.merge_rounded,
+                            title: "merge-account".tr(),
+                            description:
+                                "merge-into-description-accounts".tr(),
+                            onSubmit: () => popRoute(context),
+                            onSubmitLabel: "ok".tr(),
+                          );
+                        },
+                        icon: Icon(
+                          appStateSettings["outlinedIcons"]
+                              ? Icons.info_outlined
+                              : Icons.info_outline_rounded,
+                          size: 20,
+                        ),
+                      ),
                     ),
                   ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsetsDirectional.only(
+                start: 24,
+                end: 24,
+                bottom: 10,
+              ),
+              child: WalletGroupSelector(
+                selectedWalletGroupFk: selectedWalletGroupFk,
+                onSelected: (walletGroupPk) {
+                  setState(() => selectedWalletGroupFk = walletGroupPk);
+                  determineBottomButton();
+                },
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsetsDirectional.only(
+                start: 24,
+                end: 24,
+                bottom: 10,
+              ),
+              child: PocketGoalSetting(
+                goalAmount: selectedGoalAmount,
+                goalDate: selectedGoalDate,
+                currency: selectedCurrency,
+                onChanged: (amount, date) {
+                  setState(() {
+                    selectedGoalAmount = amount;
+                    selectedGoalDate = date;
+                  });
+                  determineBottomButton();
+                },
+              ),
+            ),
           ),
           if (widget.wallet != null)
             SliverToBoxAdapter(
@@ -525,11 +621,8 @@ class _AddWalletPageState extends State<AddWalletPage> {
                                 await addWallet(popContext: false);
                                 TransactionWallet wallet =
                                     await createTransactionWallet();
-                                openBottomSheet(
-                                  context,
-                                  fullSnap: true,
-                                  CorrectBalancePopup(wallet: wallet),
-                                );
+                                pushRoute(
+                                    context, CorrectBalancePage(wallet: wallet));
                               },
                               title: "correct-total-balance".tr(),
                               icon: appStateSettings["outlinedIcons"]
@@ -559,10 +652,9 @@ class _AddWalletPageState extends State<AddWalletPage> {
                                     await addWallet(popContext: false);
                                     TransactionWallet wallet =
                                         await createTransactionWallet();
-                                    openBottomSheet(
+                                    pushRoute(
                                       context,
-                                      fullSnap: true,
-                                      TransferBalancePopup(
+                                      TransferBalancePage(
                                         wallet: wallet,
                                         allowEditWallet: false,
                                       ),
@@ -583,19 +675,51 @@ class _AddWalletPageState extends State<AddWalletPage> {
                           child: Padding(
                             padding: const EdgeInsetsDirectional.symmetric(
                                 horizontal: 4),
-                            child: SettingsContainer(
-                              isOutlinedColumn: true,
-                              isOutlined: true,
-                              onTap: () async {
-                                openDecimalPrecisionPopup();
-                              },
-                              title: "decimal-precision".tr(),
-                              icon: appStateSettings["outlinedIcons"]
-                                  ? Symbols.decimal_increase_sharp
-                                  : Symbols.decimal_increase_rounded,
-                              iconScale: 1,
-                              isWideOutlined: true,
-                              horizontalPadding: 5,
+                            child: Stack(
+                              // Takes the size the row gives the other two tiles
+                              fit: StackFit.passthrough,
+                              clipBehavior: Clip.none,
+                              alignment: AlignmentDirectional.bottomCenter,
+                              children: [
+                                SettingsContainer(
+                                  isOutlinedColumn: true,
+                                  isOutlined: true,
+                                  onTap: () async {
+                                    openDecimalPrecisionPopup();
+                                  },
+                                  title: "decimal-precision".tr(),
+                                  icon: appStateSettings["outlinedIcons"]
+                                      ? Symbols.decimal_increase_sharp
+                                      : Symbols.decimal_increase_rounded,
+                                  iconScale: 1,
+                                  isWideOutlined: true,
+                                  horizontalPadding: 5,
+                                ),
+                                PositionedDirectional(
+                                  bottom: -2,
+                                  child: IgnorePointer(
+                                    child: Container(
+                                      padding:
+                                          const EdgeInsetsDirectional.symmetric(
+                                              horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .secondaryContainer,
+                                        borderRadius:
+                                            BorderRadius.circular(100),
+                                      ),
+                                      child: TextFont(
+                                        text: "n-decimals".tr(args: [
+                                          selectedDecimals.toString()
+                                        ]),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -968,6 +1092,7 @@ Future<TransactionCategory> initializeBalanceCorrectionCategory() async {
       insert: false,
       updateSharedEntry: false,
       TransactionCategory(
+        archived: false,
         categoryPk: "0",
         name: "default-category-account-amount-balancing".tr(),
         colour: toHexString(Colors.blueGrey),
@@ -1017,6 +1142,81 @@ Future<String?> createCorrectionTransaction(
     return transactionJustAdded.transactionPk;
   }
   return null;
+}
+
+// Creates the paired balance corrections of a transfer. amount is in the
+// primary currency; isNegative moves the money from walletTo to walletFrom.
+// Returns false (and warns) when both accounts are the same.
+Future<bool> createBalanceTransfer(
+  AllWallets allWallets, {
+  required double amount,
+  required TransactionWallet walletFrom,
+  required TransactionWallet walletTo,
+  bool isNegative = false,
+  DateTime? dateTime,
+  String title = "",
+  String? objectiveLoanPk,
+  bool showSnackbar = true,
+}) async {
+  if (walletFrom.walletPk == walletTo.walletPk) {
+    openSnackbar(
+      SnackbarMessage(
+        icon: appStateSettings["outlinedIcons"]
+            ? Icons.warning_outlined
+            : Icons.warning_rounded,
+        title: "same-accounts".tr(),
+        description: "select-2-different-accounts".tr(),
+      ),
+    );
+    return false;
+  }
+
+  String transferString = getWalletStringName(allWallets, walletFrom) +
+      (isNegative ? " ← " : " → ") +
+      getWalletStringName(allWallets, walletTo);
+
+  String note = "transferred-balance".tr() + "\n" + transferString;
+
+  // Want these times to be the same so we know the pairing of balance corrections
+  DateTime selectedDateTimeSetToNow = dateTime ?? DateTime.now();
+
+  String? transactionPk = await createCorrectionTransaction(
+    amount * getAmountRatioWalletTransferTo(allWallets, walletTo.walletPk),
+    walletTo,
+    note: note,
+    dateTime: selectedDateTimeSetToNow.add(Duration(seconds: 1)),
+    title: title == ""
+        ? (allWallets.indexedByPk[walletTo.walletPk]!.name +
+            " " +
+            (isNegative ? "transfer-out".tr() : "transfer-in".tr()))
+        : title,
+  );
+
+  await createCorrectionTransaction(
+    objectiveLoanPk: objectiveLoanPk,
+    pairedTransactionFk: transactionPk,
+    amount * getAmountRatioWalletTransferFrom(allWallets, walletFrom.walletPk),
+    walletFrom,
+    note: note,
+    dateTime: selectedDateTimeSetToNow,
+    title: title == ""
+        ? (allWallets.indexedByPk[walletFrom.walletPk]!.name +
+            " " +
+            (isNegative == false ? "transfer-out".tr() : "transfer-in".tr()))
+        : title,
+  );
+
+  if (showSnackbar)
+    openSnackbar(
+      SnackbarMessage(
+        title: "transferred-balance".tr(),
+        description: transferString,
+        icon: appStateSettings["outlinedIcons"]
+            ? Icons.compare_arrows_outlined
+            : Icons.compare_arrows_rounded,
+      ),
+    );
+  return true;
 }
 
 class TransferBalancePopup extends StatefulWidget {
@@ -1156,55 +1356,17 @@ class _TransferBalancePopupState extends State<TransferBalancePopup> {
       return;
     }
 
-    if (walletFrom.walletPk == walletTo?.walletPk) {
-      openSnackbar(
-        SnackbarMessage(
-          icon: appStateSettings["outlinedIcons"]
-              ? Icons.warning_outlined
-              : Icons.warning_rounded,
-          title: "same-accounts".tr(),
-          description: "select-2-different-accounts".tr(),
-        ),
-      );
-      return;
-    }
-
-    String transferString = getWalletStringName(allWallets, walletFrom) +
-        (isNegative ? " ← " : " → ") +
-        getWalletStringName(allWallets, walletTo);
-
-    String note = "transferred-balance".tr() + "\n" + transferString;
-
-    // Want these times to be the same so we know the pairing of balance corrections
-    DateTime selectedDateTimeSetToNow = selectedDateTime ?? DateTime.now();
-
-    String? transactionPk = await createCorrectionTransaction(
-      enteredAmount *
-          getAmountRatioWalletTransferTo(allWallets, walletTo!.walletPk),
-      walletTo!,
-      note: note,
-      dateTime: selectedDateTimeSetToNow.add(Duration(seconds: 1)),
-      title: selectedTitle == ""
-          ? (allWallets.indexedByPk[walletTo!.walletPk]!.name +
-              " " +
-              (isNegative ? "transfer-out".tr() : "transfer-in".tr()))
-          : selectedTitle,
-    );
-
-    await createCorrectionTransaction(
+    bool transferred = await createBalanceTransfer(
+      allWallets,
+      amount: enteredAmount,
+      walletFrom: walletFrom,
+      walletTo: walletTo!,
+      isNegative: isNegative,
+      dateTime: selectedDateTime,
+      title: selectedTitle,
       objectiveLoanPk: widget.initialObjectiveLoanPk,
-      pairedTransactionFk: transactionPk,
-      enteredAmount *
-          getAmountRatioWalletTransferFrom(allWallets, walletFrom.walletPk),
-      walletFrom,
-      note: note,
-      dateTime: selectedDateTimeSetToNow,
-      title: selectedTitle == ""
-          ? (allWallets.indexedByPk[walletFrom.walletPk]!.name +
-              " " +
-              (isNegative == false ? "transfer-out".tr() : "transfer-in".tr()))
-          : selectedTitle,
     );
+    if (transferred == false) return;
     // Deal with transfer fee
     // if (transferFee != 0) {
     //   String transferFeeNote = "transfer-fee".tr() +
@@ -1230,15 +1392,6 @@ class _TransferBalancePopupState extends State<TransferBalancePopup> {
     //   );
     // }
 
-    openSnackbar(
-      SnackbarMessage(
-        title: "transferred-balance".tr(),
-        description: transferString,
-        icon: appStateSettings["outlinedIcons"]
-            ? Icons.compare_arrows_outlined
-            : Icons.compare_arrows_rounded,
-      ),
-    );
     savingHapticFeedback();
     popRoute(context, true);
   }

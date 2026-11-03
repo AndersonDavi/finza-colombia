@@ -1414,8 +1414,20 @@ String absoluteZeroString(String number) {
 
 // Will only include the currency if the user has wallets of different currencies
 // e.g. Wallet (USD)
+// Names of the account groups by pk, kept up to date from the database
+Map<String, String> walletGroupNamesCache = {};
+Map<String, int> walletGroupOrderCache = {};
+Set<String> freeWalletPksCache = {};
+
 String getWalletStringName(AllWallets allWallets, TransactionWallet? wallet) {
   if (wallet == null) return "";
+  // Pockets with the same name (several "Libre") also show their group
+  String? groupName = walletGroupNamesCache[wallet.walletGroupFk];
+  if (groupName != null &&
+      allWallets.list.any(
+          (w) => w.walletPk != wallet.walletPk && w.name == wallet.name)) {
+    return wallet.name + " · " + groupName;
+  }
   if (wallet.name == wallet.currency.toString().toUpperCase()) {
     return wallet.currency.toString().toUpperCase();
   } else {

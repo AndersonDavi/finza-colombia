@@ -95,6 +95,27 @@ Map<String, NavBarIconData> getNavBarIconsData() {
       labelLong: "all-spending-summary",
       navigationIndexedStackIndex: 7,
     ),
+    "accounts": NavBarIconData(
+      iconData: appStateSettings["outlinedIcons"]
+          ? Icons.account_balance_wallet_outlined
+          : Icons.account_balance_wallet_rounded,
+      label: "accounts",
+      navigationIndexedStackIndex: 19,
+    ),
+    "calendar": NavBarIconData(
+      iconData: appStateSettings["outlinedIcons"]
+          ? Icons.calendar_month_outlined
+          : Icons.calendar_month_rounded,
+      label: "calendar",
+      navigationIndexedStackIndex: 20,
+    ),
+    "activityLog": NavBarIconData(
+      iconData: appStateSettings["outlinedIcons"]
+          ? Icons.history_outlined
+          : Icons.history_rounded,
+      label: "activity-log",
+      navigationIndexedStackIndex: 18,
+    ),
     "settings": NavBarIconData(
       iconData: appStateSettings["outlinedIcons"]
           ? Icons.settings_outlined

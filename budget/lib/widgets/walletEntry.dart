@@ -14,6 +14,8 @@ import 'package:budget/widgets/tappable.dart';
 import 'package:budget/widgets/textWidgets.dart';
 import 'package:budget/widgets/transactionEntry/incomeAmountArrow.dart';
 import 'package:budget/widgets/watchAllWallets.dart';
+import 'package:budget/widgets/walletGroups.dart';
+import 'package:budget/widgets/pocketGoals.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:budget/pages/walletDetailsPage.dart';
@@ -85,9 +87,17 @@ class WalletEntry extends StatelessWidget {
                         children: [
                           Padding(
                             padding: const EdgeInsetsDirectional.only(end: 17),
-                            child: TextFont(
-                              text: walletWithDetails.wallet.name,
-                              fontWeight: FontWeight.bold,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextFont(
+                                  text: walletWithDetails.wallet.name,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                if (freeWalletPksCache.contains(
+                                    walletWithDetails.wallet.walletPk))
+                                  FreePocketTag(),
+                              ],
                             ),
                           ),
                           AmountAccount(
@@ -106,6 +116,10 @@ class WalletEntry extends StatelessWidget {
                             fontSize: 14,
                             textColor:
                                 getColor(context, "black").withOpacity(0.65),
+                          ),
+                          PocketGoalBar(
+                            wallet: walletWithDetails.wallet,
+                            balance: walletWithDetails.totalSpent ?? 0,
                           ),
                         ],
                       ),
@@ -250,6 +264,18 @@ class WalletEntryRow extends StatelessWidget {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
+                                if (!isCurrencyRow &&
+                                    freeWalletPksCache.contains(
+                                        walletWithDetails.wallet.walletPk))
+                                  TextSpan(
+                                    text: "  " + "free-money".tr(),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: getColor(context, "incomeAmount"),
+                                      fontFamily: appStateSettings["font"],
+                                      fontFamilyFallback: ['Inter'],
+                                    ),
+                                  ),
                                 if (percent != null)
                                   TextSpan(
                                     text: "  " +
@@ -333,7 +359,7 @@ class AmountAccount extends StatelessWidget {
         absoluteZero(walletWithDetails.totalSpent ?? 0)
             .toStringAsFixed(walletWithDetails.wallet.decimals)));
     Color textColor =
-        appStateSettings["accountColorfulAmountsWithArrows"] == true
+        amountTotalsColorful()
             ? roundedWalletWithTotal == 0
                 ? getColor(context, "black")
                 : (walletWithDetails.totalSpent ?? 0) > 0
@@ -341,13 +367,13 @@ class AmountAccount extends StatelessWidget {
                     : getColor(context, "expenseAmount")
             : getColor(context, "black");
     double finalTotal =
-        appStateSettings["accountColorfulAmountsWithArrows"] == true
+        amountTotalsColorful()
             ? (walletWithDetails.totalSpent ?? 0).abs()
             : (absoluteZero(walletWithDetails.totalSpent ?? 0));
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (appStateSettings["accountColorfulAmountsWithArrows"] == true)
+        if (amountTotalsColorful())
           AnimatedSizeSwitcher(
             child: roundedWalletWithTotal == 0
                 ? Container(
@@ -376,7 +402,7 @@ class AmountAccount extends StatelessWidget {
                 finalNumber: finalTotal,
                 currencyKey: walletWithDetails.wallet.currency,
                 decimals: walletWithDetails.wallet.decimals,
-                addCurrencyName:
+                addCurrencyName: appStateSettings["currencyLabelType"] == 1 &&
                     Provider.of<AllWallets>(context).allContainSameCurrency() ==
                         false,
               ),

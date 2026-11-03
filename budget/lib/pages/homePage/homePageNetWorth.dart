@@ -16,6 +16,7 @@ import 'package:budget/widgets/outlinedButtonStacked.dart';
 import 'package:budget/widgets/periodCyclePicker.dart';
 import 'package:budget/widgets/transactionsAmountBox.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:budget/widgets/walletGroups.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -36,7 +37,10 @@ class HomePageNetWorth extends StatelessWidget {
               if (walletPks.length <= 0 ||
                   appStateSettings["netWorthAllWallets"] == true)
                 walletPks = null;
-              return Padding(
+              return Column(
+                children: [
+                  FreeMoneySummary(),
+                  Padding(
                 padding: const EdgeInsetsDirectional.only(
                     bottom: 13, start: 13, end: 13),
                 child: Row(
@@ -50,8 +54,19 @@ class HomePageNetWorth extends StatelessWidget {
                           homePageStateKey.currentState?.refreshState();
                         },
                         label: "net-worth".tr(),
-                        getTextColor: appStateSettings["netTotalsColorful"] !=
-                                true
+                        labelIcon: Icon(
+                          appStateSettings["outlinedIcons"]
+                              ? Icons.trending_up_outlined
+                              : Icons.trending_up_rounded,
+                          size: 20,
+                          color: getColor(context, "black"),
+                        ),
+                        topEndLabel: accountsCountLabel(
+                            walletPks?.length ??
+                                Provider.of<AllWallets>(context).list.length),
+                        bottomEndLabel:
+                            getLabelOfSelectedCustomPeriod("NetWorth"),
+                        getTextColor: netTotalsColorful() != true
                             ? null
                             : (double amount) {
                                 double? roundedWalletWithTotal =
@@ -63,8 +78,7 @@ class HomePageNetWorth extends StatelessWidget {
                                                             "selectedWalletPk"]]
                                                     ?.decimals ??
                                                 2)));
-                                return appStateSettings["netTotalsColorful"] ==
-                                        true
+                                return netTotalsColorful() == true
                                     ? (roundedWalletWithTotal == 0
                                         ? getColor(context, "black")
                                         : amount > 0
@@ -105,6 +119,8 @@ class HomePageNetWorth extends StatelessWidget {
                     ),
                   ],
                 ),
+                  ),
+                ],
               );
             }
             return SizedBox.shrink();
@@ -252,6 +268,11 @@ class _WalletPickerPeriodCycleState extends State<WalletPickerPeriodCycle> {
     );
   }
 }
+
+String accountsCountLabel(int count) =>
+    count.toString() +
+    " " +
+    (count == 1 ? "account".tr() : "accounts".tr()).toLowerCase();
 
 Future openNetWorthSettings(BuildContext context) {
   return openBottomSheet(

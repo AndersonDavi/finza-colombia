@@ -264,6 +264,21 @@ class TransactionEntry extends StatelessWidget {
     //   return SizedBox.shrink();
     // }
 
+    // Both sides of a balance transfer are shown as one entry, on the first of
+    // the two (lists keep the pair next to each other); the second one hides
+    bool groupTransfers =
+        appStateSettings["balanceTransferGroupTransfers"] == true &&
+            appStateSettings["nonCompactTransactions"] != true;
+    Transaction? groupedTransfer =
+        groupTransfers && isTransferPair(transaction, transactionAfter)
+            ? transactionAfter
+            : null;
+    if (groupTransfers &&
+        groupedTransfer == null &&
+        isTransferPair(transaction, transactionBefore)) {
+      return SizedBox.shrink();
+    }
+
     bool enableSelectionCheckmark = getPlatform() == PlatformOS.isIOS ||
         (kIsWeb && getIsFullScreen(context));
     if (globalSelectedID.value[listID ?? "0"] == null) {
@@ -432,6 +447,75 @@ class TransactionEntry extends StatelessWidget {
       Widget transactionActionLabelButton = TransactionEntryTypeButton(
         transaction: transaction,
       );
+      Widget transferSide(Transaction side) {
+        TransactionWallet? wallet =
+            Provider.of<AllWallets>(context).indexedByPk[side.walletFk];
+        return Padding(
+          padding: const EdgeInsetsDirectional.only(top: 3),
+          child: Row(
+            children: [
+              TransactionTag(
+                margin: EdgeInsetsDirectional.zero,
+                color: HexColor(wallet?.colour,
+                    defaultColor: Theme.of(context).colorScheme.primary),
+                name: getWalletStringName(
+                    Provider.of<AllWallets>(context), wallet),
+              ),
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsetsDirectional.symmetric(horizontal: 8),
+                  height: 1,
+                  color: getColor(context, "textLight").withOpacity(0.2),
+                ),
+              ),
+              TransactionEntryNote(
+                transaction: side,
+                iconColor: iconColor,
+              ),
+              TransactionEntryAmount(
+                transaction: side,
+                showOtherCurrency: side.walletFk !=
+                        appStateSettings["selectedWalletPk"] &&
+                    walletCurrency != wallet?.currency,
+                unsetCustomCurrency: unsetCustomCurrency,
+              ),
+            ],
+          ),
+        );
+      }
+
+      if (groupedTransfer != null) {
+        // The side money leaves from goes first
+        List<Transaction> sides = transaction.amount <= 0
+            ? [transaction, groupedTransfer]
+            : [groupedTransfer, transaction];
+        return Padding(
+          padding: enableSelectionCheckmark
+              ? const EdgeInsetsDirectional.only(end: 7)
+              : EdgeInsetsDirectional.zero,
+          child: Row(
+            children: [
+              transactionSelectionCheck,
+              categoryIcon,
+              SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextFont(
+                      text: sides[0].name.trim() + " → " + sides[1].name.trim(),
+                      fontSize: fontSize,
+                      maxLines: 2,
+                    ),
+                    for (Transaction side in sides) transferSide(side),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
       Widget finalTransactionContainer = appStateSettings[
                   "nonCompactTransactions"] ==
               true
@@ -985,4 +1069,12 @@ class TransactionSelectionCheck extends StatelessWidget {
           : Container(width: 7 + 8),
     );
   }
+}
+
+bool isTransferPair(Transaction a, Transaction? b) {
+  if (b == null) return false;
+  return (a.pairedTransactionFk != null &&
+          a.pairedTransactionFk == b.transactionPk) ||
+      (b.pairedTransactionFk != null &&
+          b.pairedTransactionFk == a.transactionPk);
 }

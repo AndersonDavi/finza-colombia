@@ -11,6 +11,7 @@ import 'package:budget/widgets/tappable.dart';
 import 'package:budget/widgets/util/keepAliveClientMixin.dart';
 import 'package:budget/widgets/openBottomSheet.dart';
 import 'package:budget/widgets/walletEntry.dart';
+import 'package:budget/widgets/walletGroups.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -58,14 +59,16 @@ class HomePageWalletList extends StatelessWidget {
                           children: [
                             if (snapshot.hasData && snapshot.data!.length > 0)
                               SizedBox(height: 8),
-                            for (WalletWithDetails walletDetails
-                                in snapshot.data!)
-                              WalletEntryRow(
+                            GroupedWalletRows(
+                              showOrganizer: true,
+                              wallets: snapshot.data!,
+                              rowBuilder: (walletDetails) => WalletEntryRow(
                                 selected: Provider.of<SelectedWalletPk>(context)
                                         .selectedWalletPk ==
                                     walletDetails.wallet.walletPk,
                                 walletWithDetails: walletDetails,
                               ),
+                            ),
                             if (snapshot.hasData && snapshot.data!.length > 0)
                               SizedBox(height: 8),
                             if (snapshot.hasData && snapshot.data!.length <= 0)

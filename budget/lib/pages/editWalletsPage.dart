@@ -2,6 +2,7 @@ import 'package:budget/colors.dart';
 import 'package:budget/database/tables.dart';
 import 'package:budget/functions.dart';
 import 'package:budget/pages/addWalletPage.dart';
+import 'package:budget/widgets/walletGroups.dart';
 import 'package:budget/pages/editAssociatedTitlesPage.dart';
 import 'package:budget/pages/editBudgetPage.dart';
 import 'package:budget/struct/databaseGlobal.dart';
@@ -521,6 +522,35 @@ Future<TransactionWallet?> selectWalletPopup(
               return Padding(
                 padding: const EdgeInsetsDirectional.only(bottom: 15),
                 child: NoResults(message: "no-accounts-found".tr()),
+              );
+            }
+            // Pockets together by group, in the groups' order, then the
+            // accounts without a group
+            int groupPosition(WalletWithDetails w) =>
+                walletGroupOrderCache[w.wallet.walletGroupFk] ?? 100000;
+            walletsWithoutOneDeleted = [...walletsWithoutOneDeleted]
+              ..sort((a, b) {
+                int byGroup = groupPosition(a).compareTo(groupPosition(b));
+                return byGroup != 0
+                    ? byGroup
+                    : a.wallet.order.compareTo(b.wallet.order);
+              });
+            if (!currencyOnly) {
+              return GroupedWalletPicker(
+                wallets: walletsWithoutOneDeleted,
+                selectedWalletPk: selectedWallet?.walletPk,
+                onSelected: (wallet) => popRoute(context, wallet),
+                onLongPress: allowEditWallet
+                    ? (wallet) => pushRoute(
+                          context,
+                          AddWalletPage(
+                            routesToPopAfterDelete: allowDeleteWallet == false
+                                ? RoutesToPopAfterDelete.PreventDelete
+                                : RoutesToPopAfterDelete.One,
+                            wallet: wallet,
+                          ),
+                        )
+                    : null,
               );
             }
             return RadioItems(

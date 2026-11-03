@@ -1,5 +1,6 @@
 import 'package:budget/database/generatePreviewData.dart';
 import 'package:budget/database/tables.dart';
+import 'package:budget/database/undoDelete.dart';
 import 'package:budget/functions.dart';
 import 'package:budget/pages/addBudgetPage.dart';
 import 'package:budget/pages/addCategoryPage.dart';
@@ -54,6 +55,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:budget/colors.dart';
+import 'package:budget/pages/balancePages.dart';
 import 'package:flutter/services.dart' hide TextInput;
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -1004,19 +1006,17 @@ class _AddTransactionPageState extends State<AddTransactionPage>
     if (selectedObjectiveLoanPk != null) {
       initialIsNegative = selectedIncome;
     }
-    dynamic result = await openBottomSheet(
+    dynamic result = await pushRoute(
       context,
-      fullSnap: true,
-      TransferBalancePopup(
+      TransferBalancePage(
         allowEditWallet: true,
         wallet: Provider.of<AllWallets>(context, listen: false)
             .indexedByPk[appStateSettings["selectedWalletPk"]]!,
-        showAllEditDetails: true,
         initialAmount: selectedAmount,
         initialDate: selectedDate,
         initialTitle: selectedTitle,
-        initialObjectiveLoanPk: selectedObjectiveLoanPk,
-        initialIsNegative: initialIsNegative,
+        objectiveLoanPk: selectedObjectiveLoanPk,
+        isNegative: initialIsNegative ?? false,
       ),
     );
     if (result == true) {
@@ -2703,9 +2703,10 @@ class _SelectTitleState extends State<SelectTitle> {
                             ),
                           ),
                   ),
+                  // Only when asked for in the settings, also on wide screens
                   if (widget.disableAskForNote == false &&
-                          getIsFullScreen(context) ||
-                      appStateSettings["askForTransactionNoteWithTitle"])
+                      appStateSettings["askForTransactionNoteWithTitle"] ==
+                          true)
                     Padding(
                       padding: const EdgeInsetsDirectional.only(top: 13),
                       child: Container(
@@ -3040,6 +3041,7 @@ Future<bool> addAssociatedTitles(
         await database.createOrUpdateAssociatedTitle(
           insert: true,
           TransactionAssociatedTitle(
+            archived: false,
             associatedTitlePk: "-1",
             categoryFk: selectedCategory.categoryPk,
             isExactMatch: false,
@@ -3462,7 +3464,9 @@ void deleteTransactionPopup(
         SnackbarMessage(
           title: "deleted-transaction".tr(),
           icon: Icons.delete,
-          description: transactionName,
+          description: (transactionName ?? "") + " · " + "tap-to-undo".tr(),
+          timeout: Duration(milliseconds: 6000),
+          onTap: () => database.restoreTransactions([transaction]),
         ),
       );
     });
@@ -3545,6 +3549,8 @@ Future deleteTransactionsPopup(
       popRoute(context);
     }
     openLoadingPopupTryCatch(() async {
+      List<Transaction> deleted =
+          await database.getTransactionsFromPks(transactionPks);
       await database.deleteTransactions(transactionPks);
       openSnackbar(
         SnackbarMessage(
@@ -3554,7 +3560,11 @@ Future deleteTransactionsPopup(
               " " +
               (transactionPks.length == 1
                   ? "transaction".tr().toLowerCase()
-                  : "transactions".tr().toLowerCase()),
+                  : "transactions".tr().toLowerCase()) +
+              " · " +
+              "tap-to-undo".tr(),
+          timeout: Duration(milliseconds: 6000),
+          onTap: () => database.restoreTransactions(deleted),
         ),
       );
     });

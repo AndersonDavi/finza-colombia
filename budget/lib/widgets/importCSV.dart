@@ -945,6 +945,7 @@ class _ImportingEntriesPopupState extends State<ImportingEntriesPopup> {
         await database.createOrUpdateCategory(
           insert: true,
           TransactionCategory(
+            archived: false,
             categoryPk: "-1",
             name: row[assignedColumns["category"]!["setHeaderIndex"]]
                 .toString()
@@ -1096,6 +1097,7 @@ class _ImportingEntriesPopupState extends State<ImportingEntriesPopup> {
       name == ""
           ? null
           : TransactionAssociatedTitle(
+              archived: false,
               associatedTitlePk: "-1",
               categoryFk: mainCategoryFk,
               isExactMatch: false,

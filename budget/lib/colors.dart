@@ -602,6 +602,10 @@ ThemeData generateThemeDataWithExtension(
   );
 
   return themeData.copyWith(
+    // Newer Flutter paints pages and canvases with colorScheme.surface (grey
+    // 900 in the dark gray scheme); this app is designed around background
+    scaffoldBackgroundColor: themeData.colorScheme.background,
+    canvasColor: themeData.colorScheme.background,
     extensions: <ThemeExtension<dynamic>>[colors],
     appBarTheme: AppBarTheme(
       systemOverlayStyle: getSystemUiOverlayStyle(colors, brightness),

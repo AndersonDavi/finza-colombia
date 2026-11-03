@@ -76,7 +76,16 @@ class Tappable extends StatelessWidget {
       // Check if right mouse button clicked
       if (event.kind == PointerDeviceKind.mouse &&
           event.buttons == kSecondaryMouseButton) {
-        if (onLongPress != null) onLongPress!();
+        // Listeners get the event from the innermost one outwards: only the
+        // innermost Tappable with a long press handles it (e.g. an account
+        // row, not also the list around it)
+        if (onLongPress != null &&
+            !_rightClicksHandled.contains(event.pointer)) {
+          _rightClicksHandled.add(event.pointer);
+          Future.delayed(Duration(milliseconds: 500),
+              () => _rightClicksHandled.remove(event.pointer));
+          onLongPress!();
+        }
       }
     }
 
@@ -86,6 +95,8 @@ class Tappable extends StatelessWidget {
     );
   }
 }
+
+Set<int> _rightClicksHandled = {};
 
 class FadedButton extends StatefulWidget {
   const FadedButton({

@@ -26,6 +26,7 @@ class SelectColor extends StatefulWidget {
     this.selectedColor,
     this.next,
     this.horizontalList = false,
+    this.popOnSelect = true,
     this.supportCustomColors = true,
     this.includeThemeColor = true, // Will return null if theme color is chosen
     this.useSystemColorPrompt =
@@ -37,6 +38,8 @@ class SelectColor extends StatefulWidget {
   final Color? selectedColor;
   final VoidCallback? next;
   final bool horizontalList;
+  // The wrapped grid closes its popup after a pick; false when on a page
+  final bool popOnSelect;
   final bool supportCustomColors;
   final bool includeThemeColor;
   final bool? useSystemColorPrompt;
@@ -211,19 +214,34 @@ class _SelectColorState extends State<SelectColor> {
               : SizedBox.shrink(),
           AnimatedOpacity(
             duration: Duration(milliseconds: 400),
+            // Faded only while the system color is in use instead
             opacity:
-                widget.useSystemColorPrompt == true && useSystemColor == false
-                    ? 1
-                    : 0.5,
+                widget.useSystemColorPrompt == true && useSystemColor == true
+                    ? 0.5
+                    : 1,
             child: Center(
               child: Wrap(
                 alignment: WrapAlignment.center,
-                children: selectableColorsList
+                children: customColorFirst(selectableColorsList
                     .asMap()
                     .map(
                       (index, color) => MapEntry(
                         index,
-                        widget.supportCustomColors &&
+                        widget.includeThemeColor && index == 0
+                            ? ThemeColorIcon(
+                                outline:
+                                    selectedIndex == 0 && selectedColor == null,
+                                margin: EdgeInsetsDirectional.all(5),
+                                size: 55,
+                                onTap: () {
+                                  widget.setSelectedColor!(null);
+                                  setState(() {
+                                    selectedColor = null;
+                                    selectedIndex = index;
+                                  });
+                                },
+                              )
+                            : widget.supportCustomColors &&
                                 index + 1 == selectableColorsList.length
                             ? KeepAliveClientMixin(
                                 child: ColorIconCustom(
@@ -240,7 +258,8 @@ class _SelectColorState extends State<SelectColor> {
                                     });
                                     Future.delayed(Duration(milliseconds: 70),
                                         () {
-                                      popRoute(context);
+                                      if (widget.popOnSelect)
+                                        popRoute(context);
                                       if (widget.next != null) {
                                         widget.next!();
                                       }
@@ -263,7 +282,8 @@ class _SelectColorState extends State<SelectColor> {
                                     });
                                     Future.delayed(Duration(milliseconds: 70),
                                         () {
-                                      popRoute(context);
+                                      if (widget.popOnSelect)
+                                        popRoute(context);
                                       if (widget.next != null) {
                                         widget.next!();
                                       }
@@ -276,13 +296,19 @@ class _SelectColorState extends State<SelectColor> {
                       ),
                     )
                     .values
-                    .toList(),
+                    .toList()),
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  // The custom color picker goes first, like the official 6.x
+  List<Widget> customColorFirst(List<Widget> items) {
+    if (!widget.supportCustomColors || items.isEmpty) return items;
+    return [items.last, ...items.sublist(0, items.length - 1)];
   }
 }
 

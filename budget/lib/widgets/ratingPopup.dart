@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:budget/functions.dart';
 import 'package:budget/pages/addTransactionPage.dart';
-import 'package:budget/struct/firebaseAuthGlobal.dart';
 import 'package:budget/struct/languageMap.dart';
 import 'package:budget/struct/settings.dart';
 import 'package:budget/widgets/animatedExpanded.dart';
@@ -20,7 +19,6 @@ import 'package:budget/widgets/openBottomSheet.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:budget/colors.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:budget/widgets/framework/popupFramework.dart';
 
@@ -215,35 +213,8 @@ Future<bool> shareFeedback(String feedbackText, String feedbackType,
     error = true;
   }
 
-  try {
-    FirebaseFirestore? db = await firebaseGetDBInstanceAnonymous();
-    if (db == null) {
-      throw ("Can't connect to db");
-    }
-    Map<String, dynamic> feedbackEntry = {
-      "stars": (selectedStars ?? -1) + 1,
-      "feedback": feedbackText,
-      "dateTime": DateTime.now(),
-      "feedbackType": feedbackType,
-      "email": feedbackEmail,
-      "platform": getPlatform().toString(),
-      "appVersion": getVersionString(),
-    };
-
-    DocumentReference feedbackCreatedOnCloud =
-        await db.collection("feedback").add(feedbackEntry);
-
-    openSnackbar(SnackbarMessage(
-        title: "feedback-shared".tr(),
-        description: "thank-you".tr(),
-        icon: appStateSettings["outlinedIcons"]
-            ? Icons.rate_review_outlined
-            : Icons.rate_review_rounded,
-        timeout: Duration(milliseconds: 2500)));
-  } catch (e) {
-    print(e.toString());
-    error = true;
-  }
+  // Feedback used to go to the author's Firestore; this build has no server
+  // to send it to.
   if (error == true) {
     print("Error leaving review on store");
     openSnackbar(SnackbarMessage(

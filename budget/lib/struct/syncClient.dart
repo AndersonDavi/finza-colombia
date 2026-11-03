@@ -3,6 +3,7 @@ import 'package:async/async.dart';
 import 'dart:convert';
 import 'package:budget/database/binary_string_conversion.dart';
 import 'package:budget/database/tables.dart';
+import 'package:budget/database/walletGroups.dart';
 import 'package:budget/functions.dart';
 import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/settings.dart';
@@ -463,6 +464,18 @@ Future<bool> _syncData(BuildContext context) async {
       }
       print("NEW OBJECTIVES");
       print(newObjectives);
+
+      List<WalletGroup> newWalletGroups =
+          await databaseSync.getAllNewWalletGroups(lastSynced);
+      for (WalletGroup newEntry in newWalletGroups) {
+        syncLogs.add(SyncLog(
+          deleteLogType: null,
+          updateLogType: UpdateLogType.WalletGroup,
+          pk: newEntry.walletGroupPk,
+          itemToUpdate: newEntry,
+          transactionDateTime: newEntry.dateTimeModified,
+        ));
+      }
 
       List<DeleteLog> deleteLogs =
           await databaseSync.getAllNewDeleteLogs(lastSynced);

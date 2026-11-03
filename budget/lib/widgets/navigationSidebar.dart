@@ -9,6 +9,7 @@ import 'package:budget/widgets/accountAndBackup.dart';
 import 'package:budget/widgets/animatedExpanded.dart';
 import 'package:budget/widgets/navigationFramework.dart';
 import 'package:budget/widgets/openBottomSheet.dart';
+import 'package:budget/widgets/sidebarCustomization.dart';
 import 'package:budget/widgets/tappable.dart';
 import 'package:budget/widgets/timeDigits.dart';
 import 'package:budget/widgets/util/showDatePicker.dart';
@@ -131,95 +132,55 @@ class NavigationSidebarState extends State<NavigationSidebar> {
                     ? 0.3
                     : 1,
                 child: SingleChildScrollView(
-                  child: IntrinsicHeight(
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: MediaQuery.sizeOf(context).height,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(height: MediaQuery.paddingOf(context).top),
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Opacity(
-                                opacity: 0.7,
-                                child: AnimatedPadding(
-                                  duration: appStateSettings["appAnimations"] !=
-                                          AppAnimations.all.index
-                                      ? Duration.zero
-                                      : Duration(milliseconds: 1500),
-                                  curve: Curves.easeInOutCubicEmphasized,
-                                  padding: EdgeInsetsDirectional.only(
-                                    bottom: appStateSettings[
-                                            "expandedNavigationSidebar"]
-                                        ? 0
-                                        : 5,
-                                    top: appStateSettings[
-                                            "expandedNavigationSidebar"]
-                                        ? 0
-                                        : 7,
-                                    start: appStateSettings[
-                                            "expandedNavigationSidebar"]
-                                        ? 0
-                                        : 7,
-                                  ),
-                                  child: AnimatedRotation(
-                                    duration:
-                                        appStateSettings["appAnimations"] !=
-                                                AppAnimations.all.index
-                                            ? Duration.zero
-                                            : Duration(milliseconds: 1500),
-                                    turns: appStateSettings[
-                                            "expandedNavigationSidebar"]
-                                        ? 0
-                                        : -0.5,
-                                    curve: Curves.easeInOutCubicEmphasized,
-                                    child: IconButton(
-                                      padding: EdgeInsetsDirectional.all(15),
-                                      onPressed: () {
-                                        updateSettings(
-                                            "expandedNavigationSidebar",
-                                            !appStateSettings[
-                                                "expandedNavigationSidebar"],
-                                            updateGlobalState: true);
-                                      },
-                                      icon: Icon(
-                                        appStateSettings["outlinedIcons"]
-                                            ? Icons.chevron_left_outlined
-                                            : Icons.chevron_left_rounded,
-                                      ),
-                                    ),
-                                  ),
+                  // IntrinsicHeight cannot measure the reorderable list, so
+                  // the edit mode has its own layout without the bottom part
+                  child: AnimatedSwitcher(
+                    duration: Duration(milliseconds: 350),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    layoutBuilder: (current, previous) => Stack(
+                      alignment: AlignmentDirectional.topStart,
+                      children: [...previous, if (current != null) current],
+                    ),
+                    child: sidebarEditMode.value
+                        ? Padding(
+                            key: ValueKey("edit"),
+                            padding: EdgeInsetsDirectional.only(
+                                top: MediaQuery.paddingOf(context).top + 48),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // The clock stays, like the official 6.x
+                                Padding(
+                                  padding: const EdgeInsetsDirectional.only(
+                                      top: 12, bottom: 18),
+                                  child: SidebarClock(),
                                 ),
+                                SidebarEditList(),
+                              ],
+                            ),
+                          )
+                        : IntrinsicHeight(
+                            key: ValueKey("sidebar"),
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minHeight: MediaQuery.sizeOf(context).height,
                               ),
-                              Row(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Expanded(
-                                    child: Padding(
-                                      padding:
-                                          const EdgeInsetsDirectional.symmetric(
-                                              horizontal: 14),
-                                      child: Tappable(
-                                        borderRadius: 20,
-                                        onTap: () async {
-                                          isCalendarOpened = true;
-                                          if (navigatorKey.currentContext !=
-                                              null) {
-                                            await showCustomDatePicker(
-                                              navigatorKey.currentContext!,
-                                              DateTime.now(),
-                                              cancelText: "",
-                                              helpText: "",
-                                              confirmText: "close".tr(),
-                                            );
-                                            isCalendarOpened = false;
-                                          }
-                                        },
+                                  SizedBox(
+                                      height:
+                                          MediaQuery.paddingOf(context).top),
+                                  Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Opacity(
+                                        opacity: 0.7,
                                         child: AnimatedPadding(
                                           duration: appStateSettings[
                                                       "appAnimations"] !=
@@ -229,102 +190,167 @@ class NavigationSidebarState extends State<NavigationSidebar> {
                                           curve:
                                               Curves.easeInOutCubicEmphasized,
                                           padding: EdgeInsetsDirectional.only(
-                                            top: appStateSettings[
-                                                    "expandedNavigationSidebar"]
-                                                ? 12
-                                                : 0,
                                             bottom: appStateSettings[
                                                     "expandedNavigationSidebar"]
-                                                ? 18
-                                                : 0,
+                                                ? 0
+                                                : 5,
+                                            top: appStateSettings[
+                                                    "expandedNavigationSidebar"]
+                                                ? 0
+                                                : 7,
+                                            start: appStateSettings[
+                                                    "expandedNavigationSidebar"]
+                                                ? 0
+                                                : 7,
                                           ),
-                                          child: SidebarClock(),
+                                          child: AnimatedRotation(
+                                            duration: appStateSettings[
+                                                        "appAnimations"] !=
+                                                    AppAnimations.all.index
+                                                ? Duration.zero
+                                                : Duration(milliseconds: 1500),
+                                            turns: appStateSettings[
+                                                    "expandedNavigationSidebar"]
+                                                ? 0
+                                                : -0.5,
+                                            curve:
+                                                Curves.easeInOutCubicEmphasized,
+                                            child: IconButton(
+                                              padding:
+                                                  EdgeInsetsDirectional.all(15),
+                                              onPressed: () {
+                                                updateSettings(
+                                                    "expandedNavigationSidebar",
+                                                    !appStateSettings[
+                                                        "expandedNavigationSidebar"],
+                                                    updateGlobalState: true);
+                                              },
+                                              icon: Icon(
+                                                appStateSettings[
+                                                        "outlinedIcons"]
+                                                    ? Icons
+                                                        .chevron_left_outlined
+                                                    : Icons
+                                                        .chevron_left_rounded,
+                                              ),
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                    ),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsetsDirectional
+                                                      .symmetric(
+                                                      horizontal: 14),
+                                              child: Tappable(
+                                                borderRadius: 20,
+                                                onTap: () async {
+                                                  isCalendarOpened = true;
+                                                  if (navigatorKey
+                                                          .currentContext !=
+                                                      null) {
+                                                    await showCustomDatePicker(
+                                                      navigatorKey
+                                                          .currentContext!,
+                                                      DateTime.now(),
+                                                      cancelText: "",
+                                                      helpText: "",
+                                                      confirmText: "close".tr(),
+                                                    );
+                                                    isCalendarOpened = false;
+                                                  }
+                                                },
+                                                child: AnimatedPadding(
+                                                  duration: appStateSettings[
+                                                              "appAnimations"] !=
+                                                          AppAnimations
+                                                              .all.index
+                                                      ? Duration.zero
+                                                      : Duration(
+                                                          milliseconds: 1500),
+                                                  curve: Curves
+                                                      .easeInOutCubicEmphasized,
+                                                  padding: EdgeInsetsDirectional
+                                                      .only(
+                                                    top: appStateSettings[
+                                                            "expandedNavigationSidebar"]
+                                                        ? 12
+                                                        : 0,
+                                                    bottom: appStateSettings[
+                                                            "expandedNavigationSidebar"]
+                                                        ? 18
+                                                        : 0,
+                                                  ),
+                                                  child: SidebarClock(),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      AnimatedContainer(
+                                        duration:
+                                            appStateSettings["appAnimations"] !=
+                                                    AppAnimations.all.index
+                                                ? Duration.zero
+                                                : Duration(milliseconds: 1500),
+                                        curve: Curves.easeInOutCubicEmphasized,
+                                        height: appStateSettings[
+                                                "expandedNavigationSidebar"]
+                                            ? 40
+                                            : 0,
+                                      ),
+                                      for (String entry in getSidebarOrder())
+                                        if (appStateSettings[entry] != false)
+                                          sidebarEntries[entry] == null
+                                              ? EditDataButton(
+                                                  selectedIndex: selectedIndex)
+                                              : NavigationSidebarButtonWithNavBarIconData(
+                                                  navBarIconDataKey:
+                                                      sidebarEntries[entry]!,
+                                                  currentPageIndex:
+                                                      selectedIndex,
+                                                  useShortLabel: entry ==
+                                                      "sidebarAllSpending",
+                                                ),
+                                    ],
+                                  ),
+                                  Spacer(),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(height: 40),
+                                      GoogleAccountLoginButton(
+                                        navigationSidebarButton: true,
+                                        isButtonSelected: selectedIndex == 8,
+                                      ),
+                                      NavigationSidebarButtonWithNavBarIconData(
+                                        navBarIconDataKey: "settings",
+                                        currentPageIndex: selectedIndex,
+                                      ),
+                                      NavigationSidebarButtonWithNavBarIconData(
+                                        navBarIconDataKey: "about",
+                                        currentPageIndex: selectedIndex,
+                                      ),
+                                      SyncButton(),
+                                      SidebarBottomActions(),
+                                      SizedBox(height: 10),
+                                      SizedBox(
+                                          height:
+                                              MediaQuery.viewPaddingOf(context)
+                                                  .bottom),
+                                    ],
                                   ),
                                 ],
                               ),
-                              AnimatedContainer(
-                                duration: appStateSettings["appAnimations"] !=
-                                        AppAnimations.all.index
-                                    ? Duration.zero
-                                    : Duration(milliseconds: 1500),
-                                curve: Curves.easeInOutCubicEmphasized,
-                                height: appStateSettings[
-                                        "expandedNavigationSidebar"]
-                                    ? 40
-                                    : 0,
-                              ),
-                              NavigationSidebarButtonWithNavBarIconData(
-                                navBarIconDataKey: "home",
-                                currentPageIndex: selectedIndex,
-                              ),
-                              NavigationSidebarButtonWithNavBarIconData(
-                                navBarIconDataKey: "transactions",
-                                currentPageIndex: selectedIndex,
-                              ),
-                              NavigationSidebarButtonWithNavBarIconData(
-                                navBarIconDataKey: "budgets",
-                                currentPageIndex: selectedIndex,
-                              ),
-                              NavigationSidebarButtonWithNavBarIconData(
-                                navBarIconDataKey: "goals",
-                                currentPageIndex: selectedIndex,
-                              ),
-                              NavigationSidebarButtonWithNavBarIconData(
-                                navBarIconDataKey: "subscriptions",
-                                currentPageIndex: selectedIndex,
-                              ),
-                              NavigationSidebarButtonWithNavBarIconData(
-                                navBarIconDataKey: "scheduled",
-                                currentPageIndex: selectedIndex,
-                              ),
-                              NavigationSidebarButtonWithNavBarIconData(
-                                navBarIconDataKey: "loans",
-                                currentPageIndex: selectedIndex,
-                              ),
-                              // if (notificationsGlobalEnabled)
-                              //   NavigationSidebarButtonWithNavBarIconData(
-                              //     navBarIconDataKey: "notifications",
-                              //     currentPageIndex: selectedIndex,
-                              //   ),
-                              NavigationSidebarButtonWithNavBarIconData(
-                                navBarIconDataKey: "allSpending",
-                                currentPageIndex: selectedIndex,
-                              ),
-                              EditDataButtons(selectedIndex: selectedIndex),
-                            ],
+                            ),
                           ),
-                          Spacer(),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(height: 40),
-                              GoogleAccountLoginButton(
-                                navigationSidebarButton: true,
-                                isButtonSelected: selectedIndex == 8,
-                              ),
-                              NavigationSidebarButtonWithNavBarIconData(
-                                navBarIconDataKey: "settings",
-                                currentPageIndex: selectedIndex,
-                              ),
-                              NavigationSidebarButtonWithNavBarIconData(
-                                navBarIconDataKey: "about",
-                                currentPageIndex: selectedIndex,
-                              ),
-                              SyncButton(),
-                              SizedBox(height: 10),
-                              SizedBox(
-                                  height:
-                                      MediaQuery.viewPaddingOf(context).bottom),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
                 ),
               ),
@@ -570,18 +596,23 @@ class NavigationSidebarButtonWithNavBarIconData extends StatelessWidget {
     required this.navBarIconDataKey,
     required this.currentPageIndex,
     this.useLongLabel = false,
+    this.useShortLabel = false,
     super.key,
   });
   final String navBarIconDataKey;
   final int currentPageIndex;
   final bool useLongLabel;
+  final bool useShortLabel;
   @override
   Widget build(BuildContext context) {
     return NavigationSidebarButton(
       icon: navBarIconsData[navBarIconDataKey]!.iconData,
       label: useLongLabel == true
           ? navBarIconsData[navBarIconDataKey]!.labelLong.tr()
-          : navBarIconsData[navBarIconDataKey]!.label.tr(),
+          : useShortLabel == true &&
+                  (navBarIconsData[navBarIconDataKey]!.labelShort ?? "") != ""
+              ? navBarIconsData[navBarIconDataKey]!.labelShort!.tr()
+              : navBarIconsData[navBarIconDataKey]!.label.tr(),
       isSelected:
           navBarIconsData[navBarIconDataKey]!.navigationIndexedStackIndex ==
               currentPageIndex,
@@ -699,100 +730,6 @@ class NavigationSidebarButton extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class EditDataButtons extends StatefulWidget {
-  const EditDataButtons({super.key, required this.selectedIndex});
-  final int selectedIndex;
-
-  @override
-  State<EditDataButtons> createState() => _EdiDatatButtonsState();
-}
-
-class _EdiDatatButtonsState extends State<EditDataButtons> {
-  bool showEditDataButtons = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        NavigationSidebarButton(
-          icon: Icons.edit_document,
-          label: "edit-data".tr(),
-          isSelected: showEditDataButtons == false &&
-              [9, 10, 11, 12].contains(widget.selectedIndex),
-          onTap: () {
-            setState(() {
-              showEditDataButtons = !showEditDataButtons;
-            });
-          },
-          popRoutes: false,
-          trailing: AnimatedRotation(
-            duration:
-                appStateSettings["appAnimations"] != AppAnimations.all.index
-                    ? Duration.zero
-                    : Duration(milliseconds: 600),
-            curve: Curves.easeInOutCubicEmphasized,
-            turns: showEditDataButtons ? 0 : -0.5,
-            child: Icon(
-              appStateSettings["outlinedIcons"]
-                  ? Icons.arrow_drop_up_outlined
-                  : Icons.arrow_drop_up_rounded,
-            ),
-          ),
-        ),
-        AnimatedPadding(
-          duration: appStateSettings["appAnimations"] != AppAnimations.all.index
-              ? Duration.zero
-              : Duration(milliseconds: 1500),
-          curve: Curves.easeInOutCubicEmphasized,
-          padding: EdgeInsetsDirectional.only(
-              start: appStateSettings["expandedNavigationSidebar"] ? 8 : 0),
-          child: AnimatedSizeSwitcher(
-            sizeDuration:
-                appStateSettings["appAnimations"] != AppAnimations.all.index
-                    ? Duration.zero
-                    : Duration(milliseconds: 800),
-            switcherDuration:
-                appStateSettings["appAnimations"] != AppAnimations.all.index
-                    ? Duration.zero
-                    : Duration(milliseconds: 250),
-            child: !showEditDataButtons
-                ? Container(key: ValueKey(1))
-                : Column(
-                    children: [
-                      NavigationSidebarButtonWithNavBarIconData(
-                        navBarIconDataKey: "accountDetails",
-                        currentPageIndex: widget.selectedIndex,
-                        useLongLabel: true,
-                      ),
-                      NavigationSidebarButtonWithNavBarIconData(
-                        navBarIconDataKey: "budgetDetails",
-                        currentPageIndex: widget.selectedIndex,
-                        useLongLabel: true,
-                      ),
-                      NavigationSidebarButtonWithNavBarIconData(
-                        navBarIconDataKey: "categoriesDetails",
-                        currentPageIndex: widget.selectedIndex,
-                        useLongLabel: true,
-                      ),
-                      NavigationSidebarButtonWithNavBarIconData(
-                        navBarIconDataKey: "titlesDetails",
-                        currentPageIndex: widget.selectedIndex,
-                        useLongLabel: true,
-                      ),
-                      NavigationSidebarButtonWithNavBarIconData(
-                        navBarIconDataKey: "goalsDetails",
-                        currentPageIndex: widget.selectedIndex,
-                        useLongLabel: true,
-                      ),
-                    ],
-                  ),
-          ),
-        ),
-      ],
     );
   }
 }

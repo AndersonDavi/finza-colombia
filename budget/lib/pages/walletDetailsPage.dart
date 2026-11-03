@@ -47,6 +47,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:budget/colors.dart';
+import 'package:budget/pages/balancePages.dart';
 import 'package:budget/widgets/viewAllTransactionsButton.dart';
 import 'package:flutter_sticky_header/flutter_sticky_header.dart';
 import 'package:provider/provider.dart';
@@ -647,13 +648,13 @@ class WalletDetailsPageState extends State<WalletDetailsPage>
           },
           label:
               widget.wallet != null ? "account-total".tr() : "net-total".tr(),
-          getTextColor: appStateSettings["netTotalsColorful"] != true
+          getTextColor: netTotalsColorful() != true
               ? null
               : (double amount) {
                   double? roundedWalletWithTotal = (double.tryParse(
                       absoluteZero(amount)
                           .toStringAsFixed(widget.wallet?.decimals ?? 2)));
-                  return appStateSettings["netTotalsColorful"] == true
+                  return netTotalsColorful() == true
                       ? (roundedWalletWithTotal == 0
                           ? getColor(context, "black")
                           : amount > 0
@@ -1285,11 +1286,8 @@ class WalletDetailsPageState extends State<WalletDetailsPage>
                             ? Icons.library_add_outlined
                             : Icons.library_add_rounded,
                         action: () {
-                          openBottomSheet(
-                            context,
-                            fullSnap: true,
-                            CorrectBalancePopup(wallet: widget.wallet!),
-                          );
+                          pushRoute(context,
+                              CorrectBalancePage(wallet: widget.wallet!));
                         },
                       ),
                       DropdownItemMenu(
@@ -1299,10 +1297,9 @@ class WalletDetailsPageState extends State<WalletDetailsPage>
                             ? Icons.compare_arrows_outlined
                             : Icons.compare_arrows_rounded,
                         action: () {
-                          openBottomSheet(
+                          pushRoute(
                             context,
-                            fullSnap: true,
-                            TransferBalancePopup(
+                            TransferBalancePage(
                                 wallet: widget.wallet!, allowEditWallet: false),
                           );
                         },
@@ -2365,8 +2362,7 @@ class _AllSpendingPastSpendingGraphState
                                 textAlign: TextAlign.start,
                                 fontWeight: FontWeight.bold,
                                 textColor:
-                                    appStateSettings["netTotalsColorful"] ==
-                                            true
+                                    netTotalsColorful() == true
                                         ? (netSpending == 0
                                             ? getColor(context, "black")
                                             : netSpending > 0
