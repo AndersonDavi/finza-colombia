@@ -29,10 +29,37 @@ double median(List<double> values) {
       : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
+// The period the patterns look at, chosen on the card and kept per device:
+// "12m" (default), "year", "all" or "custom" (patternsStart / patternsEnd)
+DateTimeRange patternsRange() {
+  DateTime now = DateTime.now();
+  DateTime nextMonth = DateTime(now.year, now.month + 1);
+  switch (appStateSettings["patternsPeriod"]) {
+    case "year":
+      return DateTimeRange(start: DateTime(now.year), end: nextMonth);
+    case "all":
+      return DateTimeRange(start: DateTime(1970), end: nextMonth);
+    case "custom":
+      DateTime? start =
+          DateTime.tryParse(appStateSettings["patternsStart"] ?? "");
+      DateTime? end = DateTime.tryParse(appStateSettings["patternsEnd"] ?? "");
+      if (start != null && end != null)
+        // The end day is included
+        return DateTimeRange(
+            start: start, end: DateTime(end.year, end.month, end.day + 1));
+  }
+  return DateTimeRange(
+      start: DateTime(now.year, now.month - 11), end: nextMonth);
+}
+
 class SpendingStats {
-  SpendingStats(List<Transaction> expenses, AllWallets allWallets) {
+  SpendingStats(List<Transaction> expenses, AllWallets allWallets,
+      {required DateTimeRange range}) {
     DateTime now = DateTime.now();
     DateTime monthStart = DateTime(now.year, now.month);
+    // Projection and "this month" only make sense while the range reaches today
+    running = range.end.isAfter(monthStart) && !range.start.isAfter(now);
+    DateTime? earliest;
     Map<DateTime, double> spentByMonth = {};
     Map<DateTime, double> spentByMonthUntilToday = {};
     for (Transaction t in expenses) {
@@ -40,6 +67,7 @@ class SpendingStats {
           amountRatioToPrimaryCurrencyGivenPk(allWallets, t.walletFk);
       DateTime date = t.dateCreated;
       DateTime month = DateTime(date.year, date.month);
+      if (earliest == null || month.isBefore(earliest)) earliest = month;
       spentByMonth[month] = (spentByMonth[month] ?? 0) + amount;
       if (date.day <= now.day) {
         spentByMonthUntilToday[month] =
@@ -58,7 +86,7 @@ class SpendingStats {
         subcategories[t.subCategoryFk!] =
             (subcategories[t.subCategoryFk!] ?? 0) + amount;
       }
-      if (!month.isBefore(monthStart)) {
+      if (running && !month.isBefore(monthStart)) {
         thisMonth += amount;
         continue;
       }
@@ -73,18 +101,28 @@ class SpendingStats {
                   : 3] += amount;
       byWeekday[date.weekday - 1] += amount;
     }
-    for (int i = 11; i >= 0; i--) {
-      DateTime month = DateTime(now.year, now.month - i);
+    // From the start of the range (or the first expense) to its last month
+    DateTime first = DateTime(range.start.year, range.start.month);
+    if (earliest != null && earliest.isAfter(first)) first = earliest;
+    DateTime lastDay = range.end.subtract(Duration(days: 1));
+    DateTime last =
+        running ? monthStart : DateTime(lastDay.year, lastDay.month);
+    for (DateTime month = first;
+        !month.isAfter(last);
+        month = DateTime(month.year, month.month + 1)) {
       months.add(month);
       byMonth.add(spentByMonth[month] ?? 0);
     }
     pastMonths = spentByMonth.keys
-        .where((m) => m.isBefore(monthStart) && (spentByMonth[m] ?? 0) > 0)
+        .where((m) =>
+            (!running || m.isBefore(monthStart)) && (spentByMonth[m] ?? 0) > 0)
         .toList();
     if (pastMonths.isNotEmpty) {
       // The median keeps one unusual month (a trip, a big purchase) from
       // moving the typical month
       typicalMonth = median([for (DateTime m in pastMonths) spentByMonth[m]!]);
+    }
+    if (pastMonths.isNotEmpty && running) {
       double shareByToday = median([
         for (DateTime m in pastMonths)
           (spentByMonthUntilToday[m] ?? 0) / spentByMonth[m]!
@@ -96,6 +134,7 @@ class SpendingStats {
     }
   }
 
+  bool running = false;
   double thisMonth = 0;
   double typicalMonth = 0;
   double typicalByToday = 0;
@@ -109,10 +148,16 @@ class SpendingStats {
   Map<DateTime, Map<String, double>> byMonthCategoryUntilToday = {};
   Map<DateTime, Map<String, Map<String, double>>> byMonthSubcategory = {};
 
+  // The last [monthCount] months of the range (0 = all of it)
+  List<DateTime> lastMonths(int monthCount) =>
+      monthCount <= 0 || monthCount >= months.length
+          ? months
+          : months.sublist(months.length - monthCount);
+
   // Spending by category over the last [monthCount] months (1 = this month)
   Map<String, double> categoriesOf(int monthCount) {
     Map<String, double> total = {};
-    for (DateTime month in months.sublist(months.length - monthCount)) {
+    for (DateTime month in lastMonths(monthCount)) {
       byMonthCategory[month]?.forEach(
           (category, amount) => total[category] = (total[category] ?? 0) + amount);
     }
@@ -121,7 +166,7 @@ class SpendingStats {
 
   Map<String, double> subcategoriesOf(String categoryPk, int monthCount) {
     Map<String, double> total = {};
-    for (DateTime month in months.sublist(months.length - monthCount)) {
+    for (DateTime month in lastMonths(monthCount)) {
       byMonthSubcategory[month]?[categoryPk]?.forEach(
           (sub, amount) => total[sub] = (total[sub] ?? 0) + amount);
     }
@@ -143,9 +188,8 @@ class SpendingStats {
 }
 
 SimpleSelectStatement<$TransactionsTable, Transaction>
-    expensesForPatternsQuery() {
-  DateTime now = DateTime.now();
-  DateTime start = DateTime(now.year, now.month - 11);
+    expensesForPatternsQuery({DateTimeRange? range}) {
+  DateTimeRange period = range ?? patternsRange();
   return database.select(database.transactions)
     ..where((t) =>
         t.income.equals(false) &
@@ -153,25 +197,56 @@ SimpleSelectStatement<$TransactionsTable, Transaction>
         t.categoryFk.equals("0").not() &
         t.pairedTransactionFk.isNull() &
         t.objectiveLoanFk.isNull() &
-        t.dateCreated.isBiggerOrEqualValue(start));
+        t.dateCreated.isBiggerOrEqualValue(period.start) &
+        t.dateCreated.isSmallerThanValue(period.end));
 }
 
-Stream<List<Transaction>> watchExpensesForPatterns() =>
-    expensesForPatternsQuery().watch();
-
-class SpendingPatterns extends StatelessWidget {
+class SpendingPatterns extends StatefulWidget {
   const SpendingPatterns({super.key});
+
+  @override
+  State<SpendingPatterns> createState() => _SpendingPatternsState();
+}
+
+class _SpendingPatternsState extends State<SpendingPatterns> {
+  late DateTimeRange range = patternsRange();
+  late Stream<List<Transaction>> expenses =
+      expensesForPatternsQuery(range: range).watch();
+
+  Future<void> choosePeriod(String kind) async {
+    if (kind == "custom") {
+      DateTimeRange? picked = await showDateRangePicker(
+        context: context,
+        firstDate: DateTime(2000),
+        lastDate: DateTime.now(),
+        initialDateRange: appStateSettings["patternsPeriod"] == "custom"
+            ? DateTimeRange(
+                start: range.start,
+                end: range.end.subtract(Duration(days: 1)))
+            : null,
+      );
+      if (picked == null) return;
+      await updateSettings("patternsStart", picked.start.toIso8601String(),
+          updateGlobalState: false);
+      await updateSettings("patternsEnd", picked.end.toIso8601String(),
+          updateGlobalState: false);
+    }
+    await updateSettings("patternsPeriod", kind, updateGlobalState: false);
+    setState(() {
+      range = patternsRange();
+      expenses = expensesForPatternsQuery(range: range).watch();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     AllWallets allWallets = Provider.of<AllWallets>(context);
     return StreamBuilder<List<Transaction>>(
-      stream: watchExpensesForPatterns(),
+      stream: expenses,
       builder: (context, snapshot) {
-        if (snapshot.data == null || snapshot.data!.isEmpty)
-          return SizedBox.shrink();
-        SpendingStats stats = SpendingStats(snapshot.data!, allWallets);
-        if (stats.pastMonths.isEmpty) return SizedBox.shrink();
+        if (snapshot.data == null) return SizedBox.shrink();
+        SpendingStats stats =
+            SpendingStats(snapshot.data!, allWallets, range: range);
         return Padding(
           // In the two column layout the column is already narrow
           padding: EdgeInsetsDirectional.symmetric(
@@ -184,6 +259,8 @@ class SpendingPatterns extends StatelessWidget {
             stream: database.select(database.categories).watch(),
             builder: (context, snapshot) => SpendingPatternsCard(
               stats: stats,
+              range: range,
+              onPeriod: choosePeriod,
               categories: {
                 for (TransactionCategory c in snapshot.data ?? [])
                   c.categoryPk: c
@@ -197,10 +274,17 @@ class SpendingPatterns extends StatelessWidget {
 }
 
 class SpendingPatternsCard extends StatefulWidget {
-  const SpendingPatternsCard(
-      {required this.stats, required this.categories, super.key});
+  const SpendingPatternsCard({
+    required this.stats,
+    required this.categories,
+    required this.range,
+    required this.onPeriod,
+    super.key,
+  });
   final SpendingStats stats;
   final Map<String, TransactionCategory> categories;
+  final DateTimeRange range;
+  final Function(String kind) onPeriod;
 
   @override
   State<SpendingPatternsCard> createState() => _SpendingPatternsCardState();
@@ -295,55 +379,66 @@ class _SpendingPatternsCardState extends State<SpendingPatternsCard> {
     }
 
     double maxMonth = stats.byMonth.fold(0.0, (m, v) => v > m ? v : m);
-    Widget monthBars = SizedBox(
-      height: 110,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          for (int i = 0; i < stats.months.length; i++)
-            Expanded(
-              child: Tooltip(
-                message: getMonth(stats.months[i], includeYear: true) +
-                    ": " +
-                    money(stats.byMonth[i]),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Container(
-                      margin: const EdgeInsetsDirectional.symmetric(
-                          horizontal: 2.5),
-                      height: maxMonth <= 0
-                          ? 0
-                          : (stats.byMonth[i] / maxMonth * 80)
-                              .clamp(2, 80)
-                              .toDouble(),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(5),
-                        // This month is still running, it shows lighter
-                        color: i == stats.months.length - 1
-                            ? barColor.withOpacity(0.25)
-                            : stats.byMonth[i] == maxMonth
-                                ? barColor
-                                : barColor.withOpacity(0.55),
-                      ),
-                    ),
-                    SizedBox(height: 5),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: TextFont(
-                        text: DateFormat.MMM(locale)
-                            .format(stats.months[i])
-                            .replaceAll(".", ""),
-                        fontSize: 11,
-                        textColor: textLight,
-                      ),
-                    ),
-                  ],
-                ),
+    // Long ranges scroll sideways with fixed width bars; January carries
+    // its year when the range covers more than one
+    bool scrolls = stats.months.length > 18;
+    bool manyYears = stats.months.isNotEmpty &&
+        stats.months.first.year != stats.months.last.year;
+    Widget monthBar(int i) {
+      DateTime month = stats.months[i];
+      Widget bar = Tooltip(
+        message: getMonth(month, includeYear: true) +
+            ": " +
+            money(stats.byMonth[i]),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Container(
+              margin: const EdgeInsetsDirectional.symmetric(horizontal: 2.5),
+              height: maxMonth <= 0
+                  ? 0
+                  : (stats.byMonth[i] / maxMonth * 80).clamp(2, 80).toDouble(),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(5),
+                // This month is still running, it shows lighter
+                color: stats.running && i == stats.months.length - 1
+                    ? barColor.withOpacity(0.25)
+                    : stats.byMonth[i] == maxMonth
+                        ? barColor
+                        : barColor.withOpacity(0.55),
               ),
             ),
-        ],
-      ),
+            SizedBox(height: 5),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: TextFont(
+                text: DateFormat.MMM(locale).format(month).replaceAll(".", "") +
+                    (manyYears && month.month == 1
+                        ? " " + (month.year % 100).toString().padLeft(2, "0")
+                        : ""),
+                fontSize: 11,
+                textColor: textLight,
+              ),
+            ),
+          ],
+        ),
+      );
+      return scrolls ? SizedBox(width: 34, child: bar) : Expanded(child: bar);
+    }
+
+    Widget bars = Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [for (int i = 0; i < stats.months.length; i++) monthBar(i)],
+    );
+    Widget monthBars = SizedBox(
+      height: 110,
+      child: scrolls
+          ? SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              reverse: true,
+              child: bars,
+            )
+          : bars,
     );
 
     // What takes the most in the chosen months, with its subcategories
@@ -392,7 +487,9 @@ class _SpendingPatternsCardState extends State<SpendingPatternsCard> {
       // Against what it usually has by this day, only when looking at this
       // month
       double typical = stats.typicalOf(entry.key);
-      double typicalByToday = stats.typicalUntilTodayOf(entry.key);
+      // A finished range compares whole months
+      double typicalByToday =
+          stats.running ? stats.typicalUntilTodayOf(entry.key) : typical;
       String? versus;
       bool above = false;
       if (monthCount == 1 && typicalByToday > 0) {
@@ -567,7 +664,9 @@ class _SpendingPatternsCardState extends State<SpendingPatternsCard> {
     MapEntry<String, double>? risingCategory;
     double risingChange = 0;
     for (MapEntry<String, double> entry in stats.categoriesOf(1).entries) {
-      double usual = stats.typicalUntilTodayOf(entry.key);
+      double usual = stats.running
+          ? stats.typicalUntilTodayOf(entry.key)
+          : stats.typicalOf(entry.key);
       if (usual <= 0 || entry.value < stats.thisMonth * 0.05) continue;
       double change = (entry.value - usual) / usual * 100;
       if (change > risingChange) {
@@ -623,7 +722,9 @@ class _SpendingPatternsCardState extends State<SpendingPatternsCard> {
           })));
     // The most expensive full month, when it stands out from the typical one
     int topMonth = -1;
-    for (int i = 0; i < stats.months.length - 1; i++)
+    for (int i = 0;
+        i < stats.months.length - (stats.running ? 1 : 0);
+        i++)
       if (topMonth == -1 || stats.byMonth[i] > stats.byMonth[topMonth])
         topMonth = i;
     if (topMonth >= 0 && stats.byMonth[topMonth] > stats.typicalMonth * 1.3)
@@ -652,12 +753,42 @@ class _SpendingPatternsCardState extends State<SpendingPatternsCard> {
             fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
-          TextFont(
-            text: "spending-patterns-description".tr(),
-            fontSize: 13,
-            maxLines: 2,
-            textColor: textLight,
+          // Its own period, apart from the selectors of the page
+          SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (MapEntry<String, String> option in {
+                "12m": "last-12-months".tr(),
+                "year": "this-year".tr(),
+                "all": "all-history".tr(),
+                "custom": appStateSettings["patternsPeriod"] == "custom"
+                    ? getWordedDateShort(widget.range.start,
+                            includeYear: true) +
+                        " – " +
+                        getWordedDateShort(
+                            widget.range.end.subtract(Duration(days: 1)),
+                            includeYear: true)
+                    : "date-range".tr() + "…",
+              }.entries)
+                ChoiceChip(
+                  label: Text(option.value),
+                  selected: (appStateSettings["patternsPeriod"] ?? "12m") ==
+                      option.key,
+                  onSelected: (_) => widget.onPeriod(option.key),
+                ),
+            ],
           ),
+          if (stats.pastMonths.isEmpty && stats.thisMonth == 0)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(top: 16),
+              child: TextFont(
+                text: "no-spending-in-period".tr(),
+                fontSize: 14,
+                textColor: textLight,
+              ),
+            ),
           // Projection of the month, the first thing to see
           if (stats.projection != null)
             Container(
@@ -755,7 +886,7 @@ class _SpendingPatternsCardState extends State<SpendingPatternsCard> {
                 children: [
                   periodChip(1, "this-month-short".tr()),
                   periodChip(3, "3m"),
-                  periodChip(12, "12m"),
+                  periodChip(0, "whole-period".tr()),
                 ],
               ),
             ),

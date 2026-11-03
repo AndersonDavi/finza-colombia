@@ -122,16 +122,10 @@ class HomePageNetWorth extends StatelessWidget {
                 ),
                   ),
                   // Loans are not in the accounts, this says what is out
-                  Transform.translate(
-                    offset: Offset(0, -8),
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.only(
-                          start: 26, end: 26, bottom: 4),
-                      child: Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: LoansBalanceSummary(compact: true),
-                      ),
-                    ),
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(
+                        start: 13, end: 13, bottom: 13),
+                    child: LoansBalanceSummary(compact: true),
                   ),
                 ],
               );

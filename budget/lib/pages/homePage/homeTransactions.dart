@@ -2,6 +2,7 @@ import 'package:budget/database/tables.dart';
 import 'package:budget/functions.dart';
 import 'package:budget/pages/transactionFilters.dart';
 import 'package:budget/struct/settings.dart';
+import 'package:budget/widgets/homeSpendingChart.dart';
 import 'package:budget/widgets/pinnedTransactions.dart';
 import 'package:budget/widgets/transactionEntries.dart';
 import 'package:flutter/material.dart';
@@ -37,6 +38,7 @@ class HomeTransactions extends StatelessWidget {
     // What is waiting for review and what is pinned go first, on every tab
     return Column(
       children: [
+        HomeSpendingChart(income: selectedSlidingSelector == 3),
         ReviewTransactionsSection(listID: "0", constrained: false),
         if (selectedSlidingSelector <= 1) PinnedTransactionsSection(listID: "0", constrained: false),
         transactionsList(searchFilters, numberOfFutureDays),

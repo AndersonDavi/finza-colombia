@@ -130,8 +130,14 @@ class _MonthlySummaryExportPageState extends State<MonthlySummaryExportPage> {
     List<Transaction> before =
         await getTransactionsOfMonth(DateTime(month.year, month.month - 1));
     if (running) before = before.where((t) => t.dateCreated.day <= now.day).toList();
+    // The projection always uses the last 12 months, whatever Summary shows
+    DateTimeRange lastYear = DateTimeRange(
+        start: DateTime(now.year, now.month - 11),
+        end: DateTime(now.year, now.month + 1));
     SpendingStats? stats = running
-        ? SpendingStats(await expensesForPatternsQuery().get(), allWallets)
+        ? SpendingStats(
+            await expensesForPatternsQuery(range: lastYear).get(), allWallets,
+            range: lastYear)
         : null;
     return _MonthData(
       MonthlySummary(await getTransactionsOfMonth(month), allWallets, groups),

@@ -1,6 +1,7 @@
 import 'package:budget/colors.dart';
 import 'package:budget/database/tables.dart';
 import 'package:budget/functions.dart';
+import 'package:budget/pages/creditDebtTransactionsPage.dart';
 import 'package:budget/pages/editWalletsPage.dart';
 import 'package:budget/pages/settingsPage.dart';
 import 'package:budget/struct/databaseGlobal.dart';
@@ -506,29 +507,66 @@ class LoansBalanceSummary extends StatelessWidget {
         double receivable = creditTotal < 0 ? -creditTotal : 0;
         double payable = debtTotal > 0 ? debtTotal : 0;
         if (compact) {
+          // A card like the other home boxes, it opens the loans page
           if (receivable == 0 && payable == 0) return SizedBox.shrink();
-          return Padding(
-            padding: const EdgeInsetsDirectional.only(top: 6),
-            child: Wrap(
-              spacing: 12,
-              children: [
-                if (receivable > 0)
-                  TextFont(
-                    text: "receivable".tr() +
-                        " " +
-                        convertToMoney(allWallets, receivable),
-                    fontSize: 13,
-                    textColor: getColor(context, "unPaidUpcoming"),
-                  ),
-                if (payable > 0)
-                  TextFont(
-                    text: "payable".tr() +
-                        " " +
-                        convertToMoney(allWallets, payable),
-                    fontSize: 13,
-                    textColor: getColor(context, "unPaidOverdue"),
-                  ),
-              ],
+          Widget half(IconData icon, String label, double value, Color color) =>
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: color.withOpacity(0.15),
+                      ),
+                      child: Icon(icon, size: 18, color: color),
+                    ),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TextFont(
+                            text: label,
+                            fontSize: 13,
+                            textColor: getColor(context, "textLight"),
+                          ),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: AlignmentDirectional.centerStart,
+                            child: TextFont(
+                              text: convertToMoney(allWallets, value),
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              textColor: color,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+          return Tappable(
+            borderRadius: 15,
+            color: getColor(context, "lightDarkAccentHeavyLight"),
+            onTap: () =>
+                pushRoute(context, CreditDebtTransactions(isCredit: null)),
+            child: Padding(
+              padding: const EdgeInsetsDirectional.symmetric(
+                  horizontal: 16, vertical: 13),
+              child: Row(
+                children: [
+                  if (receivable > 0)
+                    half(Icons.north_east_rounded, "receivable".tr(),
+                        receivable, getColor(context, "unPaidUpcoming")),
+                  if (receivable > 0 && payable > 0) SizedBox(width: 10),
+                  if (payable > 0)
+                    half(Icons.south_west_rounded, "payable".tr(), payable,
+                        getColor(context, "unPaidOverdue")),
+                ],
+              ),
             ),
           );
         }

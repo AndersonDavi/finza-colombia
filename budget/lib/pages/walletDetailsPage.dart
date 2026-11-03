@@ -362,7 +362,8 @@ class WalletDetailsPageState extends State<WalletDetailsPage>
       return SelectedPeriodHeaderLabel(
         color: Theme.of(context).colorScheme.secondaryContainer,
         textColor: Theme.of(context).colorScheme.onSecondaryContainer,
-        text: selectedRecurrenceDisplay,
+        // Says what it is: the size of each row of the history
+        text: "history-every".tr() + " " + selectedRecurrenceDisplay,
         onTap: () {
           selectAllSpendingPeriod(onlyShowCycleOption: true);
         },
