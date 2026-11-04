@@ -151,8 +151,11 @@
           keys.forEach(function (key) { caches.delete(key); });
         });
       }
-      // Download main.dart.js
-      _flutter.loader.loadEntrypoint({}).then(function(engineInitializer) {
+      // Download main.dart.js. The domain lets browsers keep scripts for hours,
+      // so the build hash in the URL makes each new build a fresh download
+      _flutter.loader.loadEntrypoint({
+        entrypointUrl: 'main.dart.js?v=' + serviceWorkerVersion,
+      }).then(function(engineInitializer) {
         loading.classList.add('main_done');
         return engineInitializer.initializeEngine({
           useColorEmoji: true,
