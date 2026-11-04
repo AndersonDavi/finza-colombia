@@ -283,6 +283,10 @@ class _SelectAmountState extends State<SelectAmount> {
       return KeyEventResult.handled;
     });
     _focusNode.requestFocus();
+    // The focus can get lost on the web while the sheet slides in
+    Future.delayed(Duration(milliseconds: 300), () {
+      if (mounted) _focusNode.requestFocus();
+    });
   }
 
   @override
@@ -707,229 +711,237 @@ class _SelectAmountState extends State<SelectAmount> {
                             : countDecimalDigits(amount),
                       )),
           );
-    return Column(
-      children: [
-        Center(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (widget.showEnteredNumber == true)
-                Padding(
-                  padding: widget.padding,
-                  child: Builder(builder: (context) {
-                    String calculationString = (includesOperations(
-                                amount, false) &&
-                            onlyOneOperationAndIsNegativeSign(amount) == false
-                        ? operationsWithSpaces(amount)
-                        : "");
-                    Widget calculationWidget = calculationString == "" ||
-                            widget.showCalculation == false
-                        ? SizedBox.shrink()
-                        : CustomContextMenu(
-                            buttonItems: [
-                              ContextMenuButtonItem(
-                                type: ContextMenuButtonType.paste,
-                                onPressed: () {
-                                  ContextMenuController.removeAny();
-                                  pasteFromClipboardIntoCalculation();
+    return Listener(
+      // Taps inside (account chips, keys) take the focus away, and with
+      // it the physical keyboard
+      onPointerDown: (_) => _focusNode.requestFocus(),
+      child: Column(
+        children: [
+          Center(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (widget.showEnteredNumber == true)
+                  Padding(
+                    padding: widget.padding,
+                    child: Builder(builder: (context) {
+                      String calculationString = (includesOperations(
+                                  amount, false) &&
+                              onlyOneOperationAndIsNegativeSign(amount) == false
+                          ? operationsWithSpaces(amount)
+                          : "");
+                      Widget calculationWidget = calculationString == "" ||
+                              widget.showCalculation == false
+                          ? SizedBox.shrink()
+                          : CustomContextMenu(
+                              buttonItems: [
+                                ContextMenuButtonItem(
+                                  type: ContextMenuButtonType.paste,
+                                  onPressed: () {
+                                    ContextMenuController.removeAny();
+                                    pasteFromClipboardIntoCalculation();
+                                  },
+                                ),
+                              ],
+                              tappableBuilder: (onLongPress) => Tappable(
+                                color: Colors.transparent,
+                                borderRadius: 10,
+                                onTap: () {
+                                  return;
                                 },
+                                onLongPress: onLongPress,
+                                child: Padding(
+                                  padding: const EdgeInsetsDirectional.only(
+                                    end: 8.0,
+                                    bottom: 5,
+                                    start: 5,
+                                    top: 5,
+                                  ),
+                                  child: TextFont(
+                                    text: calculationString,
+                                    textAlign: TextAlign.start,
+                                    fontSize: 18,
+                                    maxLines: 5,
+                                  ),
+                                ),
+                              ),
+                            );
+                      Widget amountWidget =
+                          amountWidgetBuilder(amountConverted);
+                      return AnimatedSize(
+                        curve: Curves.easeInOut,
+                        clipBehavior: Clip.none,
+                        duration: Duration(milliseconds: 500),
+                        child: Directionality(
+                          textDirection: ui.TextDirection.rtl,
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Wrap(
+                                  alignment: WrapAlignment.spaceBetween,
+                                  crossAxisAlignment: WrapCrossAlignment.start,
+                                  runAlignment: WrapAlignment.spaceBetween,
+                                  verticalDirection: VerticalDirection.up,
+                                  children: [
+                                    Directionality(
+                                        textDirection: ui.TextDirection.ltr,
+                                        child: amountWidget),
+                                    Directionality(
+                                      textDirection: ui.TextDirection.ltr,
+                                      child: calculationWidget,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
-                            tappableBuilder: (onLongPress) => Tappable(
-                              color: Colors.transparent,
-                              borderRadius: 10,
-                              onTap: () {
-                                return;
-                              },
-                              onLongPress: onLongPress,
-                              child: Padding(
-                                padding: const EdgeInsetsDirectional.only(
-                                  end: 8.0,
-                                  bottom: 5,
-                                  start: 5,
-                                  top: 5,
-                                ),
-                                child: TextFont(
-                                  text: calculationString,
-                                  textAlign: TextAlign.start,
-                                  fontSize: 18,
-                                  maxLines: 5,
-                                ),
-                              ),
-                            ),
-                          );
-                    Widget amountWidget = amountWidgetBuilder(amountConverted);
-                    return AnimatedSize(
-                      curve: Curves.easeInOut,
-                      clipBehavior: Clip.none,
-                      duration: Duration(milliseconds: 500),
-                      child: Directionality(
-                        textDirection: ui.TextDirection.rtl,
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Wrap(
-                                alignment: WrapAlignment.spaceBetween,
-                                crossAxisAlignment: WrapCrossAlignment.start,
-                                runAlignment: WrapAlignment.spaceBetween,
-                                verticalDirection: VerticalDirection.up,
-                                children: [
-                                  Directionality(
-                                      textDirection: ui.TextDirection.ltr,
-                                      child: amountWidget),
-                                  Directionality(
-                                    textDirection: ui.TextDirection.ltr,
-                                    child: calculationWidget,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-              widget.enableWalletPicker == false ||
-                      Provider.of<AllWallets>(context).list.length <= 1 ||
-                      (widget.hideWalletPickerIfOneCurrency &&
-                          Provider.of<AllWallets>(context)
-                              .allContainSameCurrency())
-                  ? SizedBox.shrink()
-                  : Padding(
-                      padding: const EdgeInsetsDirectional.only(top: 3),
-                      child: SelectChips(
-                        allowMultipleSelected: false,
-                        items: Provider.of<AllWallets>(context).list,
-                        onLongPress: (TransactionWallet? item) {
-                          pushRoute(
-                            context,
-                            AddWalletPage(
-                              wallet: item,
-                              routesToPopAfterDelete:
-                                  RoutesToPopAfterDelete.PreventDelete,
-                            ),
-                          );
-                        },
-                        getSelected: (TransactionWallet wallet) {
-                          return getSelectedWallet(listen: false)?.walletPk ==
-                              wallet.walletPk;
-                        },
-                        onSelected: (TransactionWallet wallet) {
-                          setSelectedWallet(wallet);
-                          bottomSheetControllerGlobal.reMeasure();
-                        },
-                        getLabel: (TransactionWallet wallet) {
-                          return getWalletStringName(
-                              Provider.of<AllWallets>(context), wallet);
-                        },
-                        getCustomBorderColor: (TransactionWallet item) {
-                          return dynamicPastel(
-                            context,
-                            lightenPastel(
-                              HexColor(
-                                item.colour,
-                                defaultColor:
-                                    Theme.of(context).colorScheme.primary,
-                              ),
-                              amount: 0.3,
-                            ),
-                            amount: 0.4,
-                          );
-                        },
-                        extraWidgetBefore: Provider.of<AllWallets>(context,
-                                                listen: false)
-                                            .indexedByPk
-                                            .length >
-                                        3 &&
-                                    getIsFullScreen(context) == false ||
-                                Provider.of<AllWallets>(context, listen: false)
-                                            .indexedByPk
-                                            .length >
-                                        5 &&
-                                    getIsFullScreen(context) == true
-                            ? SelectChipsAddButtonExtraWidget(
-                                openPage: null,
-                                onTap: () async {
-                                  dynamic result = await selectWalletPopup(
-                                    context,
-                                    selectedWallet: Provider.of<AllWallets>(
-                                            context,
-                                            listen: false)
-                                        .indexedByPk[selectedWalletPk],
-                                    allowEditWallet: true,
-                                    allowDeleteWallet: false,
-                                  );
-                                  if (result is TransactionWallet) {
-                                    setSelectedWallet(result);
-                                  }
-                                },
-                                iconData: appStateSettings["outlinedIcons"]
-                                    ? Icons.expand_more_outlined
-                                    : Icons.expand_more_rounded,
-                              )
-                            : null,
-                        extraWidgetAfter: SelectChipsAddButtonExtraWidget(
-                          openPage: AddWalletPage(
-                            routesToPopAfterDelete: RoutesToPopAfterDelete.None,
                           ),
                         ),
-                      ),
-                    ),
-              SizedBox(height: 5),
-              NumberPadAmount(
-                extraWidgetAboveNumbers: widget.extraWidgetAboveNumbers,
-                addToAmount: addToAmount,
-                enableDecimal: true,
-                removeToAmount: removeToAmount,
-                removeAll: removeAll,
-                padding: widget.padding,
-                canChange: canChange,
-                setState: () => setState(() {}),
-                enableCalculator: true,
-              ),
-              SizedBox(height: 15),
-              if (widget.hideNextButton == false)
-                Padding(
-                  padding: widget.padding,
-                  child: AnimatedSwitcher(
-                    duration: Duration(milliseconds: 500),
-                    child: widget.allowZero || (amount != "" && amount != "0")
-                        ? Button(
-                            key: Key("addSuccess"),
-                            label: widget.nextLabel ?? "",
-                            width: MediaQuery.sizeOf(context).width,
-                            onTap: () {
-                              if (widget.allowZero && amount == "") {
-                                widget.setSelectedAmount(0, "");
-                              }
-                              if (widget.next != null) {
-                                widget.next!();
-                              }
-                              if (widget.popWithAmount) {
-                                popRoute(
-                                    context,
-                                    (amount == ""
-                                        ? 0
-                                        : includesOperations(amount, false)
-                                            ? calculateResult(amount)
-                                            : double.tryParse(amount) ?? 0));
-                              }
-                            },
-                          )
-                        : Button(
-                            key: Key("addNoSuccess"),
-                            label: widget.nextLabel ?? "",
-                            width: MediaQuery.sizeOf(context).width,
-                            onTap: () {},
-                            color: Colors.grey,
-                          ),
+                      );
+                    }),
                   ),
-                )
-            ],
+                widget.enableWalletPicker == false ||
+                        Provider.of<AllWallets>(context).list.length <= 1 ||
+                        (widget.hideWalletPickerIfOneCurrency &&
+                            Provider.of<AllWallets>(context)
+                                .allContainSameCurrency())
+                    ? SizedBox.shrink()
+                    : Padding(
+                        padding: const EdgeInsetsDirectional.only(top: 3),
+                        child: SelectChips(
+                          allowMultipleSelected: false,
+                          items: Provider.of<AllWallets>(context).list,
+                          onLongPress: (TransactionWallet? item) {
+                            pushRoute(
+                              context,
+                              AddWalletPage(
+                                wallet: item,
+                                routesToPopAfterDelete:
+                                    RoutesToPopAfterDelete.PreventDelete,
+                              ),
+                            );
+                          },
+                          getSelected: (TransactionWallet wallet) {
+                            return getSelectedWallet(listen: false)?.walletPk ==
+                                wallet.walletPk;
+                          },
+                          onSelected: (TransactionWallet wallet) {
+                            setSelectedWallet(wallet);
+                            bottomSheetControllerGlobal.reMeasure();
+                          },
+                          getLabel: (TransactionWallet wallet) {
+                            return getWalletStringName(
+                                Provider.of<AllWallets>(context), wallet);
+                          },
+                          getCustomBorderColor: (TransactionWallet item) {
+                            return dynamicPastel(
+                              context,
+                              lightenPastel(
+                                HexColor(
+                                  item.colour,
+                                  defaultColor:
+                                      Theme.of(context).colorScheme.primary,
+                                ),
+                                amount: 0.3,
+                              ),
+                              amount: 0.4,
+                            );
+                          },
+                          extraWidgetBefore: Provider.of<AllWallets>(context,
+                                                  listen: false)
+                                              .indexedByPk
+                                              .length >
+                                          3 &&
+                                      getIsFullScreen(context) == false ||
+                                  Provider.of<AllWallets>(context,
+                                                  listen: false)
+                                              .indexedByPk
+                                              .length >
+                                          5 &&
+                                      getIsFullScreen(context) == true
+                              ? SelectChipsAddButtonExtraWidget(
+                                  openPage: null,
+                                  onTap: () async {
+                                    dynamic result = await selectWalletPopup(
+                                      context,
+                                      selectedWallet: Provider.of<AllWallets>(
+                                              context,
+                                              listen: false)
+                                          .indexedByPk[selectedWalletPk],
+                                      allowEditWallet: true,
+                                      allowDeleteWallet: false,
+                                    );
+                                    if (result is TransactionWallet) {
+                                      setSelectedWallet(result);
+                                    }
+                                  },
+                                  iconData: appStateSettings["outlinedIcons"]
+                                      ? Icons.expand_more_outlined
+                                      : Icons.expand_more_rounded,
+                                )
+                              : null,
+                          extraWidgetAfter: SelectChipsAddButtonExtraWidget(
+                            openPage: AddWalletPage(
+                              routesToPopAfterDelete:
+                                  RoutesToPopAfterDelete.None,
+                            ),
+                          ),
+                        ),
+                      ),
+                SizedBox(height: 5),
+                NumberPadAmount(
+                  extraWidgetAboveNumbers: widget.extraWidgetAboveNumbers,
+                  addToAmount: addToAmount,
+                  enableDecimal: true,
+                  removeToAmount: removeToAmount,
+                  removeAll: removeAll,
+                  padding: widget.padding,
+                  canChange: canChange,
+                  setState: () => setState(() {}),
+                  enableCalculator: true,
+                ),
+                SizedBox(height: 15),
+                if (widget.hideNextButton == false)
+                  Padding(
+                    padding: widget.padding,
+                    child: AnimatedSwitcher(
+                      duration: Duration(milliseconds: 500),
+                      child: widget.allowZero || (amount != "" && amount != "0")
+                          ? Button(
+                              key: Key("addSuccess"),
+                              label: widget.nextLabel ?? "",
+                              width: MediaQuery.sizeOf(context).width,
+                              onTap: () {
+                                if (widget.allowZero && amount == "") {
+                                  widget.setSelectedAmount(0, "");
+                                }
+                                if (widget.next != null) {
+                                  widget.next!();
+                                }
+                                if (widget.popWithAmount) {
+                                  popRoute(
+                                      context,
+                                      (amount == ""
+                                          ? 0
+                                          : includesOperations(amount, false)
+                                              ? calculateResult(amount)
+                                              : double.tryParse(amount) ?? 0));
+                                }
+                              },
+                            )
+                          : Button(
+                              key: Key("addNoSuccess"),
+                              label: widget.nextLabel ?? "",
+                              width: MediaQuery.sizeOf(context).width,
+                              onTap: () {},
+                              color: Colors.grey,
+                            ),
+                    ),
+                  )
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -1415,6 +1427,10 @@ class _SelectAmountValueState extends State<SelectAmountValue> {
       return KeyEventResult.handled;
     });
     _focusNode.requestFocus();
+    // The focus can get lost on the web while the sheet slides in
+    Future.delayed(Duration(milliseconds: 300), () {
+      if (mounted) _focusNode.requestFocus();
+    });
   }
 
   @override
@@ -1474,64 +1490,69 @@ class _SelectAmountValueState extends State<SelectAmountValue> {
   Widget build(BuildContext context) {
     _focusAttachment.reparent();
     String amountConverted = amount.replaceAll(".", getDecimalSeparator());
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        if (widget.showEnteredNumber == true)
-          Padding(
-            padding: const EdgeInsetsDirectional.symmetric(horizontal: 8.0),
-            child: AnimatedSwitcher(
-              duration: Duration(milliseconds: 200),
-              child: FractionallySizedBox(
-                key: ValueKey(amount),
-                widthFactor: 1,
-                child: TextFont(
-                  autoSizeText: true,
-                  maxLines: 1,
-                  minFontSize: 16,
-                  text: amountConverted + widget.suffix,
-                  textAlign: TextAlign.end,
-                  fontSize: 35,
-                  fontWeight: FontWeight.bold,
+    return Listener(
+      // Taps inside (account chips, keys) take the focus away, and with
+      // it the physical keyboard
+      onPointerDown: (_) => _focusNode.requestFocus(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (widget.showEnteredNumber == true)
+            Padding(
+              padding: const EdgeInsetsDirectional.symmetric(horizontal: 8.0),
+              child: AnimatedSwitcher(
+                duration: Duration(milliseconds: 200),
+                child: FractionallySizedBox(
+                  key: ValueKey(amount),
+                  widthFactor: 1,
+                  child: TextFont(
+                    autoSizeText: true,
+                    maxLines: 1,
+                    minFontSize: 16,
+                    text: amountConverted + widget.suffix,
+                    textAlign: TextAlign.end,
+                    fontSize: 35,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),
+          Container(height: 10),
+          NumberPadAmount(
+            extraWidgetAboveNumbers: widget.extraWidgetAboveNumbers,
+            addToAmount: addToAmount,
+            enableDecimal: widget.enableDecimal,
+            removeToAmount: removeToAmount,
+            removeAll: removeAll,
+            canChange: () => true,
+            padding: EdgeInsetsDirectional.zero,
+            setState: () => setState(() {}),
+            enableCalculator: false,
           ),
-        Container(height: 10),
-        NumberPadAmount(
-          extraWidgetAboveNumbers: widget.extraWidgetAboveNumbers,
-          addToAmount: addToAmount,
-          enableDecimal: widget.enableDecimal,
-          removeToAmount: removeToAmount,
-          removeAll: removeAll,
-          canChange: () => true,
-          padding: EdgeInsetsDirectional.zero,
-          setState: () => setState(() {}),
-          enableCalculator: false,
-        ),
-        Container(height: 15),
-        AnimatedSwitcher(
-          duration: Duration(milliseconds: 500),
-          child: amount != "" || widget.allowZero
-              ? Button(
-                  key: Key("addSuccess"),
-                  label: widget.nextLabel ?? "",
-                  width: MediaQuery.sizeOf(context).width,
-                  onTap: () {
-                    if (widget.next != null) {
-                      widget.next!();
-                    }
-                  },
-                )
-              : Button(
-                  key: Key("addNoSuccess"),
-                  label: widget.nextLabel ?? "",
-                  width: MediaQuery.sizeOf(context).width,
-                  onTap: () {},
-                  color: Colors.grey,
-                ),
-        )
-      ],
+          Container(height: 15),
+          AnimatedSwitcher(
+            duration: Duration(milliseconds: 500),
+            child: amount != "" || widget.allowZero
+                ? Button(
+                    key: Key("addSuccess"),
+                    label: widget.nextLabel ?? "",
+                    width: MediaQuery.sizeOf(context).width,
+                    onTap: () {
+                      if (widget.next != null) {
+                        widget.next!();
+                      }
+                    },
+                  )
+                : Button(
+                    key: Key("addNoSuccess"),
+                    label: widget.nextLabel ?? "",
+                    width: MediaQuery.sizeOf(context).width,
+                    onTap: () {},
+                    color: Colors.grey,
+                  ),
+          )
+        ],
+      ),
     );
   }
 }
