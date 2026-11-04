@@ -1,10 +1,10 @@
 import 'package:budget/functions.dart';
 import 'package:budget/main.dart';
-import 'package:budget/pages/editCategoriesPage.dart';
 import 'package:budget/pages/exchangeRatesPage.dart';
 import 'package:budget/struct/defaultPreferences.dart';
 import 'package:budget/struct/navBarIconsData.dart';
 import 'package:budget/struct/settings.dart';
+import 'package:budget/struct/syncClient.dart';
 import 'package:budget/widgets/accountAndBackup.dart';
 import 'package:budget/widgets/animatedExpanded.dart';
 import 'package:budget/widgets/navigationFramework.dart';
@@ -463,118 +463,240 @@ class SidebarClock extends StatelessWidget {
   }
 }
 
-class SyncButton extends StatefulWidget {
+class SyncButton extends StatelessWidget {
   const SyncButton({super.key});
 
-  @override
-  State<SyncButton> createState() => _SyncButtonState();
-}
-
-class _SyncButtonState extends State<SyncButton> {
-  GlobalKey<RefreshButtonState> refreshButtonKey = GlobalKey();
+  Future<void> sync(BuildContext context) async {
+    if (runningCloudFunctions) return;
+    // Silent sign-in cannot bring the session back once it is lost (always
+    // the case on the web after a reload), so ask with the Google popup
+    if (googleUser == null) {
+      await signInAndSync(context, next: () {});
+    } else {
+      await runAllCloudFunctions(context, forceSignIn: true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    Widget refreshButton = Opacity(
-      opacity: 0.6,
-      child: RefreshButton(
-        key: refreshButtonKey,
-        halfAnimation: true,
-        customIcon: appStateSettings["outlinedIcons"]
-            ? Icons.sync_outlined
-            : Icons.sync_rounded,
-        flipIcon: true,
-        padding: EdgeInsetsDirectional.zero,
-        iconOnly: true,
-        onTap: () async {
-          if (runningCloudFunctions == false) {
-            await runAllCloudFunctions(
-              context,
-              forceSignIn: true,
-            );
-          }
-        },
-      ),
-    );
     return AnimatedExpanded(
-      expand: !(appStateSettings["currentUserEmail"] == "" ||
-          appStateSettings["backupSync"] == false),
+      // Stays visible after a failed sign-in so the red state can be seen
+      expand: appStateSettings["hasSignedIn"] == true &&
+          appStateSettings["backupSync"] != false,
       child: Padding(
         padding:
             const EdgeInsetsDirectional.symmetric(horizontal: 5, vertical: 1),
         child: Tappable(
           borderRadius: getPlatform() == PlatformOS.isIOS ? 10 : 50,
-          onTap: () async {
-            if (runningCloudFunctions == false) {
-              refreshButtonKey.currentState?.startAnimation();
-              await runAllCloudFunctions(
-                context,
-                forceSignIn: true,
-              );
-              refreshButtonKey.currentState?.startAnimation();
-            }
-          },
-          // Do not use Animated Switcher because otherwise duplicate key!
-          child: appStateSettings["expandedNavigationSidebar"]
-              ? Padding(
-                  key: ValueKey(appStateSettings["expandedNavigationSidebar"]),
-                  padding: const EdgeInsetsDirectional.symmetric(
-                      horizontal: 20, vertical: 13),
-                  child: Row(
-                    children: [
-                      refreshButton,
-                      SizedBox(width: 15),
-                      Flexible(
-                        child: AnimatedSwitcher(
-                          duration: Duration(milliseconds: 500),
-                          child: SizedBox(
-                            key: ValueKey(appStateSettings["lastSynced"]),
-                            child: TimerBuilder.periodic(
-                              Duration(seconds: 5),
-                              builder: (context) {
-                                DateTime? dateTimeLastSynced =
-                                    getTimeLastSynced();
-                                int diff = DateTime.now()
-                                    .difference(
-                                        dateTimeLastSynced ?? DateTime.now())
-                                    .inDays;
-                                return TextFont(
-                                  textAlign: TextAlign.start,
-                                  textColor: diff > 1
-                                      ? Theme.of(context)
-                                          .colorScheme
-                                          .onErrorContainer
-                                          .withOpacity(0.5)
-                                      : getColor(context, "textLight"),
-                                  fontSize: 13,
-                                  maxLines: 3,
-                                  text: "synced".tr() +
-                                      " " +
-                                      (dateTimeLastSynced == null
-                                          ? "never".tr()
-                                          : getTimeAgo(dateTimeLastSynced)),
-                                );
-                              },
+          onTap: () => sync(context),
+          child: ValueListenableBuilder<SyncStatus>(
+            valueListenable: syncStatus,
+            builder: (context, status, _) => TimerBuilder.periodic(
+              Duration(seconds: 5),
+              builder: (context) {
+                DateTime? dateTimeLastSynced = getTimeLastSynced();
+                bool stale = dateTimeLastSynced == null ||
+                    DateTime.now().difference(dateTimeLastSynced).inDays >= 1;
+                Color statusColor = status == SyncStatus.syncing
+                    ? Colors.amber.shade400
+                    : status == SyncStatus.failed ||
+                            (status == SyncStatus.idle && stale)
+                        ? getColor(context, "expenseAmount")
+                        : getColor(context, "incomeAmount");
+                Widget icon = DriveSyncIcon(
+                  statusColor: statusColor,
+                  pulse: status == SyncStatus.syncing,
+                );
+                // Do not use Animated Switcher because otherwise duplicate key!
+                return appStateSettings["expandedNavigationSidebar"]
+                    ? Padding(
+                        key: ValueKey(
+                            appStateSettings["expandedNavigationSidebar"]),
+                        padding: const EdgeInsetsDirectional.symmetric(
+                            horizontal: 20, vertical: 13),
+                        child: Row(
+                          children: [
+                            icon,
+                            SizedBox(width: 15),
+                            Flexible(
+                              child: TextFont(
+                                textAlign: TextAlign.start,
+                                textColor: status == SyncStatus.failed || stale
+                                    ? Theme.of(context)
+                                        .colorScheme
+                                        .onErrorContainer
+                                        .withOpacity(0.5)
+                                    : getColor(context, "textLight"),
+                                fontSize: 13,
+                                maxLines: 3,
+                                text: status == SyncStatus.failed
+                                    ? "syncing-failed".tr()
+                                    : "synced".tr() +
+                                        " " +
+                                        (dateTimeLastSynced == null
+                                            ? "never".tr()
+                                            : getTimeAgo(dateTimeLastSynced)),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
-                )
-              : Padding(
-                  key: ValueKey(appStateSettings["expandedNavigationSidebar"]),
-                  padding: const EdgeInsetsDirectional.symmetric(
-                      horizontal: 0, vertical: 13),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [refreshButton],
-                  ),
-                ),
+                      )
+                    : Padding(
+                        key: ValueKey(
+                            appStateSettings["expandedNavigationSidebar"]),
+                        padding: const EdgeInsetsDirectional.symmetric(
+                            horizontal: 0, vertical: 13),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [icon],
+                        ),
+                      );
+              },
+            ),
+          ),
         ),
       ),
     );
   }
+}
+
+// Flat Google Drive logo in the same grey as the other sidebar icons, with a
+// dot for the sync state: green synced, yellow syncing, red failed or stale
+class DriveSyncIcon extends StatefulWidget {
+  const DriveSyncIcon({
+    required this.statusColor,
+    this.pulse = false,
+    super.key,
+  });
+
+  final Color statusColor;
+  final bool pulse;
+
+  @override
+  State<DriveSyncIcon> createState() => _DriveSyncIconState();
+}
+
+class _DriveSyncIconState extends State<DriveSyncIcon>
+    with SingleTickerProviderStateMixin {
+  late AnimationController pulseController = AnimationController(
+    vsync: this,
+    duration: Duration(milliseconds: 700),
+    lowerBound: 0.3,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    updatePulse();
+  }
+
+  @override
+  void didUpdateWidget(DriveSyncIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.pulse != widget.pulse) updatePulse();
+  }
+
+  void updatePulse() {
+    if (widget.pulse) {
+      pulseController.repeat(reverse: true);
+    } else {
+      pulseController.value = 1;
+    }
+  }
+
+  @override
+  void dispose() {
+    pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 24,
+      height: 24,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          CustomPaint(
+            size: Size(24, 24),
+            painter: DriveLogoPainter(
+                color: Theme.of(context).colorScheme.secondary),
+          ),
+          PositionedDirectional(
+            end: -3,
+            bottom: -2,
+            child: FadeTransition(
+              opacity: pulseController,
+              child: AnimatedContainer(
+                duration: Duration(milliseconds: 400),
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  color: widget.statusColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class DriveLogoPainter extends CustomPainter {
+  DriveLogoPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Drawn on a 24x24 grid: three bands along the sides of a triangle
+    canvas.scale(size.width / 24, size.height / 24);
+    Path band(List<Offset> points) => Path()..addPolygon(points, true);
+    canvas.saveLayer(Rect.fromLTWH(0, 0, 24, 24), Paint());
+    Paint fill = Paint()..color = color;
+    // Right band, from the top down to the right corner
+    canvas.drawPath(
+        band([
+          Offset(8.3, 1.7),
+          Offset(15.7, 1.7),
+          Offset(24, 16.1),
+          Offset(16.6, 16.1),
+        ]),
+        fill);
+    // Left band, from the top down to the left corner
+    canvas.drawPath(
+        band([
+          Offset(8.3, 1.7),
+          Offset(12, 8.1),
+          Offset(3.7, 22.5),
+          Offset(0, 16.1),
+        ]),
+        fill);
+    // Bottom band
+    canvas.drawPath(
+        band([
+          Offset(7.4, 16.1),
+          Offset(24, 16.1),
+          Offset(20.3, 22.5),
+          Offset(3.7, 22.5),
+        ]),
+        fill);
+    // Thin cuts where the bands meet, like the real logo
+    Paint cut = Paint()
+      ..blendMode = BlendMode.clear
+      ..strokeWidth = 1.4;
+    canvas.drawLine(Offset(8.3, 1.7), Offset(12, 8.1), cut);
+    canvas.drawLine(Offset(7.4, 16.1), Offset(3.7, 22.5), cut);
+    canvas.drawLine(Offset(16.6, 16.1), Offset(24, 16.1), cut);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(DriveLogoPainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 DateTime? getTimeLastSynced() {

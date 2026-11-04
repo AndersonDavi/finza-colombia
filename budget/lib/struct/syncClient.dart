@@ -229,6 +229,11 @@ Future<bool> runForceSignIn(BuildContext context) async {
   );
 }
 
+enum SyncStatus { idle, syncing, synced, failed }
+
+// What the sidebar Drive icon shows
+ValueNotifier<SyncStatus> syncStatus = ValueNotifier(SyncStatus.idle);
+
 Future<bool> syncData(BuildContext context) async {
   // Create a new instance of the completer
   if (syncDataCompleter.isCompleted) {
@@ -237,8 +242,18 @@ Future<bool> syncData(BuildContext context) async {
     });
   }
 
-  syncDataCompleter.complete(Future.value(_syncData(context)));
-  return syncDataCompleter.operation.value;
+  SyncStatus previousStatus = syncStatus.value;
+  syncStatus.value = SyncStatus.syncing;
+  try {
+    syncDataCompleter.complete(Future.value(_syncData(context)));
+    bool synced = await syncDataCompleter.operation.value;
+    // A skipped sync (already running, not signed in yet) keeps the old state
+    syncStatus.value = synced ? SyncStatus.synced : previousStatus;
+    return synced;
+  } catch (e) {
+    syncStatus.value = SyncStatus.failed;
+    rethrow;
+  }
 }
 
 // load the latest backup and import any newly modified data into the db

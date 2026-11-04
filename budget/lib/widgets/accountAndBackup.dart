@@ -192,6 +192,7 @@ Future<bool> signInGoogle(
     await updateSettings("currentUserEmail", "", updateGlobalState: false);
     if (runningCloudFunctions) {
       errorSigningInDuringCloud = true;
+      syncStatus.value = SyncStatus.failed;
     } else {
       await updateSettings("hasSignedIn", false, updateGlobalState: false);
     }
