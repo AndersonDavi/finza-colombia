@@ -6903,7 +6903,10 @@ class FinanceDatabase extends _$FinanceDatabase {
               .abs()
               .sum(filter: transactions.paid.equals(true))
           : transactions.amount.sum(filter: transactions.paid.equals(true));
-      final totalCount = transactions.transactionPk.count();
+      // Same filter as the total: an upcoming unpaid one was counted but not
+      // added, so the card said x14 over 13 listed
+      final totalCount = transactions.transactionPk
+          .count(filter: transactions.paid.equals(true));
       final query = selectOnly(transactions)
         ..addColumns([totalAmt, totalCount])
         ..where(onlyShowIfFollowsSearchFilters(

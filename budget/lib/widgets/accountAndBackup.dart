@@ -431,6 +431,10 @@ Future<void> createBackup(
     if (clientIDForSync != null)
       driveFile.name =
           getCurrentDeviceSyncBackupFileName(clientIDForSync: clientIDForSync);
+    if (clientIDForSync != null && appStateSettings["copyForAllSent"] != null)
+      driveFile.appProperties = {
+        copyForAllProperty: appStateSettings["copyForAllSent"].toString()
+      };
     driveFile.modifiedTime = DateTime.now().toUtc();
     driveFile.parents = ["appDataFolder"];
 
@@ -813,6 +817,11 @@ class _BackupManagementState extends State<BackupManagement> {
   bool isLoading = true;
   bool autoBackups = appStateSettings["autoBackups"];
   bool backupSync = appStateSettings["backupSync"];
+  // Devices list: what each copy holds and when it last reached this device
+  SyncCopySummary? localSummary;
+  Map<String, SyncCopySummary?> summaries = {};
+  Map<String, DateTime> pulledHere = {};
+  bool comparing = false;
 
   @override
   void initState() {
@@ -833,8 +842,114 @@ class _BackupManagementState extends State<BackupManagement> {
           isLoading = false;
         });
         bottomSheetControllerGlobal.snapToExtent(0);
+        if (widget.isClientSync) await loadSyncDetails(files);
       }
     });
+  }
+
+  Future<void> loadSyncDetails(List<drive.File> files) async {
+    SyncCopySummary summary = await summarizeDatabase(database);
+    Map<String, DateTime> pulled = {};
+    for (drive.File file in files) {
+      if (!isSyncBackupFile(file.name)) continue;
+      String device = getDeviceFromSyncBackupFileName(file.name);
+      pulled[device] = await getDateOfLastSyncedWithClient(device);
+    }
+    if (!mounted) return;
+    setState(() {
+      localSummary = summary;
+      pulledHere = pulled;
+    });
+  }
+
+  Future<void> compareDevices() async {
+    setState(() => comparing = true);
+    for (drive.File file in filesState) {
+      if (!isSyncBackupFile(file.name) ||
+          isCurrentDeviceSyncBackupFile(file.name) ||
+          file.id == null) continue;
+      SyncCopySummary? summary = await summarizeSyncFile(driveApiState, file);
+      if (!mounted) return;
+      setState(() => summaries[file.id!] = summary);
+    }
+    if (mounted) setState(() => comparing = false);
+  }
+
+  Future<void> useThisCopyEverywhere() async {
+    dynamic result = await openPopup(
+      context,
+      icon: appStateSettings["outlinedIcons"]
+          ? Icons.devices_outlined
+          : Icons.devices_rounded,
+      title: "use-this-copy-everywhere".tr(),
+      description: "use-this-copy-everywhere-description".tr(),
+      onSubmitLabel: "continue".tr(),
+      onSubmit: () => popRoute(context, true),
+      onCancelLabel: "cancel".tr(),
+      onCancel: () => popRoute(context),
+    );
+    if (result != true) return;
+    loadingIndeterminateKey.currentState?.setVisibility(true);
+    bool sent = false;
+    try {
+      sent = await sendCopyForAll();
+    } catch (e) {
+      print("Could not send the copy for every device: " + e.toString());
+    }
+    loadingIndeterminateKey.currentState?.setVisibility(false);
+    openSnackbar(SnackbarMessage(
+      title: sent ? "copy-for-all-sent".tr() : "syncing-failed".tr(),
+      icon: appStateSettings["outlinedIcons"]
+          ? Icons.devices_outlined
+          : Icons.devices_rounded,
+    ));
+    if (sent) popRoute(context);
+  }
+
+  String summaryText(SyncCopySummary summary) {
+    return summary.transactions.toString() +
+        " " +
+        "transactions".tr().toLowerCase() +
+        " · " +
+        summary.accounts.toString() +
+        " " +
+        "accounts".tr().toLowerCase() +
+        (summary.lastTransaction == null
+            ? ""
+            : " · " +
+                "last-transaction".tr() +
+                " " +
+                getWordedDateShort(summary.lastTransaction!,
+                    includeYear: true));
+  }
+
+  // Under each device: what its copy holds and whether this device is behind
+  Widget syncCopyDetails(drive.File file) {
+    List<String> lines = [];
+    if (isCurrentDeviceSyncBackupFile(file.name)) {
+      lines.add("this-device".tr());
+      if (localSummary != null) lines.add(summaryText(localSummary!));
+    } else {
+      SyncCopySummary? summary = summaries[file.id];
+      if (summary != null) lines.add(summaryText(summary));
+      DateTime? pulled = pulledHere[getDeviceFromSyncBackupFileName(file.name)];
+      DateTime uploaded = (file.modifiedTime ?? DateTime(0)).toLocal();
+      if (pulled != null && pulled.year > 1 && !uploaded.isAfter(pulled)) {
+        lines.add("pulled-here".tr() + " " + getTimeAgo(pulled));
+      } else if (pulled != null) {
+        lines.add("has-unpulled-changes".tr());
+      }
+    }
+    if (lines.isEmpty) return SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(top: 3),
+      child: TextFont(
+        text: lines.join("\n"),
+        fontSize: 12,
+        maxLines: 4,
+        textColor: getColor(context, "textLight"),
+      ),
+    );
   }
 
   @override
@@ -1176,6 +1291,8 @@ class _BackupManagementState extends State<BackupManagement> {
                                                 fontSize: 14,
                                                 maxLines: 2,
                                               ),
+                                              if (widget.isClientSync)
+                                                syncCopyDetails(file.value),
                                               // isSyncBackupFile(
                                               //         file.value.name)
                                               //     ? Padding(
@@ -1381,6 +1498,33 @@ class _BackupManagementState extends State<BackupManagement> {
                 ),
               )
               .toList(),
+          if (widget.isClientSync && !isLoading && filesState.isNotEmpty) ...[
+            SizedBox(height: 5),
+            SettingsContainer(
+              enableBorderRadius: true,
+              title: "compare-devices".tr(),
+              description: "compare-devices-description".tr(),
+              icon: appStateSettings["outlinedIcons"]
+                  ? Icons.compare_arrows_outlined
+                  : Icons.compare_arrows_rounded,
+              afterWidget: comparing
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : null,
+              onTap: comparing ? null : compareDevices,
+            ),
+            SettingsContainer(
+              enableBorderRadius: true,
+              title: "use-this-copy-everywhere".tr(),
+              icon: appStateSettings["outlinedIcons"]
+                  ? Icons.devices_outlined
+                  : Icons.devices_rounded,
+              onTap: useThisCopyEverywhere,
+            ),
+          ],
         ],
       ),
     );

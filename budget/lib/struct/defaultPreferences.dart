@@ -183,6 +183,10 @@ Future<Map<String, dynamic>> getDefaultPreferences() async {
     "leftHandedMode": false,
     "widgetPocketPks": [],
     "distributionTemplatesModified": null,
+    // Time of the last "use this copy on every device" this device acted on
+    "copyForAllHandled": null,
+    // Mark this device puts on its sync file after "use this copy on every device"
+    "copyForAllSent": null,
     "forceSmallHeader": false,
     "animationSpeed": 1.0,
     "logging": false,

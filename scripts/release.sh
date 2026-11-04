@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Publishes a new Android version as a GitHub release, the one Obtainium
-# picks up and installs on the phone.
+# picks up and installs on the phone, and then the web on the same version.
 #   scripts/release.sh          bumps the last number: 5.5.0 -> 5.5.1
 #   scripts/release.sh 5.6.0    sets the version by hand
 # Needs a clean working tree, Flutter in the PATH and gh logged in with an
@@ -49,3 +49,8 @@ git -C "$root" push -q origin HEAD "v$next"
 gh release create "v$next" "$apk" --repo "$repo" --title "$next" \
   --notes "${notes:-No changes besides the version.}"
 echo "Published $next"
+
+if ! "$root/scripts/deploy-web.sh"; then
+  echo "The APK is out, but the web did not publish: run scripts/deploy-web.sh" >&2
+  exit 1
+fi

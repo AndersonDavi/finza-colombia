@@ -3,6 +3,7 @@ import 'package:async/async.dart';
 import 'dart:convert';
 import 'package:budget/database/binary_string_conversion.dart';
 import 'package:budget/database/tables.dart';
+import 'package:drift/drift.dart' show BaseAggregate, ArithmeticAggregates;
 import 'package:budget/database/walletGroups.dart';
 import 'package:budget/database/tags.dart';
 import 'package:budget/functions.dart';
@@ -229,6 +230,178 @@ Future<bool> runForceSignIn(BuildContext context) async {
   );
 }
 
+// What one copy holds, so the devices list shows at a glance when two devices
+// ended up with different data
+class SyncCopySummary {
+  SyncCopySummary({
+    required this.transactions,
+    required this.accounts,
+    this.lastTransaction,
+  });
+
+  final int transactions;
+  final int accounts;
+  final DateTime? lastTransaction;
+}
+
+Future<SyncCopySummary> summarizeDatabase(FinanceDatabase db) async {
+  final transactionCount = db.transactions.transactionPk.count();
+  final lastTransaction = db.transactions.dateCreated.max();
+  final walletCount = db.wallets.walletPk.count();
+  final transactionRow = await (db.selectOnly(db.transactions)
+        ..addColumns([transactionCount, lastTransaction]))
+      .getSingle();
+  final walletRow =
+      await (db.selectOnly(db.wallets)..addColumns([walletCount])).getSingle();
+  return SyncCopySummary(
+    transactions: transactionRow.read(transactionCount) ?? 0,
+    accounts: walletRow.read(walletCount) ?? 0,
+    lastTransaction: transactionRow.read(lastTransaction),
+  );
+}
+
+// Downloads another device's sync file and reads its summary. Shares the
+// syncdb slot with the sync, so it waits its turn the same way
+Future<SyncCopySummary?> summarizeSyncFile(
+    drive.DriveApi driveApi, drive.File file) async {
+  if (canSyncData == false || file.id == null) return null;
+  canSyncData = false;
+  try {
+    List<int> dataStore = [];
+    dynamic response = await driveApi.files
+        .get(file.id!, downloadOptions: drive.DownloadOptions.fullMedia);
+    await for (var data in response.stream) {
+      dataStore.insertAll(dataStore.length, data);
+    }
+    FinanceDatabase databaseSync;
+    if (kIsWeb) {
+      databaseSync = await constructDb('syncdb',
+          initialDataWeb: Uint8List.fromList(dataStore));
+    } else {
+      final dbFolder = await getApplicationDocumentsDirectory();
+      final dbFile = File(p.join(dbFolder.path, 'syncdb.sqlite'));
+      await dbFile.writeAsBytes(dataStore);
+      databaseSync = await constructDb('syncdb');
+    }
+    try {
+      return await summarizeDatabase(databaseSync);
+    } finally {
+      await databaseSync.close();
+    }
+  } catch (e) {
+    print("Could not read the sync file " +
+        (file.name ?? "") +
+        ": " +
+        e.toString());
+    return null;
+  } finally {
+    canSyncData = true;
+  }
+}
+
+// "Use this copy on every device": this device uploads a fresh sync file
+// marked with the time, and removes the other devices' files so their old
+// data cannot flow back. Each of them sees the mark on its next sync and
+// offers to load this copy.
+const String copyForAllProperty = "copyForAll";
+
+Future<bool> sendCopyForAll() async {
+  if (googleUser == null) return false;
+  final authHeaders = await googleUser!.authHeaders;
+  drive.DriveApi driveApi = drive.DriveApi(GoogleAuthClient(authHeaders));
+  List<drive.File> files = (await driveApi.files
+              .list(spaces: 'appDataFolder', $fields: 'files(id, name)'))
+          .files ??
+      [];
+  for (drive.File file in files) {
+    if (isSyncBackupFile(file.name) && file.id != null) {
+      await driveApi.files.delete(file.id!);
+    }
+  }
+  String markedAt = DateTime.now().toUtc().toIso8601String();
+  // Every later upload of this device's sync file carries the mark too, so a
+  // device that syncs days later still sees it
+  await updateSettings("copyForAllSent", markedAt, updateGlobalState: false);
+  await updateSettings("copyForAllHandled", markedAt, updateGlobalState: false);
+  await createBackup(null,
+      silentBackup: true, deleteOldBackups: false, clientIDForSync: clientID);
+  // From here on, only what the others change after this moment comes back
+  await forgetOlderChangesFromOtherDevices(DateTime.now());
+  files = (await driveApi.files
+              .list(spaces: 'appDataFolder', $fields: 'files(id, name)'))
+          .files ??
+      [];
+  return files.any((file) => isCurrentDeviceSyncBackupFile(file.name));
+}
+
+Future<void> forgetOlderChangesFromOtherDevices(DateTime since) async {
+  String string =
+      sharedPreferences.getString("dateOfLastSyncedWithClient") ?? "{}";
+  Map<String, dynamic> parsed = jsonDecode(string);
+  for (String client in parsed.keys.toList()) {
+    parsed[client] = since.toString();
+  }
+  await sharedPreferences.setString(
+      "dateOfLastSyncedWithClient", jsonEncode(parsed));
+}
+
+// Returns true when it took over the sync (loading the copy restarts the app)
+Future<bool> applyCopyForAllIfAsked(
+    BuildContext context, drive.DriveApi driveApi) async {
+  List<drive.File> files = (await driveApi.files.list(
+              spaces: 'appDataFolder',
+              $fields: 'files(id, name, modifiedTime, appProperties)'))
+          .files ??
+      [];
+  DateTime? handled = DateTime.tryParse(
+      appStateSettings["copyForAllHandled"]?.toString() ?? "");
+  drive.File? asking;
+  DateTime? askedAt;
+  for (drive.File file in files) {
+    if (!isSyncBackupFile(file.name) ||
+        isCurrentDeviceSyncBackupFile(file.name)) continue;
+    DateTime? markedAt =
+        DateTime.tryParse(file.appProperties?[copyForAllProperty] ?? "");
+    if (markedAt == null) continue;
+    if (handled != null && !markedAt.isAfter(handled)) continue;
+    if (askedAt == null || markedAt.isAfter(askedAt)) {
+      asking = file;
+      askedAt = markedAt;
+    }
+  }
+  if (asking == null || askedAt == null) return false;
+
+  await updateSettings("copyForAllHandled", askedAt.toIso8601String(),
+      updateGlobalState: false);
+  dynamic result = await openPopup(
+    context,
+    icon: appStateSettings["outlinedIcons"]
+        ? Icons.devices_outlined
+        : Icons.devices_rounded,
+    title: "copy-for-all-question".tr(),
+    description: getDeviceFromSyncBackupFileName(asking.name) +
+        " " +
+        "copy-for-all-question-description".tr(),
+    onSubmitLabel: "load".tr(),
+    onSubmit: () => popRoute(context, true),
+    onCancelLabel: "keep-mine".tr(),
+    onCancel: () => popRoute(context, false),
+  );
+  if (result != true) return false;
+
+  // The loaded copy already holds everything the others had sent before
+  await forgetOlderChangesFromOtherDevices(DateTime.now());
+  await setDateOfLastSyncedWithClient(
+      getDeviceFromSyncBackupFileName(asking.name),
+      asking.modifiedTime?.toLocal() ?? DateTime.now());
+  // After this sync has wound down: loading the copy cancels any running sync
+  drive.File copy = asking;
+  Future.delayed(Duration(milliseconds: 300), () {
+    loadBackup(context, driveApi, copy);
+  });
+  return true;
+}
+
 enum SyncStatus { idle, syncing, synced, failed }
 
 // What the sidebar Drive icon shows
@@ -295,6 +468,13 @@ Future<bool> _syncData(BuildContext context) async {
   drive.DriveApi driveApi = drive.DriveApi(authenticateClient);
   if (driveApi == null) {
     throw "Failed to login to Google Drive";
+  }
+
+  // Before uploading anything: another device may have asked every device to
+  // take its copy, and uploading first would put this one's old data back
+  if (await applyCopyForAllIfAsked(context, driveApi)) {
+    canSyncData = true;
+    return false;
   }
 
   await createSyncBackup();
