@@ -195,8 +195,7 @@ class PocketGoalBar extends StatelessWidget {
     if (wallet.goalAmount == null) return SizedBox.shrink();
     PocketGoalProgress progress =
         PocketGoalProgress(balance, wallet.goalAmount!, wallet.goalDate);
-    Color color = HexColor(wallet.colour,
-        defaultColor: Theme.of(context).colorScheme.primary);
+    Color color = pickedColor(context, wallet.colour);
     AllWallets allWallets = Provider.of<AllWallets>(context);
     String money(double value) =>
         convertToMoney(allWallets, value, currencyKey: wallet.currency);

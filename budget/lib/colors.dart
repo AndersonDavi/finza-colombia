@@ -272,6 +272,20 @@ class HexColor extends Color {
       : super(_getColorFromHex(hexColor, defaultColor, context));
 }
 
+// An account or group color as picked, except that one close to the background
+// (near black on the dark theme, near white on the light one) is lifted off it
+Color pickedColor(BuildContext context, String? hexColor) {
+  Color color =
+      HexColor(hexColor, defaultColor: Theme.of(context).colorScheme.primary);
+  HSLColor hsl = HSLColor.fromColor(color);
+  if (Theme.of(context).brightness == Brightness.dark) {
+    if (hsl.lightness < 0.3) return hsl.withLightness(0.55).toColor();
+  } else if (hsl.lightness > 0.85) {
+    return hsl.withLightness(0.6).toColor();
+  }
+  return color;
+}
+
 String? toHexString(Color? color) {
   if (color == null) {
     return null;

@@ -54,8 +54,7 @@ class BalanceAccountCard extends StatelessWidget {
     AllWallets allWallets = Provider.of<AllWallets>(context);
     Color borderColor = wallet == null
         ? getColor(context, "lightDarkAccentHeavy")
-        : HexColor(wallet!.colour,
-                defaultColor: Theme.of(context).colorScheme.primary)
+        : pickedColor(context, wallet!.colour)
             .withOpacity(0.7);
     String money(double amount) => convertToMoney(allWallets, amount,
         currencyKey: wallet?.currency, decimals: wallet?.decimals);
@@ -553,9 +552,7 @@ class _CorrectBalancePageState extends State<CorrectBalancePage> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(15),
                           border: Border.all(
-                            color: HexColor(widget.wallet.colour,
-                                    defaultColor:
-                                        Theme.of(context).colorScheme.primary)
+                            color: pickedColor(context, widget.wallet.colour)
                                 .withOpacity(0.7),
                             width: 2,
                           ),

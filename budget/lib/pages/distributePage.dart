@@ -434,8 +434,7 @@ class _DistributePageState extends State<DistributePage> {
                                 (l) => l.walletPk == picked.walletPk);
                           });
                       },
-                      color: HexColor(source?.colour,
-                          defaultColor: Theme.of(context).colorScheme.primary),
+                      color: pickedColor(context, source?.colour),
                       child: Row(
                         children: [
                           Expanded(
@@ -521,9 +520,7 @@ class _DistributePageState extends State<DistributePage> {
                       segments: [
                         for (var line in lines)
                           (
-                            HexColor(allWallets.indexedByPk[line.walletPk]?.colour,
-                                defaultColor:
-                                    Theme.of(context).colorScheme.primary),
+                            pickedColor(context, allWallets.indexedByPk[line.walletPk]?.colour),
                             lineAmount(line)
                           )
                       ],
@@ -767,8 +764,7 @@ class DistributionLineCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     AllWallets allWallets = Provider.of<AllWallets>(context);
-    Color color = HexColor(wallet?.colour,
-        defaultColor: Theme.of(context).colorScheme.primary);
+    Color color = pickedColor(context, wallet?.colour);
     String money(double value) =>
         convertToMoney(allWallets, value, currencyKey: wallet?.currency);
     Widget modeButton(DistributionMode mode, String label) {

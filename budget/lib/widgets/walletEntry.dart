@@ -51,9 +51,7 @@ class WalletEntry extends StatelessWidget {
                 border: Border.all(
                   width: 2,
                   color: selected
-                      ? HexColor(walletWithDetails.wallet.colour,
-                              defaultColor:
-                                  Theme.of(context).colorScheme.primary)
+                      ? pickedColor(context, walletWithDetails.wallet.colour)
                           .withOpacity(0.7)
                       : Colors.transparent,
                 ),
@@ -157,8 +155,7 @@ class WalletColorDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color color = HexColor(wallet.colour,
-            defaultColor: Theme.of(context).colorScheme.primary)
+    Color color = pickedColor(context, wallet.colour)
         .withOpacity(0.7);
     bool isFree = showFree && freeWalletPksCache.contains(wallet.walletPk);
     // Own icon of the pocket, else the piggy bank for the free one

@@ -478,8 +478,7 @@ class TransactionEntry extends StatelessWidget {
             children: [
               TransactionTag(
                 margin: EdgeInsetsDirectional.zero,
-                color: HexColor(wallet?.colour,
-                    defaultColor: Theme.of(context).colorScheme.primary),
+                color: pickedColor(context, wallet?.colour),
                 name: getWalletStringName(
                     Provider.of<AllWallets>(context), wallet),
               ),

@@ -186,8 +186,7 @@ class WalletGroupHeader extends StatelessWidget {
             Icon(
               walletGroupKindIcon(group.kind),
               size: 18,
-              color: HexColor(group.colour,
-                  defaultColor: Theme.of(context).colorScheme.primary),
+              color: pickedColor(context, group.colour),
             ),
             SizedBox(width: 6),
             Flexible(
@@ -236,8 +235,7 @@ class WalletGroupContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color groupColor = HexColor(group.colour,
-        defaultColor: Theme.of(context).colorScheme.primary);
+    Color groupColor = pickedColor(context, group.colour);
     return Padding(
       padding: const EdgeInsetsDirectional.symmetric(horizontal: 4),
       child: Container(
@@ -395,8 +393,7 @@ class WalletGroupSelector extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               color: selected == null
                   ? Theme.of(context).colorScheme.secondaryContainer
-                  : HexColor(selected.colour,
-                          defaultColor: Theme.of(context).colorScheme.primary)
+                  : pickedColor(context, selected.colour)
                       .withOpacity(0.35),
             ),
             child: TextFont(
@@ -481,8 +478,7 @@ class SelectWalletGroupPopup extends StatelessWidget {
                 option(
                   label: group.name + " · " + walletGroupKindLabel(group.kind),
                   icon: walletGroupKindIcon(group.kind),
-                  color: HexColor(group.colour,
-                      defaultColor: Theme.of(context).colorScheme.primary),
+                  color: pickedColor(context, group.colour),
                   selected: selectedWalletGroupFk == group.walletGroupPk,
                   onTap: () => popRoute(
                       context, SelectedWalletGroup(group.walletGroupPk)),
@@ -867,9 +863,7 @@ class FreeMoneySummary extends StatelessWidget {
                                 horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(8),
-                              color: HexColor(group.colour,
-                                      defaultColor:
-                                          Theme.of(context).colorScheme.primary)
+                              color: pickedColor(context, group.colour)
                                   .withOpacity(0.2),
                             ),
                             child: TextFont(
@@ -1000,8 +994,7 @@ class WalletGroupCard extends StatelessWidget {
     var (total, currencyKey) = walletGroupTotal(allWallets, wallets);
     int transactions =
         wallets.fold(0, (sum, w) => sum + (w.numberTransactions ?? 0));
-    Color groupColor = HexColor(group.colour,
-        defaultColor: Theme.of(context).colorScheme.primary);
+    Color groupColor = pickedColor(context, group.colour);
     return Padding(
       padding: const EdgeInsetsDirectional.symmetric(horizontal: 6),
       child: Tappable(
@@ -1148,8 +1141,7 @@ class _CompactWalletSwitcherState extends State<CompactWalletSwitcher> {
 
   Widget pocketsOfGroup(WalletGroupSection section, {required bool open}) {
     WalletGroup group = section.group!;
-    Color groupColor = HexColor(group.colour,
-        defaultColor: Theme.of(context).colorScheme.primary);
+    Color groupColor = pickedColor(context, group.colour);
     return AnimatedContainer(
       key: pocketsKeys.putIfAbsent(group.walletGroupPk, () => GlobalKey()),
       duration: Duration(milliseconds: 350),
@@ -1341,9 +1333,7 @@ class WalletGroupsPage extends StatelessWidget {
                               border: BorderDirectional(
                                 start: BorderSide(
                                   width: 5,
-                                  color: HexColor(groups[index].colour,
-                                      defaultColor:
-                                          Theme.of(context).colorScheme.primary),
+                                  color: pickedColor(context, groups[index].colour),
                                 ),
                               ),
                             ),
@@ -1428,8 +1418,7 @@ class GroupedWalletPicker extends StatelessWidget {
     Widget walletRow(WalletWithDetails details) {
       TransactionWallet wallet = details.wallet;
       bool selected = wallet.walletPk == selectedWalletPk;
-      Color walletColor = HexColor(wallet.colour,
-          defaultColor: Theme.of(context).colorScheme.primary);
+      Color walletColor = pickedColor(context, wallet.colour);
       double total = details.totalSpent ?? 0;
       return Tappable(
         borderRadius: 12,
@@ -1497,14 +1486,10 @@ class GroupedWalletPicker extends StatelessWidget {
                     padding: const EdgeInsetsDirectional.all(6),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
-                      color: HexColor(group.colour,
-                              defaultColor:
-                                  Theme.of(context).colorScheme.primary)
+                      color: pickedColor(context, group.colour)
                           .withOpacity(0.08),
                       border: Border.all(
-                        color: HexColor(group.colour,
-                                defaultColor:
-                                    Theme.of(context).colorScheme.primary)
+                        color: pickedColor(context, group.colour)
                             .withOpacity(0.25),
                       ),
                     ),
@@ -1519,9 +1504,7 @@ class GroupedWalletPicker extends StatelessWidget {
                               Icon(
                                 walletGroupKindIcon(group.kind),
                                 size: 18,
-                                color: HexColor(group.colour,
-                                    defaultColor:
-                                        Theme.of(context).colorScheme.primary),
+                                color: pickedColor(context, group.colour),
                               ),
                               SizedBox(width: 8),
                               TextFont(

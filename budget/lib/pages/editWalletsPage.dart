@@ -232,9 +232,7 @@ class _EditWalletsPageState extends State<EditWalletsPage> {
                     TransactionWallet wallet = walletWithDetails.wallet;
                     Color accentColor = dynamicPastel(
                         context,
-                        HexColor(wallet.colour,
-                            defaultColor:
-                                Theme.of(context).colorScheme.primary),
+                        pickedColor(context, wallet.colour),
                         amountLight: 0.55,
                         amountDark: 0.35);
                     return EditRowEntry(
@@ -587,10 +585,7 @@ Future<TransactionWallet?> selectWalletPopup(
                 return dynamicPastel(
                   context,
                   lightenPastel(
-                    HexColor(
-                      wallet.colour,
-                      defaultColor: Theme.of(context).colorScheme.primary,
-                    ),
+                    pickedColor(context, wallet.colour),
                     amount: 0.2,
                   ),
                   amount: 0.1,
