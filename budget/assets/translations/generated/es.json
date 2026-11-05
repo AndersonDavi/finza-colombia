@@ -334,7 +334,7 @@
   "history-period-description": "El tamaño de cada fila del historial de la derecha, por ejemplo cada 1 mes. «Comienzo» es el día en que arranca cada periodo: si te pagan el 15, pon un 15 y cada mes irá del 15 al 14.",
   "spending-patterns-description": "Últimos 12 meses; no cambia con el periodo que elijas",
   "to-review": "Por revisar",
-  "to-review-description": "De los correos del banco o sin nombre (\"?\"). Revísalas de a una, o toca una para corregirla; el chulo la confirma.",
+  "to-review-description": "De los correos del banco o sin nombre (\"?\"). Revísalas de a una, o toca una para corregir categoría o bolsillo; el chulo la confirma.",
   "confirm-all": "Confirmar todas",
   "confirm": "Confirmar",
   "lent-money": "Presté",

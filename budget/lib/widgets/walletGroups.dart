@@ -851,7 +851,7 @@ class FreeMoneySummary extends StatelessWidget {
                 (w.totalSpent ?? 0) *
                 amountRatioToPrimaryCurrencyGivenPk(
                     allWallets, w.wallet.walletPk);
-            List<(WalletGroup, double)> freeByGroup = [];
+            List<(WalletGroup, double, WalletWithDetails)> freeByGroup = [];
             String? richestFreePk;
             double richestFree = double.negativeInfinity;
             for (WalletGroup group in groupsSnapshot.data ?? []) {
@@ -860,7 +860,7 @@ class FreeMoneySummary extends StatelessWidget {
               WalletWithDetails? free =
                   wallets.where((w) => w.wallet.walletPk == freePk).firstOrNull;
               if (free != null) {
-                freeByGroup.add((group, inPrimary(free)));
+                freeByGroup.add((group, inPrimary(free), free));
                 if (inPrimary(free) > richestFree) {
                   richestFree = inPrimary(free);
                   richestFreePk = free.wallet.walletPk;
@@ -873,6 +873,8 @@ class FreeMoneySummary extends StatelessWidget {
             double allTotal = wallets.fold(0.0, (sum, w) => sum + inPrimary(w));
             String money(double amount) =>
                 convertToMoney(allWallets, amount, addCurrencyName: false);
+            String? primaryCurrency = allWallets
+                .indexedByPk[appStateSettings["selectedWalletPk"]]?.currency;
             Color amountColor(double amount) => amount == 0
                 ? getColor(context, "black")
                 : amount > 0
@@ -965,7 +967,7 @@ class FreeMoneySummary extends StatelessWidget {
                       runSpacing: 6,
                       children: [
                         // Accounts with nothing free add nothing to the line
-                        for (var (group, amount) in freeByGroup)
+                        for (var (group, amount, free) in freeByGroup)
                           if (amount.abs() >= 0.005)
                             Container(
                               padding: const EdgeInsetsDirectional.symmetric(
@@ -975,8 +977,19 @@ class FreeMoneySummary extends StatelessWidget {
                                 color: pickedColor(context, group.colour)
                                     .withOpacity(0.2),
                               ),
+                              // In the pocket's own currency, so an account
+                              // kept in dollars shows dollars here too
                               child: TextFont(
-                                text: group.name + " " + money(amount),
+                                text: group.name +
+                                    " " +
+                                    (free.wallet.currency == primaryCurrency
+                                        ? money(amount)
+                                        : convertToMoney(allWallets,
+                                                free.totalSpent ?? 0,
+                                                currencyKey:
+                                                    free.wallet.currency,
+                                                decimals:
+                                                    free.wallet.decimals)),
                                 fontSize: 12,
                               ),
                             ),

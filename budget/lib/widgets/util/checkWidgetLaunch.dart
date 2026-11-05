@@ -13,6 +13,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:budget/struct/currencyFunctions.dart';
 import 'package:budget/widgets/walletEntry.dart';
+import 'package:budget/widgets/transactionEntry/transferIcon.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:provider/provider.dart';
 import 'package:budget/pages/addWalletPage.dart';
@@ -273,16 +274,172 @@ class PocketsWidgetData extends StatelessWidget {
                 convertToMoney(allWallets, w.totalSpent ?? 0,
                     currencyKey: w.wallet.currency)
         ].join("\n");
+        ThemeData widgetTheme = appStateSettings["widgetTheme"] == "light"
+            ? getLightTheme()
+            : appStateSettings["widgetTheme"] == "dark"
+                ? getDarkTheme()
+                : Theme.of(context);
+        Widget card = PocketsWidgetCard(
+          theme: widgetTheme,
+          title: "free-money".tr(),
+          total: convertToMoney(allWallets, freeTotal),
+          rows: [
+            for (WalletWithDetails w in shown)
+              PocketsWidgetRow(
+                // A free pocket goes by its account's name ("Libre · Nequi"
+                // is just Nequi here)
+                name: freeWalletPksCache.contains(w.wallet.walletPk)
+                    ? walletGroupNamesCache[w.wallet.walletGroupFk] ??
+                        getWalletStringName(allWallets, w.wallet)
+                    : getWalletStringName(allWallets, w.wallet),
+                amount: convertToMoney(allWallets, w.totalSpent ?? 0,
+                    currencyKey: w.wallet.currency),
+                colour: w.wallet.colour,
+                icon: walletIconOf(w.wallet),
+              ),
+          ],
+          opacity: (double.tryParse(
+                      (appStateSettings["widgetOpacity"] ?? 1).toString()) ??
+                  1)
+              .clamp(0, 1)
+              .toDouble(),
+        );
         Future.delayed(Duration.zero, () async {
           await HomeWidget.saveWidgetData<String>(
               'pocketsTitle', "free-money".tr());
           await HomeWidget.saveWidgetData<String>(
               'pocketsAmount', convertToMoney(allWallets, freeTotal));
           await HomeWidget.saveWidgetData<String>('pocketsLines', lines);
+          // The widget shows this picture; the texts above are the fallback
+          try {
+            await HomeWidget.renderFlutterWidget(
+              card,
+              key: 'pocketsImage',
+              logicalSize: Size(PocketsWidgetCard.width,
+                  PocketsWidgetCard.heightFor(shown.length)),
+            );
+          } catch (e) {
+            print("Could not draw the pockets widget: " + e.toString());
+          }
           await HomeWidget.updateWidget(name: 'PocketsWidgetProvider');
         });
         return SizedBox.shrink();
       },
+    );
+  }
+}
+
+class PocketsWidgetRow {
+  PocketsWidgetRow({
+    required this.name,
+    required this.amount,
+    required this.colour,
+    required this.icon,
+  });
+  final String name;
+  final String amount;
+  final String? colour;
+  final IconData icon;
+}
+
+// The pockets widget drawn like the free money card of the app, saved as a
+// picture the home screen widget shows
+class PocketsWidgetCard extends StatelessWidget {
+  const PocketsWidgetCard({
+    required this.theme,
+    required this.title,
+    required this.total,
+    required this.rows,
+    required this.opacity,
+    super.key,
+  });
+  final ThemeData theme;
+  final String title;
+  final String total;
+  final List<PocketsWidgetRow> rows;
+  final double opacity;
+
+  static const double width = 340;
+  static double heightFor(int rows) => 96 + rows * 34.0;
+
+  @override
+  Widget build(BuildContext context) {
+    Color background = theme.colorScheme.secondaryContainer;
+    Color text = theme.colorScheme.onSecondaryContainer;
+    TextStyle style(double size, {bool bold = false, double alpha = 1}) =>
+        TextStyle(
+          fontFamily: theme.textTheme.bodyMedium?.fontFamily,
+          fontFamilyFallback: theme.textTheme.bodyMedium?.fontFamilyFallback,
+          fontSize: size,
+          fontWeight: bold ? FontWeight.bold : FontWeight.w500,
+          color: text.withOpacity(alpha),
+          decoration: TextDecoration.none,
+        );
+    return MediaQuery(
+      data: MediaQueryData(),
+      child: Theme(
+        data: theme,
+        child: Builder(builder: (context) {
+          return Container(
+            width: width,
+            height: heightFor(rows.length),
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
+            decoration: BoxDecoration(
+              color: background.withOpacity(opacity),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.savings_rounded,
+                        size: 18, color: text.withOpacity(0.8)),
+                    SizedBox(width: 6),
+                    Text(title, style: style(15, bold: true, alpha: 0.8)),
+                  ],
+                ),
+                SizedBox(height: 2),
+                Text(total, style: style(28, bold: true)),
+                SizedBox(height: 8),
+                for (PocketsWidgetRow row in rows)
+                  SizedBox(
+                    height: 34,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 26,
+                          height: 26,
+                          decoration: BoxDecoration(
+                            color: pickedColor(context, row.colour),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(row.icon,
+                              size: 15,
+                              color: pickedColor(context, row.colour)
+                                          .computeLuminance() >
+                                      0.5
+                                  ? Colors.black.withOpacity(0.75)
+                                  : Colors.white),
+                        ),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            row.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: style(15),
+                          ),
+                        ),
+                        Text(row.amount, style: style(15, bold: true)),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          );
+        }),
+      ),
     );
   }
 }

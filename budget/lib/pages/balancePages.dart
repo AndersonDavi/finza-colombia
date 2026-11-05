@@ -487,6 +487,7 @@ class _CorrectBalancePageState extends State<CorrectBalancePage> {
             ),
             amountPassed: "",
             currencyKey: widget.wallet.currency,
+            enableCurrencySwap: true,
             allowZero: true,
             setSelectedAmount: (amount, calculation) {
               setState(() {

@@ -269,6 +269,16 @@ String convertToMoney(AllWallets allWallets, double amount,
       getCurrencyString(allWallets, currencyKey: currencyKey) == "") {
     addCurrencyName = true;
   }
+  // An amount in another currency than the primary one says which, so 10
+  // dollars never read as 10 pesos ("$10.17 USD")
+  if (addCurrencyName == null &&
+      forceHideCurrencyName == false &&
+      currencyKey != null &&
+      currencyKey !=
+          allWallets.indexedByPk[appStateSettings["selectedWalletPk"]]
+              ?.currency) {
+    addCurrencyName = true;
+  }
   String formatOutput = formatter.format(amount).trim();
   String? currencyName;
   if (addCurrencyName == true && currencyKey != null) {

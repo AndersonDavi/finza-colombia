@@ -8,7 +8,6 @@ import 'package:budget/pages/editWalletsPage.dart';
 import 'package:budget/pages/settingsPage.dart';
 import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/settings.dart';
-import 'package:budget/widgets/animatedExpanded.dart';
 import 'package:budget/widgets/button.dart';
 import 'package:budget/widgets/openBottomSheet.dart';
 import 'package:budget/widgets/openPopup.dart';
@@ -16,7 +15,6 @@ import 'package:budget/widgets/selectChips.dart';
 import 'package:budget/widgets/tappable.dart';
 import 'package:budget/widgets/textWidgets.dart';
 import 'package:budget/widgets/util/contextMenu.dart';
-import 'package:budget/widgets/viewAllTransactionsButton.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -81,6 +79,7 @@ class SelectAmount extends StatefulWidget {
     this.amountTappableBuilder,
     this.showCalculation = true,
     this.showWholeBalance = false,
+    this.enableCurrencySwap = false,
   }) : super(key: key);
   final Function(double, String) setSelectedAmount;
   final String amountPassed;
@@ -107,6 +106,8 @@ class SelectAmount extends StatefulWidget {
   final bool showCalculation;
   // A button that fills in everything the selected account holds (transfers)
   final bool showWholeBalance;
+  // The COP ⇄ USD button without the account chips (balance correction)
+  final bool enableCurrencySwap;
 
   @override
   _SelectAmountState createState() => _SelectAmountState();
@@ -132,6 +133,88 @@ class _SelectAmountState extends State<SelectAmount> {
             .indexedByPk[appStateSettings["selectedWalletPk"]]
             ?.decimals ??
         2;
+  }
+
+  // Currency the number is typed in; null is the pocket's own. Swapping it
+  // only changes how the amount is typed: the pocket stays the same and gets
+  // the amount converted to its currency
+  String? entryCurrency;
+
+  String? walletCurrency() =>
+      widget.currencyKey ?? getSelectedWallet(listen: false)?.currency;
+
+  String? shownCurrency() => entryCurrency ?? walletCurrency();
+
+  // Every currency in use plus the primary one, to swap between
+  List<String> swapCurrencies() {
+    AllWallets allWallets = Provider.of<AllWallets>(context, listen: false);
+    return {
+      if (walletCurrency() != null) walletCurrency()!,
+      if (allWallets.indexedByPk[appStateSettings["selectedWalletPk"]]
+              ?.currency !=
+          null)
+        allWallets
+            .indexedByPk[appStateSettings["selectedWalletPk"]]!.currency!,
+      for (TransactionWallet wallet in allWallets.list)
+        if (wallet.currency != null) wallet.currency!,
+    }.toList();
+  }
+
+  // The one a tap swaps to: back to the pocket's, else the primary one, else
+  // the first other currency in use
+  String? otherCurrency() {
+    String? shown = shownCurrency();
+    String? own = walletCurrency();
+    if (shown != own) return own;
+    String? primary = Provider.of<AllWallets>(context, listen: false)
+        .indexedByPk[appStateSettings["selectedWalletPk"]]
+        ?.currency;
+    if (primary != null && primary != own) return primary;
+    return swapCurrencies().where((c) => c != own).firstOrNull;
+  }
+
+  int decimalsOfCurrency(String? currency) {
+    if (currency == walletCurrency()) return getDecimals(listen: false);
+    return Provider.of<AllWallets>(context, listen: false)
+            .list
+            .where((w) => w.currency == currency)
+            .firstOrNull
+            ?.decimals ??
+        2;
+  }
+
+  double typedValue() => amount == ""
+      ? 0
+      : includesOperations(amount, false)
+          ? calculateResult(amount)
+          : double.tryParse(amount) ?? 0;
+
+  double convertCurrency(double value, String? from, String? to) {
+    if (from == null || to == null || from == to) return value;
+    return value * (amountRatioFromToCurrency(from, to) ?? 1);
+  }
+
+  // The caller always gets the amount in the pocket's currency
+  void reportAmount(double value, String text) {
+    widget.setSelectedAmount(
+        convertCurrency(value, shownCurrency(), walletCurrency()), text);
+  }
+
+  void swapCurrency() {
+    String? from = shownCurrency();
+    String? to = otherCurrency();
+    if (from == null || to == null) return;
+    double value = typedValue();
+    double converted = convertCurrency(value, from, to);
+    setState(() {
+      entryCurrency = to == walletCurrency() ? null : to;
+      amount = value == 0
+          ? ""
+          : removeTrailingZeroes(
+              converted.toStringAsFixed(decimalsOfCurrency(to)));
+    });
+    reportAmount(typedValue(), amount);
+    _focusNode.requestFocus();
   }
 
   bool isControlPressed = false;
@@ -354,7 +437,7 @@ class _SelectAmountState extends State<SelectAmount> {
         amount = "-";
       });
     }
-    widget.setSelectedAmount(
+    reportAmount(
         (amount == ""
             ? 0
             : includesOperations(amount, false)
@@ -374,7 +457,7 @@ class _SelectAmountState extends State<SelectAmount> {
         amount = amount.substring(0, amount.length - 1);
       }
     });
-    widget.setSelectedAmount(
+    reportAmount(
         (amount == ""
             ? 0
             : includesOperations(amount, false)
@@ -385,15 +468,18 @@ class _SelectAmountState extends State<SelectAmount> {
   }
 
   void setWholeBalance(double balance) {
+    // Exact, in the pocket's own currency
     String text = removeTrailingZeroes(
         balance.toStringAsFixed(getDecimals(listen: false)));
     setState(() {
+      entryCurrency = null;
       amount = text;
     });
-    widget.setSelectedAmount(balance, text);
+    reportAmount(balance, text);
     _focusNode.requestFocus();
   }
 
+  // Chip under the amount: what the pocket holds, tap to send all of it
   Widget wholeBalanceButton() {
     if (!widget.showWholeBalance || selectedWalletPk == null)
       return SizedBox.shrink();
@@ -402,21 +488,124 @@ class _SelectAmountState extends State<SelectAmount> {
       builder: (context, snapshot) {
         double balance = snapshot.data ?? 0;
         if (balance <= 0) return SizedBox.shrink();
+        bool isAll = entryCurrency == null &&
+            (typedValue() - balance).abs() < 0.005;
+        Color accent = Theme.of(context).colorScheme.primary;
         return Padding(
-          padding: const EdgeInsetsDirectional.only(bottom: 8),
-          child: LowKeyButton(
-            onTap: () => setWholeBalance(balance),
-            text: "whole-balance".tr() +
-                " · " +
-                convertToMoney(
-                  Provider.of<AllWallets>(context),
-                  balance,
-                  currencyKey: getSelectedWallet(listen: true)?.currency,
-                  decimals: getDecimals(listen: true),
+          padding: const EdgeInsetsDirectional.only(bottom: 8, top: 2),
+          child: Align(
+            alignment: AlignmentDirectional.centerEnd,
+            child: Tappable(
+              borderRadius: 50,
+              color: isAll
+                  ? accent.withOpacity(0.25)
+                  : Theme.of(context).colorScheme.secondaryContainer,
+              onTap: () => setWholeBalance(balance),
+              child: Padding(
+                padding: const EdgeInsetsDirectional.symmetric(
+                    horizontal: 12, vertical: 7),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isAll
+                          ? Icons.check_circle_rounded
+                          : Icons.account_balance_wallet_rounded,
+                      size: 16,
+                      color: isAll
+                          ? accent
+                          : Theme.of(context)
+                              .colorScheme
+                              .onSecondaryContainer,
+                    ),
+                    SizedBox(width: 6),
+                    TextFont(
+                      text: "whole-balance".tr() +
+                          "  " +
+                          convertToMoney(
+                            Provider.of<AllWallets>(context),
+                            balance,
+                            currencyKey:
+                                getSelectedWallet(listen: true)?.currency,
+                            decimals: getDecimals(listen: true),
+                          ),
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ],
                 ),
+              ),
+            ),
           ),
         );
       },
+    );
+  }
+
+  // Under the amount while typing in another currency: what the pocket gets
+  Widget convertedLine() {
+    String? own = walletCurrency();
+    if (entryCurrency == null || own == null) return SizedBox.shrink();
+    double converted = convertCurrency(typedValue(), entryCurrency, own);
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(end: 8, bottom: 4),
+      child: Align(
+        alignment: AlignmentDirectional.centerEnd,
+        child: TextFont(
+          text: "≈ " +
+              convertToMoney(
+                Provider.of<AllWallets>(context),
+                converted,
+                currencyKey: own,
+                decimals: getDecimals(listen: true),
+                addCurrencyName: true,
+              ),
+          fontSize: 16,
+          textColor: getColor(context, "textLight"),
+        ),
+      ),
+    );
+  }
+
+  // COP ⇄ USD: the bold one is the currency being typed
+  Widget currencySwapButton() {
+    String? shown = shownCurrency();
+    String? other = otherCurrency();
+    if (shown == null || other == null || widget.convertToMoney == false)
+      return SizedBox.shrink();
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(1.0)),
+      child: Padding(
+        padding: const EdgeInsetsDirectional.only(bottom: 5, start: 4),
+        child: Tappable(
+          color: Theme.of(context).colorScheme.secondaryContainer,
+          borderRadius: 13,
+          onTap: swapCurrency,
+          child: Padding(
+            padding:
+                const EdgeInsetsDirectional.symmetric(horizontal: 9, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFont(
+                  text: shown.toUpperCase(),
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+                Padding(
+                  padding: const EdgeInsetsDirectional.symmetric(horizontal: 4),
+                  child: Icon(Icons.swap_horiz_rounded, size: 16),
+                ),
+                TextFont(
+                  text: other.toUpperCase(),
+                  fontSize: 13,
+                  textColor: getColor(context, "textLight"),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -424,7 +613,7 @@ class _SelectAmountState extends State<SelectAmount> {
     setState(() {
       amount = "";
     });
-    widget.setSelectedAmount(
+    reportAmount(
         (amount == ""
             ? 0
             : includesOperations(amount, false)
@@ -534,7 +723,7 @@ class _SelectAmountState extends State<SelectAmount> {
       setState(() {
         this.amount = amount.toString();
       });
-      widget.setSelectedAmount(amount, amount.toString());
+      reportAmount(amount, amount.toString());
       bottomSheetControllerGlobal.reMeasure();
     }
   }
@@ -565,40 +754,6 @@ class _SelectAmountState extends State<SelectAmount> {
       try {
         amount =
             double.parse(amount).toStringAsFixed(getDecimals(listen: false));
-      } catch (e) {}
-      amount = removeTrailingZeroes(amount);
-      addToAmount("");
-    });
-  }
-
-  convertAmountToSelectedCurrency() {
-    TransactionWallet? walletBefore = getSelectedWallet(listen: false);
-    // get the index of the primary wallet
-    int index = 0;
-    for (TransactionWallet wallet
-        in Provider.of<AllWallets>(context, listen: false).list) {
-      if (wallet.walletPk == appStateSettings["selectedWalletPk"]) {
-        break;
-      }
-      index++;
-    }
-
-    if (widget.setSelectedWalletPk != null)
-      widget.setSelectedWalletPk!(
-          Provider.of<AllWallets>(context, listen: false).list[index].walletPk);
-    setState(() {
-      selectedWalletPk =
-          Provider.of<AllWallets>(context, listen: false).list[index].walletPk;
-      walletPkForCurrency =
-          Provider.of<AllWallets>(context, listen: false).list[index].walletPk;
-      try {
-        amount = (double.parse(amount) *
-                (walletBefore == null
-                    ? 1
-                    : (amountRatioToPrimaryCurrencyGivenPk(
-                        Provider.of<AllWallets>(context, listen: false),
-                        walletBefore.walletPk))))
-            .toStringAsFixed(getDecimals(listen: false));
       } catch (e) {}
       amount = removeTrailingZeroes(amount);
       addToAmount("");
@@ -660,63 +815,9 @@ class _SelectAmountState extends State<SelectAmount> {
                 ),
           ),
         ),
-        widget.enableWalletPicker == false ||
-                Provider.of<AllWallets>(context).list.length <= 1 ||
-                (widget.hideWalletPickerIfOneCurrency &&
-                    Provider.of<AllWallets>(context).allContainSameCurrency())
-            ? SizedBox.shrink()
-            : MediaQuery(
-                child: Padding(
-                  padding: const EdgeInsetsDirectional.symmetric(vertical: 3.0),
-                  child: AnimatedExpanded(
-                    axis: Axis.horizontal,
-                    expand: (getSelectedWallet(listen: true)?.walletPk ==
-                                appStateSettings["selectedWalletPk"] ||
-                            ((Provider.of<AllWallets>(context)
-                                    .indexedByPk[getSelectedWallet(listen: true)
-                                        ?.walletPk]
-                                    ?.currency) ==
-                                Provider.of<AllWallets>(context)
-                                    .indexedByPk[
-                                        appStateSettings["selectedWalletPk"]]
-                                    ?.currency)) ==
-                        false,
-                    child: Tappable(
-                      key: ValueKey(getSelectedWallet(listen: true)?.walletPk),
-                      color: Theme.of(context).colorScheme.secondaryContainer,
-                      borderRadius: 13,
-                      onTap: () => convertAmountToSelectedCurrency(),
-                      child: Padding(
-                        padding: const EdgeInsetsDirectional.symmetric(
-                            horizontal: 8, vertical: 7),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.currency_exchange_rounded,
-                              size: 16,
-                            ),
-                            SizedBox(height: 2),
-                            TextFont(
-                              text: Provider.of<AllWallets>(context)
-                                      .indexedByPk[
-                                          appStateSettings["selectedWalletPk"]]
-                                      ?.currency
-                                      .toString()
-                                      .toUpperCase() ??
-                                  "",
-                              fontSize: 11,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                data: MediaQuery.of(context)
-                    .copyWith(textScaler: TextScaler.linear(1.0)),
-              ),
+        if ((widget.enableWalletPicker || widget.enableCurrencySwap) &&
+            swapCurrencies().length > 1)
+          currencySwapButton(),
       ],
     );
   }
@@ -735,8 +836,7 @@ class _SelectAmountState extends State<SelectAmount> {
             ignorePrivacy: true,
             Provider.of<AllWallets>(context),
             calculateResult(amountConverted),
-            currencyKey: widget.currencyKey ??
-                getSelectedWallet(listen: false)?.currency,
+            currencyKey: shownCurrency(),
             allDecimals: true,
             forceAllDecimals: doesNotContainOtherNumbers(amount) &&
                 startsWithTwoZeroes(amount) == false &&
@@ -841,6 +941,7 @@ class _SelectAmountState extends State<SelectAmount> {
                       );
                     }),
                   ),
+                convertedLine(),
                 widget.enableWalletPicker == false ||
                         Provider.of<AllWallets>(context).list.length <= 1 ||
                         (widget.hideWalletPickerIfOneCurrency &&
@@ -955,7 +1056,7 @@ class _SelectAmountState extends State<SelectAmount> {
                               width: MediaQuery.sizeOf(context).width,
                               onTap: () {
                                 if (widget.allowZero && amount == "") {
-                                  widget.setSelectedAmount(0, "");
+                                  reportAmount(0, "");
                                 }
                                 if (widget.next != null) {
                                   widget.next!();

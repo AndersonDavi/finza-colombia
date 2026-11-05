@@ -334,7 +334,7 @@
   "history-period-description": "How long each row of the history on the right is, every 1 month for example. Start is the day each period begins: if you get paid on the 15th, set 15 and each month runs from the 15th to the 14th.",
   "spending-patterns-description": "Last 12 months, it does not change with the period you choose",
   "to-review": "To review",
-  "to-review-description": "From the bank emails or without a name (\"?\"). Review them one by one, or tap one to fix it; the check confirms it.",
+  "to-review-description": "From the bank emails or without a name (\"?\"). Review them one by one, or tap one to fix its category or pocket; the check confirms it.",
   "confirm-all": "Confirm all",
   "confirm": "Confirm",
   "lent-money": "I lent",

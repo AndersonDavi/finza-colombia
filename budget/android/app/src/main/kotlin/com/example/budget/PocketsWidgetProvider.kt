@@ -3,7 +3,9 @@ package com.budget.tracker_app
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.BitmapFactory
 import android.net.Uri
+import android.view.View
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import es.antonborri.home_widget.HomeWidgetProvider
@@ -40,6 +42,19 @@ class PocketsWidgetProvider : HomeWidgetProvider() {
                   setInt(R.id.pockets_title, "setTextColor", textColor)
                   setInt(R.id.pockets_amount, "setTextColor", textColor)
                   setInt(R.id.pockets_lines, "setTextColor", textColor)
+                }catch (e: Exception){}
+
+                // The card the app draws, with colors and icons; when it is
+                // there the plain texts and background step aside
+                try {
+                  val imagePath = widgetData.getString("pocketsImage", null)
+                  val bitmap = if (imagePath != null) BitmapFactory.decodeFile(imagePath) else null
+                  if (bitmap != null) {
+                    setImageViewBitmap(R.id.pockets_image, bitmap)
+                    setViewVisibility(R.id.pockets_image, View.VISIBLE)
+                    setViewVisibility(R.id.pockets_text, View.GONE)
+                    setViewVisibility(R.id.widget_background, View.GONE)
+                  }
                 }catch (e: Exception){}
 
                 try {

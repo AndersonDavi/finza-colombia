@@ -12,6 +12,7 @@
         android:src="@drawable/widget_background"
     />
 	<LinearLayout
+        android:id="@+id/pockets_text"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
@@ -46,4 +47,13 @@
             android:textColor="#000000"
         />
 	</LinearLayout>
+	<!-- The card drawn by the app; the texts above stay as the fallback -->
+	<ImageView
+        android:id="@+id/pockets_image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitCenter"
+        android:adjustViewBounds="true"
+        android:visibility="gone"
+    />
 </FrameLayout>
