@@ -88,15 +88,17 @@ List<WalletGroupSection> groupWalletsForDisplay(
     }
   }
   if (sortByAmount) {
-    double sectionTotal(WalletGroupSection section) => section.wallets
-        .fold(0.0, (sum, w) => sum + (w.totalSpent ?? 0));
+    double sectionTotal(WalletGroupSection section) =>
+        section.wallets.fold(0.0, (sum, w) => sum + (w.totalSpent ?? 0));
     // Groups first by their own order, then accounts by theirs
     int customOrder(WalletGroupSection section) => section.group != null
         ? section.group!.order
         : 100000 + section.wallets.first.wallet.order;
     sections.sort((a, b) {
       int byAmount = sectionTotal(b).compareTo(sectionTotal(a));
-      return byAmount != 0 ? byAmount : customOrder(a).compareTo(customOrder(b));
+      return byAmount != 0
+          ? byAmount
+          : customOrder(a).compareTo(customOrder(b));
     });
   } else {
     sections = [
@@ -123,9 +125,8 @@ IconData walletGroupKindIcon(WalletGroupKind kind) {
       outlined ? Icons.account_balance_outlined : Icons.account_balance_rounded,
     WalletGroupKind.cash =>
       outlined ? Icons.payments_outlined : Icons.payments_rounded,
-    WalletGroupKind.digitalWallet => outlined
-        ? Icons.phone_android_outlined
-        : Icons.phone_android_rounded,
+    WalletGroupKind.digitalWallet =>
+      outlined ? Icons.phone_android_outlined : Icons.phone_android_rounded,
     WalletGroupKind.creditCard =>
       outlined ? Icons.credit_card_outlined : Icons.credit_card_rounded,
     WalletGroupKind.investment =>
@@ -329,9 +330,9 @@ class _GroupedWalletRowsState extends State<GroupedWalletRows> {
         return Column(
           children: [
             if (widget.showOrganizer) WalletsOrganizer(),
-            for (WalletGroupSection section
-                in groupWalletsForDisplay(wallets, snapshot.data ?? [],
-                    showHidden: widget.showHidden))
+            for (WalletGroupSection section in groupWalletsForDisplay(
+                wallets, snapshot.data ?? [],
+                showHidden: widget.showHidden))
               // Keys keep each row with its account when the order changes,
               // so amounts do not count from another row's value
               if (section.group == null)
@@ -353,29 +354,29 @@ class _GroupedWalletRowsState extends State<GroupedWalletRows> {
                           start: 14, end: 18, top: 8, bottom: 2),
                     ),
                     if (!collapsedGroups.contains(section.group!.walletGroupPk))
-                    for (int i = 0; i < section.wallets.length; i++)
-                      IntrinsicHeight(
-                        key: ValueKey(section.wallets[i].wallet.walletPk),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            SizedBox(
-                              width: 30,
-                              child: CustomPaint(
-                                painter: WalletGroupBranchPainter(
-                                  color: HexColor(section.group!.colour,
-                                          defaultColor: Theme.of(context)
-                                              .colorScheme
-                                              .primary)
-                                      .withOpacity(0.5),
-                                  isLast: i == section.wallets.length - 1,
+                      for (int i = 0; i < section.wallets.length; i++)
+                        IntrinsicHeight(
+                          key: ValueKey(section.wallets[i].wallet.walletPk),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              SizedBox(
+                                width: 30,
+                                child: CustomPaint(
+                                  painter: WalletGroupBranchPainter(
+                                    color: HexColor(section.group!.colour,
+                                            defaultColor: Theme.of(context)
+                                                .colorScheme
+                                                .primary)
+                                        .withOpacity(0.5),
+                                    isLast: i == section.wallets.length - 1,
+                                  ),
                                 ),
                               ),
-                            ),
-                            Expanded(child: rowBuilder(section.wallets[i])),
-                          ],
+                              Expanded(child: rowBuilder(section.wallets[i])),
+                            ],
+                          ),
                         ),
-                      ),
                   ],
                 ),
           ],
@@ -419,8 +420,7 @@ class WalletGroupSelector extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               color: selected == null
                   ? Theme.of(context).colorScheme.secondaryContainer
-                  : pickedColor(context, selected.colour)
-                      .withOpacity(0.35),
+                  : pickedColor(context, selected.colour).withOpacity(0.35),
             ),
             child: TextFont(
               text: selected?.name ?? "no-group".tr(),
@@ -831,8 +831,7 @@ class FreePocketSetting extends StatelessWidget {
 // every account. Shown over the net worth when some group has a free pocket.
 // The initial lists let it show up in the same frame as the totals around it.
 class FreeMoneySummary extends StatelessWidget {
-  const FreeMoneySummary(
-      {this.initialGroups, this.initialWallets, super.key});
+  const FreeMoneySummary({this.initialGroups, this.initialWallets, super.key});
   final List<WalletGroup>? initialGroups;
   final List<WalletWithDetails>? initialWallets;
 
@@ -856,11 +855,10 @@ class FreeMoneySummary extends StatelessWidget {
             String? richestFreePk;
             double richestFree = double.negativeInfinity;
             for (WalletGroup group in groupsSnapshot.data ?? []) {
-              String? freePk = freeWalletPkOfGroup(
-                  group, [for (var w in wallets) w.wallet]);
-              WalletWithDetails? free = wallets
-                  .where((w) => w.wallet.walletPk == freePk)
-                  .firstOrNull;
+              String? freePk =
+                  freeWalletPkOfGroup(group, [for (var w in wallets) w.wallet]);
+              WalletWithDetails? free =
+                  wallets.where((w) => w.wallet.walletPk == freePk).firstOrNull;
               if (free != null) {
                 freeByGroup.add((group, inPrimary(free)));
                 if (inPrimary(free) > richestFree) {
@@ -872,8 +870,7 @@ class FreeMoneySummary extends StatelessWidget {
             if (freeByGroup.isEmpty) return SizedBox.shrink();
             double freeTotal =
                 freeByGroup.fold(0.0, (sum, item) => sum + item.$2);
-            double allTotal =
-                wallets.fold(0.0, (sum, w) => sum + inPrimary(w));
+            double allTotal = wallets.fold(0.0, (sum, w) => sum + inPrimary(w));
             String money(double amount) =>
                 convertToMoney(allWallets, amount, addCurrencyName: false);
             Color amountColor(double amount) => amount == 0
@@ -967,20 +964,22 @@ class FreeMoneySummary extends StatelessWidget {
                       spacing: 6,
                       runSpacing: 6,
                       children: [
+                        // Accounts with nothing free add nothing to the line
                         for (var (group, amount) in freeByGroup)
-                          Container(
-                            padding: const EdgeInsetsDirectional.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(8),
-                              color: pickedColor(context, group.colour)
-                                  .withOpacity(0.2),
+                          if (amount.abs() >= 0.005)
+                            Container(
+                              padding: const EdgeInsetsDirectional.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(8),
+                                color: pickedColor(context, group.colour)
+                                    .withOpacity(0.2),
+                              ),
+                              child: TextFont(
+                                text: group.name + " " + money(amount),
+                                fontSize: 12,
+                              ),
                             ),
-                            child: TextFont(
-                              text: group.name + " " + money(amount),
-                              fontSize: 12,
-                            ),
-                          ),
                       ],
                     ),
                   ],
@@ -1017,7 +1016,8 @@ class _WalletsOrganizerState extends State<WalletsOrganizer> {
         homePageStateKey.currentState?.refreshState();
       },
       child: Container(
-        padding: const EdgeInsetsDirectional.symmetric(horizontal: 10, vertical: 5),
+        padding:
+            const EdgeInsetsDirectional.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
@@ -1051,7 +1051,8 @@ class _WalletsOrganizerState extends State<WalletsOrganizer> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsetsDirectional.symmetric(horizontal: 14, vertical: 4),
+      padding:
+          const EdgeInsetsDirectional.symmetric(horizontal: 14, vertical: 4),
       child: Wrap(
         spacing: 6,
         runSpacing: 6,
@@ -1114,13 +1115,14 @@ class WalletGroupCard extends StatelessWidget {
         onLongPress: () => openEditWalletGroupPopup(context, group: group),
         child: AnimatedContainer(
           duration: Duration(milliseconds: 350),
-          padding:
-              const EdgeInsetsDirectional.symmetric(horizontal: 18, vertical: 13),
+          padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: 18, vertical: 13),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(15),
             border: Border.all(
               width: 2,
-              color: expanded ? groupColor.withOpacity(0.7) : Colors.transparent,
+              color:
+                  expanded ? groupColor.withOpacity(0.7) : Colors.transparent,
             ),
           ),
           child: Column(
@@ -1148,7 +1150,8 @@ class WalletGroupCard extends StatelessWidget {
                 ],
               ),
               TextFont(
-                text: convertToMoney(allWallets, total, currencyKey: currencyKey),
+                text:
+                    convertToMoney(allWallets, total, currencyKey: currencyKey),
                 fontSize: 17,
                 fontWeight: FontWeight.bold,
                 textColor: total == 0
@@ -1218,8 +1221,8 @@ class _CompactWalletSwitcherState extends State<CompactWalletSwitcher> {
             !pocketsScrollController.hasClients ||
             !pockets.attached) return;
         ScrollPosition position = pocketsScrollController.position;
-        RenderObject? viewport = position.context.storageContext
-            .findRenderObject();
+        RenderObject? viewport =
+            position.context.storageContext.findRenderObject();
         if (viewport is! RenderBox) return;
         double x = pockets.localToGlobal(Offset.zero, ancestor: viewport).dx;
         double target = (position.pixels + x - 7)
@@ -1443,7 +1446,8 @@ class WalletGroupsPage extends StatelessWidget {
                               border: BorderDirectional(
                                 start: BorderSide(
                                   width: 5,
-                                  color: pickedColor(context, groups[index].colour),
+                                  color: pickedColor(
+                                      context, groups[index].colour),
                                 ),
                               ),
                             ),
@@ -1482,7 +1486,8 @@ class WalletGroupsPage extends StatelessWidget {
                                 ReorderableDragStartListener(
                                   index: index,
                                   child: Padding(
-                                    padding: const EdgeInsetsDirectional.all(12),
+                                    padding:
+                                        const EdgeInsetsDirectional.all(12),
                                     child: Icon(
                                       appStateSettings["outlinedIcons"]
                                           ? Icons.drag_handle_outlined
@@ -1538,8 +1543,8 @@ class GroupedWalletPicker extends StatelessWidget {
         onTap: () => onSelected(wallet),
         onLongPress: onLongPress == null ? null : () => onLongPress!(wallet),
         child: Padding(
-          padding:
-              const EdgeInsetsDirectional.symmetric(horizontal: 12, vertical: 10),
+          padding: const EdgeInsetsDirectional.symmetric(
+              horizontal: 12, vertical: 10),
           child: Row(
             children: [
               Container(
@@ -1582,22 +1587,23 @@ class GroupedWalletPicker extends StatelessWidget {
       builder: (context, snapshot) {
         List<WalletGroup> groups = snapshot.data ?? [];
         List<WalletWithDetails> ungrouped = wallets
-            .where((w) => !groups
-                .any((g) => g.walletGroupPk == w.wallet.walletGroupFk))
+            .where((w) =>
+                !groups.any((g) => g.walletGroupPk == w.wallet.walletGroupFk))
             .toList();
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             for (WalletGroup group in groups)
-              if (wallets.any((w) => w.wallet.walletGroupFk == group.walletGroupPk))
+              if (wallets
+                  .any((w) => w.wallet.walletGroupFk == group.walletGroupPk))
                 Padding(
                   padding: const EdgeInsetsDirectional.only(bottom: 10),
                   child: Container(
                     padding: const EdgeInsetsDirectional.all(6),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
-                      color: pickedColor(context, group.colour)
-                          .withOpacity(0.08),
+                      color:
+                          pickedColor(context, group.colour).withOpacity(0.08),
                       border: Border.all(
                         color: pickedColor(context, group.colour)
                             .withOpacity(0.25),
