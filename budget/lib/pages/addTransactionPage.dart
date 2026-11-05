@@ -2564,6 +2564,11 @@ class _SelectTitleState extends State<SelectTitle> {
     }
 
     super.initState();
+    // autofocus gets lost on the web while the sheet slides in, so ask for
+    // the focus once it is open
+    Future.delayed(Duration(milliseconds: 300), () {
+      if (mounted && !enterTitleFocus.hasFocus) enterTitleFocus.requestFocus();
+    });
   }
 
   void selectTitle() async {
