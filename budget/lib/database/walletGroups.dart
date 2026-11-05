@@ -1,4 +1,5 @@
 import 'package:budget/database/tables.dart';
+import 'package:budget/struct/country.dart';
 import 'package:drift/drift.dart';
 
 // Queries for the groups of accounts (where the money is kept: a bank, cash)
@@ -68,7 +69,7 @@ extension WalletGroupQueries on FinanceDatabase {
         dateCreated: DateTime.now(),
         order: numberOfWallets,
         currency: currency,
-        decimals: 2,
+        decimals: defaultPocketDecimals(),
         archived: false,
         walletGroupFk: walletGroupPk,
       ),

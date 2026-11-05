@@ -27,8 +27,8 @@ android {
     }
 
     defaultConfig {
-        // Own id so it installs next to the official Cashew
-        applicationId = "com.budget.tracker_app.personal"
+        // Own id so it installs next to the official Cashew and the personal fork
+        applicationId = "com.budget.tracker_app.finza"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

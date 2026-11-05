@@ -213,6 +213,27 @@ class _UpcomingTransactionsNotificationsSettingsState
               ? Icons.calendar_month_outlined
               : Icons.calendar_month_rounded,
         ),
+        if (notificationsEnabled)
+          SettingsContainerDropdown(
+            title: "remind-me-before".tr(),
+            icon: appStateSettings["outlinedIcons"]
+                ? Icons.notifications_active_outlined
+                : Icons.notifications_active_rounded,
+            initial:
+                (appStateSettings["upcomingReminderDaysBefore"] ?? 0).toString(),
+            items: ["0", "1", "2", "3", "7"],
+            getLabel: (item) => item == "0"
+                ? "only-on-the-day".tr()
+                : item == "1"
+                    ? "day-before".tr()
+                    : "days-before".tr(namedArgs: {"days": item}),
+            onChanged: (value) async {
+              await updateSettings(
+                  "upcomingReminderDaysBefore", int.parse(value),
+                  updateGlobalState: false);
+              await scheduleUpcomingTransactionsNotification(context);
+            },
+          ),
         IgnorePointer(
           ignoring: !notificationsEnabled,
           child: AnimatedOpacity(
@@ -452,6 +473,24 @@ Future<bool> scheduleUpcomingTransactionsNotification(context) async {
       print("Cannot set up notification before current time!");
     }
 
+    // A heads-up some days before, so there is time to have the money ready
+    int daysBefore = appStateSettings["upcomingReminderDaysBefore"] ?? 0;
+    tz.TZDateTime earlyDateTime = dateTime.subtract(Duration(days: daysBefore));
+    if (daysBefore > 0 && earlyDateTime.isAfter(DateTime.now())) {
+      await flutterLocalNotificationsPlugin.zonedSchedule(
+        id: idStart + earlyReminderIdOffset,
+        title: daysBefore == 1
+            ? "notification-upcoming-tomorrow-title".tr()
+            : "notification-upcoming-early-title"
+                .tr(namedArgs: {"days": daysBefore.toString()}),
+        body: chosenMessage,
+        scheduledDate: earlyDateTime,
+        notificationDetails: notificationDetails,
+        payload: 'upcomingTransaction',
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      );
+    }
+
     print("Notification " +
         chosenMessage +
         " scheduled for " +
@@ -463,16 +502,21 @@ Future<bool> scheduleUpcomingTransactionsNotification(context) async {
   return true;
 }
 
+// Ids of the early reminders, past the ones of the due dates
+const int earlyReminderIdOffset = 50000;
+
 Future<bool> cancelUpcomingTransactionsNotification() async {
   List<Transaction> upcomingTransactions =
       await database.getAllUpcomingTransactions(
     startDate: DateTime.now().justDay(dayOffset: -1),
-    endDate: DateTime.now().justDay(dayOffset: 30),
+    endDate: DateTime.now().justDay(yearOffset: 1),
   );
   int idStart = 100;
   for (Transaction upcomingTransaction in upcomingTransactions) {
     idStart++;
     await flutterLocalNotificationsPlugin.cancel(id: idStart);
+    await flutterLocalNotificationsPlugin.cancel(
+        id: idStart + earlyReminderIdOffset);
   }
   print("Cancelled notifications for upcoming");
   return true;

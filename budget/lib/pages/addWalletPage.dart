@@ -5,6 +5,7 @@ import 'package:budget/pages/editWalletsPage.dart';
 import 'package:budget/pages/settingsPage.dart';
 import 'package:budget/struct/currencyFunctions.dart';
 import 'package:budget/struct/databaseGlobal.dart';
+import 'package:budget/struct/gmf.dart';
 import 'package:budget/struct/settings.dart';
 import 'package:budget/widgets/animatedExpanded.dart';
 import 'package:budget/widgets/button.dart';
@@ -1223,6 +1224,22 @@ Future<bool> createBalanceTransfer(
             " " +
             (isNegative == false ? "transfer-out".tr() : "transfer-in".tr()))
         : title,
+  );
+
+  // The 4x1000 falls on the pocket the money leaves
+  TransactionWallet source = isNegative ? walletTo : walletFrom;
+  TransactionWallet destination = isNegative ? walletFrom : walletTo;
+  await chargeGmf(
+    wallet: source,
+    toWallet: destination,
+    debit: (amount *
+            (isNegative
+                ? getAmountRatioWalletTransferTo(allWallets, walletTo.walletPk)
+                : getAmountRatioWalletTransferFrom(
+                    allWallets, walletFrom.walletPk)))
+        .abs(),
+    date: selectedDateTimeSetToNow,
+    title: transferString,
   );
 
   if (showSnackbar)

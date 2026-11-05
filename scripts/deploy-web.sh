@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the web app and publishes it on Cloudflare Pages
-# (cashew.andersonrueda.com). release.sh runs it after every Android release so
+# (finza.pages.dev). release.sh runs it after every Android release so
 # both stay on the same version; it also works on its own.
 # Needs Flutter in the PATH, Node 18 or newer for wrangler and a wrangler login
 # for the Cloudflare account that owns the Pages project.
@@ -8,7 +8,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 app="$root/budget"
-project="cashew"
+project="finza"
 export CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-7e9f0b051b89601a14b6dad6a5084f80}"
 # This login lives apart from the default one, which belongs to another account
 export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config/wrangler-personal}"

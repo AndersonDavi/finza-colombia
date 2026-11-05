@@ -27,7 +27,7 @@ part 'tables.g.dart';
 
 // 48 is the official 6.x schema; this build's own changes start at 100 so
 // later official versions (49, 50...) never collide with them
-int schemaVersionGlobal = 103;
+int schemaVersionGlobal = 104;
 
 // To update and migrate the database, check the README
 
@@ -50,7 +50,9 @@ enum TransactionSpecialType {
   debt, //borrowed, deposit, owe
 }
 
-enum WalletGroupKind { digital, cash }
+// digital is a bank account; the later kinds were added for Colombia, where
+// each one is taxed differently (the 4x1000, credit card spending for renta)
+enum WalletGroupKind { digital, cash, digitalWallet, creditCard, investment }
 
 enum ObjectiveType {
   goal,
@@ -301,6 +303,8 @@ class WalletGroups extends Table {
   DateTimeColumn get dateTimeModified => dateTime().nullable()();
   // v101: the pocket with the money that is free to spend
   TextColumn get freeWalletFk => text().nullable()();
+  // v104: the one account marked as exempt from the 4x1000 at the bank
+  BoolColumn get gmfExempt => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {walletGroupPk};
@@ -1281,6 +1285,15 @@ class FinanceDatabase extends _$FinanceDatabase {
                     e.toString());
               }
               await m.createTable(schema.walletGroups);
+            },
+            from103To104: (m, schema) async {
+              try {
+                await m.addColumn(
+                    schema.walletGroups, schema.walletGroups.gmfExempt);
+              } catch (e) {
+                print("Migration Error: Error creating column walletGroups.gmfExempt " +
+                    e.toString());
+              }
             },
             from102To103: (m, schema) async {
               try {

@@ -2,6 +2,7 @@ import 'package:budget/colors.dart';
 import 'package:budget/database/generatePreviewData.dart';
 import 'package:budget/database/tables.dart';
 import 'package:budget/pages/addBudgetPage.dart';
+import 'package:budget/struct/country.dart';
 import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/languageMap.dart';
 import 'package:budget/struct/settings.dart';
@@ -12,6 +13,7 @@ import 'package:budget/widgets/framework/popupFramework.dart';
 import 'package:budget/widgets/linearGradientFadedEdges.dart';
 import 'package:budget/widgets/moreIcons.dart';
 import 'package:budget/widgets/navigationFramework.dart';
+import 'package:budget/widgets/onboardingAccounts.dart';
 import 'package:budget/widgets/openBottomSheet.dart';
 import 'package:budget/widgets/openPopup.dart';
 import 'package:budget/widgets/settingsContainers.dart';
@@ -187,7 +189,35 @@ class OnBoardingPageBodyState extends State<OnBoardingPageBody> {
     );
   }
 
-  int numPages = 3;
+  Widget onboardingTitle(String text) {
+    return Padding(
+      padding: const EdgeInsetsDirectional.symmetric(horizontal: 25),
+      child: TextFont(
+        text: text,
+        fontWeight: FontWeight.bold,
+        textAlign: TextAlign.center,
+        fontSize: 25,
+        maxLines: 5,
+      ),
+    );
+  }
+
+  Widget onboardingText(String text, {bool faint = false}) {
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(start: 25, end: 25, top: 12),
+      child: TextFont(
+        text: text,
+        textAlign: TextAlign.center,
+        fontSize: faint ? 14 : 16,
+        maxLines: 8,
+        textColor:
+            faint ? getColor(context, "black").withOpacity(0.5) : null,
+      ),
+    );
+  }
+
+  // Welcome, accounts, pockets, categories, budget and the last page
+  int numPages = 6;
   @override
   Widget build(BuildContext context) {
     _focusAttachment.reparent();
@@ -258,6 +288,48 @@ class OnBoardingPageBodyState extends State<OnBoardingPageBody> {
               maxLines: 5,
             ),
           ),
+          SizedBox(height: 25),
+          Padding(
+            padding: const EdgeInsetsDirectional.symmetric(horizontal: 25),
+            child: TextFont(
+              text: "where-do-you-live".tr(),
+              fontWeight: FontWeight.bold,
+              textAlign: TextAlign.center,
+              fontSize: 18,
+              maxLines: 3,
+            ),
+          ),
+          SizedBox(height: 5),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            children: [
+              for (String country in countries)
+                ChoiceChip(
+                  label: TextFont(
+                      text: ("country-" + country).tr(), fontSize: 15),
+                  selected: appStateSettings["country"] == country,
+                  onSelected: (_) async {
+                    await setCountry(country, setCurrency: true);
+                    setState(() {});
+                  },
+                ),
+            ],
+          ),
+          SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsetsDirectional.symmetric(horizontal: 25),
+            child: TextFont(
+              text: (livesInColombia()
+                      ? "country-CO-description"
+                      : "country-other-description")
+                  .tr(),
+              textAlign: TextAlign.center,
+              fontSize: 14,
+              maxLines: 4,
+              textColor: getColor(context, "black").withOpacity(0.5),
+            ),
+          ),
           SizedBox(height: 55),
         ],
         bottomWidget: widget.showPreviewDemoButton
@@ -265,6 +337,43 @@ class OnBoardingPageBodyState extends State<OnBoardingPageBody> {
                 nextNavigation: nextNavigation,
               )
             : null,
+      ),
+      OnBoardPage(
+        widgets: [
+          onboardingTitle("onboarding-accounts-title".tr()),
+          onboardingText("onboarding-accounts-description".tr()),
+          SizedBox(height: 20),
+          Padding(
+            padding: const EdgeInsetsDirectional.symmetric(horizontal: 15),
+            child: OnboardingAccountsStep(),
+          ),
+          SizedBox(height: 55),
+        ],
+      ),
+      OnBoardPage(
+        widgets: [
+          onboardingTitle("onboarding-pockets-title".tr()),
+          onboardingText("onboarding-pockets-description".tr()),
+          SizedBox(height: 20),
+          PocketsExample(),
+          SizedBox(height: 15),
+          onboardingText("onboarding-pockets-free".tr(), faint: true),
+          SizedBox(height: 55),
+        ],
+      ),
+      OnBoardPage(
+        widgets: [
+          onboardingTitle("onboarding-categories-title".tr()),
+          onboardingText("onboarding-categories-description".tr()),
+          SizedBox(height: 20),
+          Padding(
+            padding: const EdgeInsetsDirectional.symmetric(horizontal: 15),
+            child: CategoriesExample(),
+          ),
+          SizedBox(height: 15),
+          onboardingText("onboarding-categories-edit".tr(), faint: true),
+          SizedBox(height: 55),
+        ],
       ),
       OnBoardPage(
         widgets: [

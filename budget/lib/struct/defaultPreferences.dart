@@ -29,8 +29,9 @@ Future<Map<String, dynamic>> getDefaultPreferences() async {
     "showExtraInfoText": true,
     "selectedWalletPk": "0",
     "selectedSubscriptionType": 0,
-    "accentColor": toHexString(Color(0xFF1B447A)),
-    "accentSystemColor": await systemColorByDefault(),
+    // Finza indigo instead of the wallpaper color, so the brand shows
+    "accentColor": toHexString(Color(0xFF4F46E5)),
+    "accentSystemColor": false,
     "widgetOpacity": 1,
     "widgetTheme": "system", //system, light, dark
     "nonCompactTransactions":
@@ -115,9 +116,13 @@ Future<Map<String, dynamic>> getDefaultPreferences() async {
     "ignorePastAmountSpent": false,
     "askForTransactionTitle": true,
     "askForTransactionNoteWithTitle": false,
-    "automaticallyPayUpcoming": true,
-    "automaticallyPayRepetitive": true,
-    "automaticallyPaySubscriptions": true,
+    // A payment that comes back is a reminder to pay, not a payment made
+    // for you: it stays pending until marked as paid
+    "automaticallyPayUpcoming": false,
+    "automaticallyPayRepetitive": false,
+    "automaticallyPaySubscriptions": false,
+    // Extra notification this many days before an upcoming payment, 0 for none
+    "upcomingReminderDaysBefore": 1,
     "markAsPaidOnOriginalDay": false,
     "batterySaver": false,
     "username": "",
@@ -183,6 +188,8 @@ Future<Map<String, dynamic>> getDefaultPreferences() async {
     "leftHandedMode": false,
     "widgetPocketPks": [],
     "distributionTemplatesModified": null,
+    // "CO" turns on the Colombian taxes; null or "other" means no taxes
+    "country": null,
     // Time of the last "use this copy on every device" this device acted on
     "copyForAllHandled": null,
     // Mark this device puts on its sync file after "use this copy on every device"

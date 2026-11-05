@@ -3,6 +3,7 @@ import 'package:budget/database/tables.dart';
 import 'package:budget/database/walletGroups.dart';
 import 'package:budget/widgets/navigationFramework.dart';
 import 'package:budget/functions.dart';
+import 'package:budget/struct/country.dart';
 import 'package:budget/struct/currencyFunctions.dart';
 import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/settings.dart';
@@ -106,17 +107,35 @@ List<WalletGroupSection> groupWalletsForDisplay(
   return sections;
 }
 
-String walletGroupKindLabel(WalletGroupKind kind) =>
-    kind == WalletGroupKind.cash ? "cash".tr() : "digital".tr();
+String walletGroupKindLabel(WalletGroupKind kind) => switch (kind) {
+      WalletGroupKind.digital => "digital".tr(),
+      WalletGroupKind.cash => "cash".tr(),
+      WalletGroupKind.digitalWallet => "digital-wallet".tr(),
+      WalletGroupKind.creditCard => "credit-card".tr(),
+      WalletGroupKind.investment => "investment".tr(),
+    };
 
-IconData walletGroupKindIcon(WalletGroupKind kind) =>
-    kind == WalletGroupKind.cash
-        ? (appStateSettings["outlinedIcons"]
-            ? Icons.payments_outlined
-            : Icons.payments_rounded)
-        : (appStateSettings["outlinedIcons"]
-            ? Icons.account_balance_outlined
-            : Icons.account_balance_rounded);
+IconData walletGroupKindIcon(WalletGroupKind kind) {
+  bool outlined = appStateSettings["outlinedIcons"] == true;
+  return switch (kind) {
+    WalletGroupKind.digital =>
+      outlined ? Icons.account_balance_outlined : Icons.account_balance_rounded,
+    WalletGroupKind.cash =>
+      outlined ? Icons.payments_outlined : Icons.payments_rounded,
+    WalletGroupKind.digitalWallet => outlined
+        ? Icons.phone_android_outlined
+        : Icons.phone_android_rounded,
+    WalletGroupKind.creditCard =>
+      outlined ? Icons.credit_card_outlined : Icons.credit_card_rounded,
+    WalletGroupKind.investment =>
+      outlined ? Icons.savings_outlined : Icons.savings_rounded,
+  };
+}
+
+// Banks and digital wallets charge the 4x1000; cash, cards and
+// investments are left out
+bool walletGroupKindPaysGmf(WalletGroupKind kind) =>
+    kind == WalletGroupKind.digital || kind == WalletGroupKind.digitalWallet;
 
 // Total of the pockets: in their currency when they all share one, otherwise
 // converted to the primary currency (currencyKey null)
@@ -536,6 +555,7 @@ class _EditWalletGroupPopupState extends State<EditWalletGroupPopup> {
       widget.group?.colour == null ? null : HexColor(widget.group!.colour);
   late WalletGroupKind kind = widget.group?.kind ?? WalletGroupKind.digital;
   late String? freeWalletFk = widget.group?.freeWalletFk;
+  late bool gmfExempt = widget.group?.gmfExempt ?? false;
 
   Future<void> deleteGroup() async {
     dynamic confirmed = await openPopup(
@@ -569,6 +589,7 @@ class _EditWalletGroupPopupState extends State<EditWalletGroupPopup> {
         dateCreated: widget.group?.dateCreated ?? DateTime.now(),
         dateTimeModified: null,
         freeWalletFk: freeWalletFk,
+        gmfExempt: gmfExempt,
       ),
     );
     if (widget.group == null) {
@@ -587,19 +608,17 @@ class _EditWalletGroupPopupState extends State<EditWalletGroupPopup> {
   @override
   Widget build(BuildContext context) {
     Widget kindOption(WalletGroupKind option) {
-      return Expanded(
-        child: Padding(
-          padding: const EdgeInsetsDirectional.symmetric(horizontal: 4),
-          child: OutlinedButtonStacked(
-            filled: kind == option,
-            alignStart: true,
-            alignBeside: true,
-            padding:
-                EdgeInsetsDirectional.symmetric(horizontal: 14, vertical: 12),
-            text: walletGroupKindLabel(option),
-            iconData: walletGroupKindIcon(option),
-            onTap: () => setState(() => kind = option),
-          ),
+      return Padding(
+        padding: const EdgeInsetsDirectional.all(4),
+        child: OutlinedButtonStacked(
+          filled: kind == option,
+          alignStart: true,
+          alignBeside: true,
+          padding:
+              EdgeInsetsDirectional.symmetric(horizontal: 14, vertical: 12),
+          text: walletGroupKindLabel(option),
+          iconData: walletGroupKindIcon(option),
+          onTap: () => setState(() => kind = option),
         ),
       );
     }
@@ -624,10 +643,24 @@ class _EditWalletGroupPopupState extends State<EditWalletGroupPopup> {
             padding: EdgeInsetsDirectional.zero,
           ),
           SizedBox(height: 12),
-          Row(children: [
-            kindOption(WalletGroupKind.digital),
-            kindOption(WalletGroupKind.cash),
-          ]),
+          Wrap(
+            alignment: WrapAlignment.center,
+            children: [
+              for (WalletGroupKind option in WalletGroupKind.values)
+                kindOption(option),
+            ],
+          ),
+          if (livesInColombia() && walletGroupKindPaysGmf(kind)) ...[
+            SizedBox(height: 12),
+            SettingsContainerSwitch(
+              title: "gmf-exempt".tr(),
+              description: "gmf-exempt-description".tr(),
+              initialValue: gmfExempt,
+              onSwitched: (value) => setState(() => gmfExempt = value),
+              enableBorderRadius: true,
+              horizontalPadding: 0,
+            ),
+          ],
           if (widget.group != null) ...[
             SizedBox(height: 12),
             FreePocketSetting(

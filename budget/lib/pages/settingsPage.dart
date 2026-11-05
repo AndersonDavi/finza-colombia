@@ -19,6 +19,8 @@ import 'package:budget/pages/objectivesListPage.dart';
 import 'package:budget/pages/premiumPage.dart';
 import 'package:budget/pages/transactionsListPage.dart';
 import 'package:budget/pages/upcomingOverdueTransactionsPage.dart';
+import 'package:budget/pages/tools/toolsPage.dart';
+import 'package:budget/struct/country.dart';
 import 'package:budget/struct/currencyFunctions.dart';
 import 'package:budget/struct/defaultPreferences.dart';
 import 'package:budget/struct/languageMap.dart';
@@ -176,6 +178,24 @@ class MorePages extends StatelessWidget {
                 ),
               ],
             ),
+          Row(
+            children: [
+              Expanded(
+                child: SettingsContainerOpenPage(
+                  openPage: ToolsPage(),
+                  title: "tools".tr(),
+                  icon: appStateSettings["outlinedIcons"]
+                      ? Icons.calculate_outlined
+                      : Icons.calculate_rounded,
+                  description: appStateSettings["showExtraInfoText"] == false
+                      ? null
+                      : "tools-description".tr(),
+                  isOutlined: true,
+                  isWideOutlined: true,
+                ),
+              ),
+            ],
+          ),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -624,6 +644,30 @@ class ThemeStyleSettingsPage extends StatelessWidget {
   }
 }
 
+class CountrySetting extends StatelessWidget {
+  const CountrySetting({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingsContainerDropdown(
+      title: "country".tr(),
+      description: (livesInColombia()
+              ? "country-CO-description"
+              : "country-other-description")
+          .tr(),
+      icon: appStateSettings["outlinedIcons"]
+          ? Icons.public_outlined
+          : Icons.public_rounded,
+      initial: livesInColombia() ? countryColombia : countryOther,
+      items: countries,
+      getLabel: (item) => ("country-" + item).tr(),
+      onChanged: (value) {
+        updateSettings("country", value, updateGlobalState: true);
+      },
+    );
+  }
+}
+
 class NetTotalStyleSetting extends StatelessWidget {
   const NetTotalStyleSetting({super.key});
 
@@ -999,6 +1043,7 @@ class MoreOptionsPagePreferences extends StatelessWidget {
         SettingsHeader(title: "accounts".tr()),
         WalletsSettings(),
         PrimaryCurrencySetting(),
+        CountrySetting(),
         SettingsHeader(title: "budgets".tr()),
         BudgetSettings(),
         SettingsHeader(title: "goals".tr()),

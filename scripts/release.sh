@@ -9,7 +9,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 app="$root/budget"
-repo="AndersonDavi/cashew-personal"
+repo="AndersonDavi/finza"
 
 if [ -n "$(git -C "$root" status --porcelain --untracked-files=no)" ]; then
   echo "Commit or stash your changes first." >&2

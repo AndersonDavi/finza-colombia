@@ -13,6 +13,7 @@ import 'package:budget/pages/settingsPage.dart';
 import 'package:budget/pages/sharedBudgetSettings.dart';
 import 'package:budget/pages/transactionsListPage.dart';
 import 'package:budget/struct/databaseGlobal.dart';
+import 'package:budget/struct/gmf.dart';
 import 'package:budget/struct/navBarIconsData.dart';
 import 'package:budget/struct/settings.dart';
 import 'package:budget/struct/upcomingTransactionsFunctions.dart';
@@ -109,6 +110,7 @@ class AddTransactionPage extends StatefulWidget {
     this.selectedWallet,
     this.selectedDate,
     this.selectedNotes,
+    this.selectedRecurrence,
     this.startInitialAddTransactionSequence = true,
     this.transferBalancePopup = false,
     required this.routesToPopAfterDelete,
@@ -129,6 +131,8 @@ class AddTransactionPage extends StatefulWidget {
   final TransactionWallet? selectedWallet;
   final DateTime? selectedDate;
   final String? selectedNotes;
+  // For a repeating one started from a preset, e.g. SOAT every year
+  final BudgetReoccurence? selectedRecurrence;
   final bool startInitialAddTransactionSequence;
   final bool transferBalancePopup;
 
@@ -576,8 +580,10 @@ class _AddTransactionPageState extends State<AddTransactionPage>
         print(transactionJustAdded);
         await database.setTransactionTags(
             transactionJustAdded.transactionPk, selectedTagPks);
-        if (widget.transaction == null)
+        if (widget.transaction == null) {
           suggestDistributionAfterIncome(transactionJustAdded);
+          await chargeGmfForTransaction(transactionJustAdded);
+        }
 
         // Do the flash animation only if the date was changed
         if (transactionJustAdded.dateCreated !=
@@ -793,6 +799,11 @@ class _AddTransactionPageState extends State<AddTransactionPage>
     } else {
       if (widget.selectedType != null) {
         setSelectedType(transactionTypeDisplayToEnum[widget.selectedType]);
+      }
+      if (widget.selectedRecurrence != null) {
+        selectedRecurrenceEnum = widget.selectedRecurrence!;
+        selectedRecurrence = enumRecurrence[selectedRecurrenceEnum];
+        selectedRecurrenceDisplay = nameRecurrence[selectedRecurrence];
       }
 
       _titleInputController = new TextEditingController();
