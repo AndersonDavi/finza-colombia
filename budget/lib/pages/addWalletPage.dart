@@ -102,8 +102,50 @@ class _AddWalletPageState extends State<AddWalletPage> {
     return;
   }
 
+  // A pocket that already has movements and changes currency: convert its
+  // amounts, or only relabel them (they were already in the new currency).
+  // False when the question is dismissed and nothing should be saved
+  Future<bool> askToConvertAmounts() async {
+    String? before = widget.wallet?.currency;
+    String after = selectedCurrency;
+    if (widget.wallet == null || before == null || before == after) return true;
+    int count = await database.countTransactionsOfWallet(widget.wallet!.walletPk);
+    if (count == 0) return true;
+    double? ratio = amountRatioFromToCurrency(before, after);
+    String rate = convertToMoney(
+          Provider.of<AllWallets>(context, listen: false),
+          1 / (ratio ?? 1),
+          currencyKey: before,
+          addCurrencyName: true,
+        );
+    dynamic choice = await openPopup(
+      context,
+      icon: appStateSettings["outlinedIcons"]
+          ? Icons.currency_exchange_outlined
+          : Icons.currency_exchange_rounded,
+      title: "convert-amounts-question".tr(),
+      description: "convert-amounts-description".tr(namedArgs: {
+        "count": count.toString(),
+        "from": before.toUpperCase(),
+        "to": after.toUpperCase(),
+        "rate": "1 " + after.toUpperCase() + " = " + rate,
+      }),
+      onSubmitLabel: "convert-amounts".tr(),
+      onSubmit: ratio == null ? null : () => popRoute(context, "convert"),
+      onCancelLabel: "only-change-currency".tr(),
+      onCancel: () => popRoute(context, "relabel"),
+    );
+    if (choice == "convert" && ratio != null) {
+      await database.convertWalletTransactions(widget.wallet!.walletPk, ratio);
+      if (selectedGoalAmount != null) selectedGoalAmount = selectedGoalAmount! * ratio;
+      return true;
+    }
+    return choice == "relabel";
+  }
+
   Future addWallet({bool popContext = true}) async {
     print("Added wallet");
+    if (await askToConvertAmounts() == false) return;
     final int? rowId = await database.createOrUpdateWallet(
         insert: widget.wallet == null, await createTransactionWallet());
 

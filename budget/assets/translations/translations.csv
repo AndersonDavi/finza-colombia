@@ -1627,3 +1627,7 @@ Redigeer rekeninge","ගිණුම් සංස්කරණය කරන්න
 "tag-budget-left","left","","disponibles"
 "tag-budget-over","Over by","","Te pasaste por"
 "tag-budget-per-day","a day","","al día"
+"convert-amounts-question","Convert the amounts?","","¿Convertir los montos?"
+"convert-amounts-description","This pocket has {count} movements in {from}. Converting turns each amount into {to} at today's rate ({rate}). Only changing the currency keeps the numbers as they are, for when they were already in {to}.","","Este bolsillo tiene {count} movimientos en {from}. Si conviertes, cada monto pasa a {to} con la tasa de hoy ({rate}). Si solo cambias la moneda, los números quedan igual, para cuando ya estaban en {to}."
+"convert-amounts","Convert","","Convertir"
+"only-change-currency","Only change the currency","","Solo cambiar la moneda"

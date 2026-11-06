@@ -2964,6 +2964,38 @@ class FinanceDatabase extends _$FinanceDatabase {
         .insert((companionToInsert), mode: InsertMode.insertOrReplace);
   }
 
+  // Changing a pocket's currency keeps its numbers as they are; this turns
+  // every amount of the pocket into the new currency instead (20.000 COP
+  // become about 6 USD). Returns how many changed
+  Future<int> convertWalletTransactions(String walletPk, double ratio) async {
+    List<Transaction> walletTransactions = await (select(transactions)
+          ..where((t) => t.walletFk.equals(walletPk)))
+        .get();
+    DateTime now = DateTime.now();
+    await batch((batch) {
+      for (Transaction transaction in walletTransactions) {
+        batch.update(
+          transactions,
+          TransactionsCompanion(
+            amount: Value(transaction.amount * ratio),
+            dateTimeModified: Value(now),
+          ),
+          where: (t) => t.transactionPk.equals(transaction.transactionPk),
+        );
+      }
+    });
+    return walletTransactions.length;
+  }
+
+  Future<int> countTransactionsOfWallet(String walletPk) async {
+    final count = transactions.transactionPk.count();
+    final row = await (selectOnly(transactions)
+          ..addColumns([count])
+          ..where(transactions.walletFk.equals(walletPk)))
+        .getSingle();
+    return row.read(count) ?? 0;
+  }
+
   //create or update a new objective
   Future<int> createOrUpdateObjective(Objective objective,
       {DateTime? customDateTimeModified, bool insert = false}) async {
