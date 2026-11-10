@@ -3,6 +3,7 @@ import 'package:budget/database/tables.dart';
 import 'package:budget/database/walletGroups.dart';
 import 'package:budget/widgets/navigationFramework.dart';
 import 'package:budget/functions.dart';
+import 'package:budget/struct/colombia.dart';
 import 'package:budget/struct/country.dart';
 import 'package:budget/struct/currencyFunctions.dart';
 import 'package:budget/struct/databaseGlobal.dart';
@@ -132,10 +133,16 @@ IconData walletGroupKindIcon(WalletGroupKind kind) {
   };
 }
 
-// Banks and digital wallets charge the 4x1000; cash, cards and
-// investments are left out
+// Banks and digital wallets can charge the 4x1000; cash, cards and
+// investments never do
 bool walletGroupKindPaysGmf(WalletGroupKind kind) =>
     kind == WalletGroupKind.digital || kind == WalletGroupKind.digitalWallet;
+
+// Banks charge it unless turned off; digital wallets like Nequi or
+// Daviplata are low-amount deposits and start turned off
+bool walletGroupChargesGmf(WalletGroup group) =>
+    walletGroupKindPaysGmf(group.kind) &&
+    (group.gmfCharged ?? group.kind == WalletGroupKind.digital);
 
 // Total of the pockets: in their currency when they all share one, otherwise
 // converted to the primary currency (currencyKey null)
@@ -555,7 +562,8 @@ class _EditWalletGroupPopupState extends State<EditWalletGroupPopup> {
       widget.group?.colour == null ? null : HexColor(widget.group!.colour);
   late WalletGroupKind kind = widget.group?.kind ?? WalletGroupKind.digital;
   late String? freeWalletFk = widget.group?.freeWalletFk;
-  late bool gmfExempt = widget.group?.gmfExempt ?? false;
+  late bool? gmfCharged = widget.group?.gmfCharged;
+  late double? gmfExemptUVT = widget.group?.gmfExemptUVT;
 
   Future<void> deleteGroup() async {
     dynamic confirmed = await openPopup(
@@ -589,7 +597,9 @@ class _EditWalletGroupPopupState extends State<EditWalletGroupPopup> {
         dateCreated: widget.group?.dateCreated ?? DateTime.now(),
         dateTimeModified: null,
         freeWalletFk: freeWalletFk,
-        gmfExempt: gmfExempt,
+        gmfExempt: widget.group?.gmfExempt ?? false,
+        gmfCharged: gmfCharged,
+        gmfExemptUVT: gmfExemptUVT,
       ),
     );
     if (widget.group == null) {
@@ -652,13 +662,14 @@ class _EditWalletGroupPopupState extends State<EditWalletGroupPopup> {
           ),
           if (livesInColombia() && walletGroupKindPaysGmf(kind)) ...[
             SizedBox(height: 12),
-            SettingsContainerSwitch(
-              title: "gmf-exempt".tr(),
-              description: "gmf-exempt-description".tr(),
-              initialValue: gmfExempt,
-              onSwitched: (value) => setState(() => gmfExempt = value),
-              enableBorderRadius: true,
-              horizontalPadding: 0,
+            GmfSetting(
+              kind: kind,
+              charged: gmfCharged,
+              exemptUVT: gmfExemptUVT,
+              onChanged: (charged, exemptUVT) => setState(() {
+                gmfCharged = charged;
+                gmfExemptUVT = exemptUVT;
+              }),
             ),
           ],
           if (widget.group != null) ...[
@@ -684,6 +695,72 @@ class _EditWalletGroupPopupState extends State<EditWalletGroupPopup> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// Whether the account pays the 4x1000 on new debits, and how much a month
+// leaves it free of the tax
+class GmfSetting extends StatelessWidget {
+  const GmfSetting({
+    required this.kind,
+    required this.charged,
+    required this.exemptUVT,
+    required this.onChanged,
+    super.key,
+  });
+  final WalletGroupKind kind;
+  final bool? charged;
+  final double? exemptUVT;
+  final void Function(bool? charged, double? exemptUVT) onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    bool isCharged = charged ?? kind == WalletGroupKind.digital;
+    double exempt = exemptUVT ?? 0;
+    Widget option(String label, double uvt) => ChoiceChip(
+          label: TextFont(text: label, fontSize: 14),
+          selected: exempt == uvt,
+          onSelected: (_) => onChanged(isCharged, uvt == 0 ? null : uvt),
+        );
+    return Column(
+      children: [
+        SettingsContainerSwitch(
+          title: "gmf-charged".tr(),
+          description: "gmf-charged-description".tr(),
+          initialValue: isCharged,
+          syncWithInitialValue: true,
+          onSwitched: (value) => onChanged(value, exemptUVT),
+          enableBorderRadius: true,
+        ),
+        if (isCharged) ...[
+          SizedBox(height: 6),
+          TextFont(
+            text: "gmf-exempt-up-to".tr(),
+            fontSize: 14,
+            textColor: getColor(context, "black").withOpacity(0.6),
+          ),
+          SizedBox(height: 4),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              option("gmf-no-exemption".tr(), 0),
+              option(
+                  "gmf-low-amount".tr(namedArgs: {
+                    "uvt": gmfLowAmountExemptUVT.toStringAsFixed(0)
+                  }),
+                  gmfLowAmountExemptUVT),
+              option(
+                  "gmf-exempt-account".tr(namedArgs: {
+                    "uvt": gmfExemptMonthlyUVT.toStringAsFixed(0)
+                  }),
+                  gmfExemptMonthlyUVT),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }

@@ -27,7 +27,7 @@ part 'tables.g.dart';
 
 // 48 is the official 6.x schema; this build's own changes start at 100 so
 // later official versions (49, 50...) never collide with them
-int schemaVersionGlobal = 104;
+int schemaVersionGlobal = 105;
 
 // To update and migrate the database, check the README
 
@@ -303,8 +303,14 @@ class WalletGroups extends Table {
   DateTimeColumn get dateTimeModified => dateTime().nullable()();
   // v101: the pocket with the money that is free to spend
   TextColumn get freeWalletFk => text().nullable()();
-  // v104: the one account marked as exempt from the 4x1000 at the bank
+  // v104: the one account marked as exempt from the 4x1000 at the bank.
+  // Replaced in v105 by gmfExemptUVT, kept so older copies still load
   BoolColumn get gmfExempt => boolean().withDefault(const Constant(false))();
+  // v105: whether new debits pay the 4x1000; null follows the kind (banks
+  // pay, digital wallets don't)
+  BoolColumn get gmfCharged => boolean().nullable()();
+  // v105: what leaves the account each month without paying, in UVT
+  RealColumn get gmfExemptUVT => real().nullable()();
 
   @override
   Set<Column> get primaryKey => {walletGroupPk};
@@ -1285,6 +1291,28 @@ class FinanceDatabase extends _$FinanceDatabase {
                     e.toString());
               }
               await m.createTable(schema.walletGroups);
+            },
+            from104To105: (m, schema) async {
+              for (final column in [
+                schema.walletGroups.gmfCharged,
+                schema.walletGroups.gmfExemptUVT,
+              ]) {
+                try {
+                  await m.addColumn(schema.walletGroups, column);
+                } catch (e) {
+                  print("Migration Error: Error creating column walletGroups." +
+                      column.name +
+                      " " +
+                      e.toString());
+                }
+              }
+              // The exempt account keeps its 350 UVT a month
+              try {
+                await customStatement(
+                    "UPDATE wallet_groups SET gmf_exempt_u_v_t = 350 WHERE gmf_exempt = 1");
+              } catch (e) {
+                print("Migration Error: Error moving gmfExempt " + e.toString());
+              }
             },
             from103To104: (m, schema) async {
               try {

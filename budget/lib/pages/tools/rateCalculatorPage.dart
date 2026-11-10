@@ -89,8 +89,8 @@ class _RateNotice extends StatelessWidget {
         padding:
             const EdgeInsetsDirectional.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.13),
-          border: Border.all(color: color.withValues(alpha: 0.6)),
+          color: color.withOpacity(0.13),
+          border: Border.all(color: color.withOpacity(0.6)),
           borderRadius: BorderRadius.circular(15),
         ),
         child: Row(

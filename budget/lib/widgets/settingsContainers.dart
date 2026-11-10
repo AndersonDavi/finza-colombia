@@ -424,8 +424,11 @@ class SettingsContainerOutlined extends StatelessWidget {
               text: title,
               fontSize: 13,
               textColor: getColor(context, "black").withOpacity(0.8),
-              maxLines: 2,
+              // A single long word like "Presupuestos" shrinks instead of
+              // breaking in two, so every tile in the row keeps its height
+              maxLines: title.trim().contains(" ") ? 2 : 1,
               autoSizeText: true,
+              minFontSize: 9,
               textAlign: TextAlign.center,
             )
           ],

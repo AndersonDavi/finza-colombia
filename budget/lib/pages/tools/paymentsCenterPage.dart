@@ -2,7 +2,7 @@ import 'package:budget/database/tables.dart';
 import 'package:budget/functions.dart';
 import 'package:budget/pages/addTransactionPage.dart';
 import 'package:budget/pages/subscriptionsPage.dart';
-import 'package:budget/pages/tools/cdtSimulatorPage.dart';
+import 'package:budget/pages/tools/toolWidgets.dart';
 import 'package:budget/pages/upcomingOverdueTransactionsPage.dart';
 import 'package:budget/struct/country.dart';
 import 'package:budget/struct/databaseGlobal.dart';

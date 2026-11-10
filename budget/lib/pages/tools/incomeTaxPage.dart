@@ -257,7 +257,7 @@ class _IncomeTaxPageState extends State<IncomeTaxPage> {
       getExtraHorizontalPadding: (_) => 13,
       listWidgets: [
         _TaxCard(
-          color: getColor(context, "warningOrange").withValues(alpha: 0.15),
+          color: getColor(context, "warningOrange").withOpacity(0.15),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -332,7 +332,7 @@ class _IncomeTaxPageState extends State<IncomeTaxPage> {
             color: (checks.mustFile
                     ? getColor(context, "expenseAmount")
                     : getColor(context, "incomeAmount"))
-                .withValues(alpha: 0.18),
+                .withOpacity(0.18),
             child: Row(
               children: [
                 Icon(
@@ -490,7 +490,7 @@ class _IncomeTaxPageState extends State<IncomeTaxPage> {
             color: (toPay
                     ? getColor(context, "expenseAmount")
                     : getColor(context, "incomeAmount"))
-                .withValues(alpha: 0.18),
+                .withOpacity(0.18),
             child: Row(
               children: [
                 Expanded(

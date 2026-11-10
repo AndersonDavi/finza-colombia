@@ -1,5 +1,5 @@
 import 'package:budget/functions.dart';
-import 'package:budget/pages/tools/cdtSimulatorPage.dart';
+import 'package:budget/pages/tools/toolWidgets.dart';
 import 'package:budget/struct/colombia.dart';
 import 'package:budget/widgets/framework/pageFramework.dart';
 import 'package:budget/widgets/selectChips.dart';

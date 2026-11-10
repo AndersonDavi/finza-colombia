@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:budget/pages/tools/benefitsCalculatorPage.dart';
 import 'package:budget/pages/tools/cdtSimulatorPage.dart';
 import 'package:budget/pages/tools/pilaCalculatorPage.dart';
+import 'package:budget/pages/tools/toolWidgets.dart';
 import 'package:budget/struct/colombia.dart';
 import 'package:flutter_test/flutter_test.dart';
 

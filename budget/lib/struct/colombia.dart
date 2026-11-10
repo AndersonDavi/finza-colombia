@@ -54,8 +54,12 @@ const String usuryRatePeriod = "noviembre 2026";
 
 // Gravamen a los Movimientos Financieros (4x1000), art. 871 ET
 const double gmfRate = 0.004;
-// One account per person can be exempt up to this much a month, art. 879 ET
+// One bank account per person can be exempt up to this much a month,
+// art. 879 num. 1 ET
 const double gmfExemptMonthlyUVT = 350;
+// Depósitos de bajo monto (Nequi, Daviplata...) are exempt up to this much
+// a month, art. 879 num. 25 ET
+const double gmfLowAmountExemptUVT = 65;
 
 // Retención en la fuente usually withheld on CDT interest
 const double cdtWithholdingRate = 0.04;

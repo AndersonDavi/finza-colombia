@@ -7986,6 +7986,21 @@ class $WalletGroupsTable extends WalletGroups
       defaultConstraints:
           GeneratedColumn.constraintIsAlways('CHECK ("gmf_exempt" IN (0, 1))'),
       defaultValue: const Constant(false));
+  static const VerificationMeta _gmfChargedMeta =
+      const VerificationMeta('gmfCharged');
+  @override
+  late final GeneratedColumn<bool> gmfCharged = GeneratedColumn<bool>(
+      'gmf_charged', aliasedName, true,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("gmf_charged" IN (0, 1))'));
+  static const VerificationMeta _gmfExemptUVTMeta =
+      const VerificationMeta('gmfExemptUVT');
+  @override
+  late final GeneratedColumn<double> gmfExemptUVT = GeneratedColumn<double>(
+      'gmf_exempt_u_v_t', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         walletGroupPk,
@@ -7996,7 +8011,9 @@ class $WalletGroupsTable extends WalletGroups
         dateCreated,
         dateTimeModified,
         freeWalletFk,
-        gmfExempt
+        gmfExempt,
+        gmfCharged,
+        gmfExemptUVT
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -8052,6 +8069,18 @@ class $WalletGroupsTable extends WalletGroups
       context.handle(_gmfExemptMeta,
           gmfExempt.isAcceptableOrUnknown(data['gmf_exempt']!, _gmfExemptMeta));
     }
+    if (data.containsKey('gmf_charged')) {
+      context.handle(
+          _gmfChargedMeta,
+          gmfCharged.isAcceptableOrUnknown(
+              data['gmf_charged']!, _gmfChargedMeta));
+    }
+    if (data.containsKey('gmf_exempt_u_v_t')) {
+      context.handle(
+          _gmfExemptUVTMeta,
+          gmfExemptUVT.isAcceptableOrUnknown(
+              data['gmf_exempt_u_v_t']!, _gmfExemptUVTMeta));
+    }
     return context;
   }
 
@@ -8080,6 +8109,10 @@ class $WalletGroupsTable extends WalletGroups
           .read(DriftSqlType.string, data['${effectivePrefix}free_wallet_fk']),
       gmfExempt: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}gmf_exempt'])!,
+      gmfCharged: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}gmf_charged']),
+      gmfExemptUVT: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}gmf_exempt_u_v_t']),
     );
   }
 
@@ -8102,6 +8135,8 @@ class WalletGroup extends DataClass implements Insertable<WalletGroup> {
   final DateTime? dateTimeModified;
   final String? freeWalletFk;
   final bool gmfExempt;
+  final bool? gmfCharged;
+  final double? gmfExemptUVT;
   const WalletGroup(
       {required this.walletGroupPk,
       required this.name,
@@ -8111,7 +8146,9 @@ class WalletGroup extends DataClass implements Insertable<WalletGroup> {
       required this.dateCreated,
       this.dateTimeModified,
       this.freeWalletFk,
-      required this.gmfExempt});
+      required this.gmfExempt,
+      this.gmfCharged,
+      this.gmfExemptUVT});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -8133,6 +8170,12 @@ class WalletGroup extends DataClass implements Insertable<WalletGroup> {
       map['free_wallet_fk'] = Variable<String>(freeWalletFk);
     }
     map['gmf_exempt'] = Variable<bool>(gmfExempt);
+    if (!nullToAbsent || gmfCharged != null) {
+      map['gmf_charged'] = Variable<bool>(gmfCharged);
+    }
+    if (!nullToAbsent || gmfExemptUVT != null) {
+      map['gmf_exempt_u_v_t'] = Variable<double>(gmfExemptUVT);
+    }
     return map;
   }
 
@@ -8152,6 +8195,12 @@ class WalletGroup extends DataClass implements Insertable<WalletGroup> {
           ? const Value.absent()
           : Value(freeWalletFk),
       gmfExempt: Value(gmfExempt),
+      gmfCharged: gmfCharged == null && nullToAbsent
+          ? const Value.absent()
+          : Value(gmfCharged),
+      gmfExemptUVT: gmfExemptUVT == null && nullToAbsent
+          ? const Value.absent()
+          : Value(gmfExemptUVT),
     );
   }
 
@@ -8170,6 +8219,8 @@ class WalletGroup extends DataClass implements Insertable<WalletGroup> {
           serializer.fromJson<DateTime?>(json['dateTimeModified']),
       freeWalletFk: serializer.fromJson<String?>(json['freeWalletFk']),
       gmfExempt: serializer.fromJson<bool>(json['gmfExempt']),
+      gmfCharged: serializer.fromJson<bool?>(json['gmfCharged']),
+      gmfExemptUVT: serializer.fromJson<double?>(json['gmfExemptUVT']),
     );
   }
   @override
@@ -8186,6 +8237,8 @@ class WalletGroup extends DataClass implements Insertable<WalletGroup> {
       'dateTimeModified': serializer.toJson<DateTime?>(dateTimeModified),
       'freeWalletFk': serializer.toJson<String?>(freeWalletFk),
       'gmfExempt': serializer.toJson<bool>(gmfExempt),
+      'gmfCharged': serializer.toJson<bool?>(gmfCharged),
+      'gmfExemptUVT': serializer.toJson<double?>(gmfExemptUVT),
     };
   }
 
@@ -8198,7 +8251,9 @@ class WalletGroup extends DataClass implements Insertable<WalletGroup> {
           DateTime? dateCreated,
           Value<DateTime?> dateTimeModified = const Value.absent(),
           Value<String?> freeWalletFk = const Value.absent(),
-          bool? gmfExempt}) =>
+          bool? gmfExempt,
+          Value<bool?> gmfCharged = const Value.absent(),
+          Value<double?> gmfExemptUVT = const Value.absent()}) =>
       WalletGroup(
         walletGroupPk: walletGroupPk ?? this.walletGroupPk,
         name: name ?? this.name,
@@ -8212,6 +8267,9 @@ class WalletGroup extends DataClass implements Insertable<WalletGroup> {
         freeWalletFk:
             freeWalletFk.present ? freeWalletFk.value : this.freeWalletFk,
         gmfExempt: gmfExempt ?? this.gmfExempt,
+        gmfCharged: gmfCharged.present ? gmfCharged.value : this.gmfCharged,
+        gmfExemptUVT:
+            gmfExemptUVT.present ? gmfExemptUVT.value : this.gmfExemptUVT,
       );
   WalletGroup copyWithCompanion(WalletGroupsCompanion data) {
     return WalletGroup(
@@ -8231,6 +8289,11 @@ class WalletGroup extends DataClass implements Insertable<WalletGroup> {
           ? data.freeWalletFk.value
           : this.freeWalletFk,
       gmfExempt: data.gmfExempt.present ? data.gmfExempt.value : this.gmfExempt,
+      gmfCharged:
+          data.gmfCharged.present ? data.gmfCharged.value : this.gmfCharged,
+      gmfExemptUVT: data.gmfExemptUVT.present
+          ? data.gmfExemptUVT.value
+          : this.gmfExemptUVT,
     );
   }
 
@@ -8245,14 +8308,26 @@ class WalletGroup extends DataClass implements Insertable<WalletGroup> {
           ..write('dateCreated: $dateCreated, ')
           ..write('dateTimeModified: $dateTimeModified, ')
           ..write('freeWalletFk: $freeWalletFk, ')
-          ..write('gmfExempt: $gmfExempt')
+          ..write('gmfExempt: $gmfExempt, ')
+          ..write('gmfCharged: $gmfCharged, ')
+          ..write('gmfExemptUVT: $gmfExemptUVT')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(walletGroupPk, name, colour, kind, order,
-      dateCreated, dateTimeModified, freeWalletFk, gmfExempt);
+  int get hashCode => Object.hash(
+      walletGroupPk,
+      name,
+      colour,
+      kind,
+      order,
+      dateCreated,
+      dateTimeModified,
+      freeWalletFk,
+      gmfExempt,
+      gmfCharged,
+      gmfExemptUVT);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -8265,7 +8340,9 @@ class WalletGroup extends DataClass implements Insertable<WalletGroup> {
           other.dateCreated == this.dateCreated &&
           other.dateTimeModified == this.dateTimeModified &&
           other.freeWalletFk == this.freeWalletFk &&
-          other.gmfExempt == this.gmfExempt);
+          other.gmfExempt == this.gmfExempt &&
+          other.gmfCharged == this.gmfCharged &&
+          other.gmfExemptUVT == this.gmfExemptUVT);
 }
 
 class WalletGroupsCompanion extends UpdateCompanion<WalletGroup> {
@@ -8278,6 +8355,8 @@ class WalletGroupsCompanion extends UpdateCompanion<WalletGroup> {
   final Value<DateTime?> dateTimeModified;
   final Value<String?> freeWalletFk;
   final Value<bool> gmfExempt;
+  final Value<bool?> gmfCharged;
+  final Value<double?> gmfExemptUVT;
   final Value<int> rowid;
   const WalletGroupsCompanion({
     this.walletGroupPk = const Value.absent(),
@@ -8289,6 +8368,8 @@ class WalletGroupsCompanion extends UpdateCompanion<WalletGroup> {
     this.dateTimeModified = const Value.absent(),
     this.freeWalletFk = const Value.absent(),
     this.gmfExempt = const Value.absent(),
+    this.gmfCharged = const Value.absent(),
+    this.gmfExemptUVT = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   WalletGroupsCompanion.insert({
@@ -8301,6 +8382,8 @@ class WalletGroupsCompanion extends UpdateCompanion<WalletGroup> {
     this.dateTimeModified = const Value.absent(),
     this.freeWalletFk = const Value.absent(),
     this.gmfExempt = const Value.absent(),
+    this.gmfCharged = const Value.absent(),
+    this.gmfExemptUVT = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : name = Value(name),
         order = Value(order);
@@ -8314,6 +8397,8 @@ class WalletGroupsCompanion extends UpdateCompanion<WalletGroup> {
     Expression<DateTime>? dateTimeModified,
     Expression<String>? freeWalletFk,
     Expression<bool>? gmfExempt,
+    Expression<bool>? gmfCharged,
+    Expression<double>? gmfExemptUVT,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -8326,6 +8411,8 @@ class WalletGroupsCompanion extends UpdateCompanion<WalletGroup> {
       if (dateTimeModified != null) 'date_time_modified': dateTimeModified,
       if (freeWalletFk != null) 'free_wallet_fk': freeWalletFk,
       if (gmfExempt != null) 'gmf_exempt': gmfExempt,
+      if (gmfCharged != null) 'gmf_charged': gmfCharged,
+      if (gmfExemptUVT != null) 'gmf_exempt_u_v_t': gmfExemptUVT,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -8340,6 +8427,8 @@ class WalletGroupsCompanion extends UpdateCompanion<WalletGroup> {
       Value<DateTime?>? dateTimeModified,
       Value<String?>? freeWalletFk,
       Value<bool>? gmfExempt,
+      Value<bool?>? gmfCharged,
+      Value<double?>? gmfExemptUVT,
       Value<int>? rowid}) {
     return WalletGroupsCompanion(
       walletGroupPk: walletGroupPk ?? this.walletGroupPk,
@@ -8351,6 +8440,8 @@ class WalletGroupsCompanion extends UpdateCompanion<WalletGroup> {
       dateTimeModified: dateTimeModified ?? this.dateTimeModified,
       freeWalletFk: freeWalletFk ?? this.freeWalletFk,
       gmfExempt: gmfExempt ?? this.gmfExempt,
+      gmfCharged: gmfCharged ?? this.gmfCharged,
+      gmfExemptUVT: gmfExemptUVT ?? this.gmfExemptUVT,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -8386,6 +8477,12 @@ class WalletGroupsCompanion extends UpdateCompanion<WalletGroup> {
     if (gmfExempt.present) {
       map['gmf_exempt'] = Variable<bool>(gmfExempt.value);
     }
+    if (gmfCharged.present) {
+      map['gmf_charged'] = Variable<bool>(gmfCharged.value);
+    }
+    if (gmfExemptUVT.present) {
+      map['gmf_exempt_u_v_t'] = Variable<double>(gmfExemptUVT.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -8404,6 +8501,8 @@ class WalletGroupsCompanion extends UpdateCompanion<WalletGroup> {
           ..write('dateTimeModified: $dateTimeModified, ')
           ..write('freeWalletFk: $freeWalletFk, ')
           ..write('gmfExempt: $gmfExempt, ')
+          ..write('gmfCharged: $gmfCharged, ')
+          ..write('gmfExemptUVT: $gmfExemptUVT, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -14420,6 +14519,8 @@ typedef $$WalletGroupsTableCreateCompanionBuilder = WalletGroupsCompanion
   Value<DateTime?> dateTimeModified,
   Value<String?> freeWalletFk,
   Value<bool> gmfExempt,
+  Value<bool?> gmfCharged,
+  Value<double?> gmfExemptUVT,
   Value<int> rowid,
 });
 typedef $$WalletGroupsTableUpdateCompanionBuilder = WalletGroupsCompanion
@@ -14433,6 +14534,8 @@ typedef $$WalletGroupsTableUpdateCompanionBuilder = WalletGroupsCompanion
   Value<DateTime?> dateTimeModified,
   Value<String?> freeWalletFk,
   Value<bool> gmfExempt,
+  Value<bool?> gmfCharged,
+  Value<double?> gmfExemptUVT,
   Value<int> rowid,
 });
 
@@ -14474,6 +14577,12 @@ class $$WalletGroupsTableFilterComposer
 
   ColumnFilters<bool> get gmfExempt => $composableBuilder(
       column: $table.gmfExempt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get gmfCharged => $composableBuilder(
+      column: $table.gmfCharged, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get gmfExemptUVT => $composableBuilder(
+      column: $table.gmfExemptUVT, builder: (column) => ColumnFilters(column));
 }
 
 class $$WalletGroupsTableOrderingComposer
@@ -14514,6 +14623,13 @@ class $$WalletGroupsTableOrderingComposer
 
   ColumnOrderings<bool> get gmfExempt => $composableBuilder(
       column: $table.gmfExempt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get gmfCharged => $composableBuilder(
+      column: $table.gmfCharged, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get gmfExemptUVT => $composableBuilder(
+      column: $table.gmfExemptUVT,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$WalletGroupsTableAnnotationComposer
@@ -14551,6 +14667,12 @@ class $$WalletGroupsTableAnnotationComposer
 
   GeneratedColumn<bool> get gmfExempt =>
       $composableBuilder(column: $table.gmfExempt, builder: (column) => column);
+
+  GeneratedColumn<bool> get gmfCharged => $composableBuilder(
+      column: $table.gmfCharged, builder: (column) => column);
+
+  GeneratedColumn<double> get gmfExemptUVT => $composableBuilder(
+      column: $table.gmfExemptUVT, builder: (column) => column);
 }
 
 class $$WalletGroupsTableTableManager extends RootTableManager<
@@ -14589,6 +14711,8 @@ class $$WalletGroupsTableTableManager extends RootTableManager<
             Value<DateTime?> dateTimeModified = const Value.absent(),
             Value<String?> freeWalletFk = const Value.absent(),
             Value<bool> gmfExempt = const Value.absent(),
+            Value<bool?> gmfCharged = const Value.absent(),
+            Value<double?> gmfExemptUVT = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               WalletGroupsCompanion(
@@ -14601,6 +14725,8 @@ class $$WalletGroupsTableTableManager extends RootTableManager<
             dateTimeModified: dateTimeModified,
             freeWalletFk: freeWalletFk,
             gmfExempt: gmfExempt,
+            gmfCharged: gmfCharged,
+            gmfExemptUVT: gmfExemptUVT,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -14613,6 +14739,8 @@ class $$WalletGroupsTableTableManager extends RootTableManager<
             Value<DateTime?> dateTimeModified = const Value.absent(),
             Value<String?> freeWalletFk = const Value.absent(),
             Value<bool> gmfExempt = const Value.absent(),
+            Value<bool?> gmfCharged = const Value.absent(),
+            Value<double?> gmfExemptUVT = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               WalletGroupsCompanion.insert(
@@ -14625,6 +14753,8 @@ class $$WalletGroupsTableTableManager extends RootTableManager<
             dateTimeModified: dateTimeModified,
             freeWalletFk: freeWalletFk,
             gmfExempt: gmfExempt,
+            gmfCharged: gmfCharged,
+            gmfExemptUVT: gmfExemptUVT,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

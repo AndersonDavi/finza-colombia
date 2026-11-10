@@ -73,12 +73,15 @@ Future<void> chargeGmf({
   WalletGroup? group = (await database.getAllWalletGroups())
       .where((g) => g.walletGroupPk == wallet.walletGroupFk)
       .firstOrNull;
-  if (group == null || walletGroupKindPaysGmf(group.kind) == false) return;
+  // Checked when the debit is saved: turning it off or on later leaves the
+  // 4x1000 already charged as it was
+  if (group == null || walletGroupChargesGmf(group) == false) return;
 
   double taxable = debit;
-  if (group.gmfExempt) {
+  double exemptUVT = group.gmfExemptUVT ?? 0;
+  if (exemptUVT > 0) {
     // Only what goes over the monthly exempt amount pays
-    double limit = gmfExemptMonthlyUVT * colombiaYear(date.year).uvt;
+    double limit = exemptUVT * colombiaYear(date.year).uvt;
     double after = await monthDebitsOfGroup(group, date);
     double before = after - debit;
     taxable = (after - limit).clamp(0, double.infinity) -
