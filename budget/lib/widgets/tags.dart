@@ -12,7 +12,13 @@ import 'package:budget/widgets/framework/pageFramework.dart';
 import 'package:budget/widgets/framework/popupFramework.dart';
 import 'package:budget/widgets/openBottomSheet.dart';
 import 'package:budget/widgets/openPopup.dart';
+import 'package:budget/widgets/selectAmount.dart';
 import 'package:budget/widgets/selectColor.dart';
+import 'package:budget/widgets/settingsContainers.dart';
+import 'package:budget/widgets/tagBudgets.dart';
+import 'package:budget/widgets/util/showDatePicker.dart';
+import 'package:drift/drift.dart' show Value;
+import 'package:provider/provider.dart';
 import 'package:budget/widgets/tappable.dart';
 import 'package:budget/widgets/textInput.dart';
 import 'package:budget/widgets/textWidgets.dart';
@@ -98,7 +104,8 @@ class SelectTags extends StatelessWidget {
       stream: database.watchAllTags(),
       builder: (context, snapshot) {
         List<Tag> tags = (snapshot.data ?? [])
-            .where((t) => t.archived == false || selectedTagPks.contains(t.tagPk))
+            .where(
+                (t) => t.archived == false || selectedTagPks.contains(t.tagPk))
             .toList();
         return Wrap(
           spacing: 7,
@@ -124,8 +131,8 @@ class SelectTags extends StatelessWidget {
                 if (tagPk != null) onChanged([...selectedTagPks, tagPk]);
               },
               child: Padding(
-                padding:
-                    EdgeInsetsDirectional.symmetric(horizontal: 12, vertical: 9.5),
+                padding: EdgeInsetsDirectional.symmetric(
+                    horizontal: 12, vertical: 9.5),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -204,6 +211,50 @@ class _EditTagPopupState extends State<EditTagPopup> {
   late Color? colour =
       widget.tag?.colour == null ? null : HexColor(widget.tag!.colour);
   final FocusNode nameFocus = FocusNode();
+  late double? budgetAmount = widget.tag?.budgetAmount;
+  late DateTime? budgetStart = widget.tag?.budgetStart;
+  late DateTime? budgetEnd = widget.tag?.budgetEnd;
+
+  Future<void> selectBudgetAmount() async {
+    await openBottomSheet(
+      context,
+      fullSnap: true,
+      PopupFramework(
+        title: "tag-budget-limit".tr(),
+        subtitle: "tag-budget-limit-description".tr(),
+        hasPadding: false,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.symmetric(horizontal: 18),
+          child: SelectAmount(
+            amountPassed:
+                (budgetAmount ?? 0) == 0 ? "" : budgetAmount.toString(),
+            allowZero: true,
+            setSelectedAmount: (amount, _) => setState(
+                () => budgetAmount = amount.abs() == 0 ? null : amount.abs()),
+            next: () => popRoute(context),
+            nextLabel: "set-amount".tr(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> selectBudgetDates() async {
+    DateTimeRangeOrAllTime result = await showCustomDateRangePicker(
+      context,
+      budgetStart != null && budgetEnd != null
+          ? DateTimeRangeOrAllTime(
+              allTime: false,
+              dateTimeRange:
+                  DateTimeRange(start: budgetStart!, end: budgetEnd!))
+          : DateTimeRangeOrAllTime(allTime: true),
+      allTimeButton: true,
+    );
+    setState(() {
+      budgetStart = result.allTime ? null : result.dateTimeRange?.start;
+      budgetEnd = result.allTime ? null : result.dateTimeRange?.end;
+    });
+  }
 
   @override
   void initState() {
@@ -255,6 +306,9 @@ class _EditTagPopupState extends State<EditTagPopup> {
         emojiIconName: widget.tag?.emojiIconName,
         dateCreated: widget.tag?.dateCreated ?? DateTime.now(),
         dateTimeModified: null,
+        budgetAmount: budgetAmount,
+        budgetStart: budgetAmount == null ? null : budgetStart,
+        budgetEnd: budgetAmount == null ? null : budgetEnd,
       ),
     );
     popRoute(context, tagPk);
@@ -288,6 +342,49 @@ class _EditTagPopupState extends State<EditTagPopup> {
             selectedColor: colour,
             setSelectedColor: (color) => setState(() => colour = color),
           ),
+          SizedBox(height: 12),
+          SettingsContainer(
+            enableBorderRadius: true,
+            title: "tag-budget-limit".tr(),
+            description: budgetAmount == null
+                ? "tag-budget-limit-description".tr()
+                : convertToMoney(
+                    Provider.of<AllWallets>(context), budgetAmount!),
+            icon: appStateSettings["outlinedIcons"]
+                ? Icons.savings_outlined
+                : Icons.savings_rounded,
+            onTap: selectBudgetAmount,
+          ),
+          if (budgetAmount != null)
+            SettingsContainer(
+              enableBorderRadius: true,
+              title: "date-range".tr(),
+              description: tagBudgetDatesLabel(Tag(
+                tagPk: "",
+                name: "",
+                order: 0,
+                archived: false,
+                dateCreated: DateTime.now(),
+                budgetStart: budgetStart,
+                budgetEnd: budgetEnd,
+              )),
+              icon: appStateSettings["outlinedIcons"]
+                  ? Icons.date_range_outlined
+                  : Icons.date_range_rounded,
+              onTap: selectBudgetDates,
+            ),
+          if (widget.tag != null && budgetAmount != null)
+            Padding(
+              padding: const EdgeInsetsDirectional.symmetric(
+                  horizontal: 4, vertical: 8),
+              child: TagBudgetProgress(
+                tag: widget.tag!.copyWith(
+                  budgetAmount: Value(budgetAmount),
+                  budgetStart: Value(budgetStart),
+                  budgetEnd: Value(budgetEnd),
+                ),
+              ),
+            ),
           SizedBox(height: 12),
           Button(
             label: widget.tag == null ? "new-tag".tr() : "save-changes".tr(),
@@ -375,18 +472,39 @@ class TagsPage extends StatelessWidget {
                                         color: tagColor(context, tags[index])),
                                     SizedBox(width: 12),
                                     Expanded(
-                                      child: TextFont(
-                                        text: tags[index].name,
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.bold,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          TextFont(
+                                            text: tags[index].name,
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                          if (tagHasBudget(tags[index]))
+                                            TextFont(
+                                              text: "tag-budget-limit".tr() +
+                                                  " " +
+                                                  convertToMoney(
+                                                      Provider.of<AllWallets>(
+                                                          context),
+                                                      tags[index]
+                                                          .budgetAmount!) +
+                                                  " · " +
+                                                  tagBudgetDatesLabel(
+                                                      tags[index]),
+                                              fontSize: 13,
+                                              textColor: getColor(
+                                                  context, "textLight"),
+                                            ),
+                                        ],
                                       ),
                                     ),
                                     TextFont(
                                       text: (counts[tags[index].tagPk] ?? 0)
                                           .toString(),
                                       fontSize: 14,
-                                      textColor:
-                                          getColor(context, "textLight"),
+                                      textColor: getColor(context, "textLight"),
                                     ),
                                     ReorderableDragStartListener(
                                       index: index,

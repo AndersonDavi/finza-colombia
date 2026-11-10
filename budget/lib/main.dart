@@ -13,6 +13,7 @@ import 'package:budget/widgets/util/appLinks.dart';
 import 'package:budget/widgets/util/onAppResume.dart';
 import 'package:budget/widgets/util/watchForDayChange.dart';
 import 'package:budget/widgets/watchAllWallets.dart';
+import 'package:budget/widgets/transactionEntry/transferIcon.dart';
 import 'package:budget/database/tables.dart';
 import 'package:budget/database/walletGroups.dart';
 import 'package:budget/database/tags.dart';
@@ -71,6 +72,7 @@ void main() async {
       }
       tagPksByTransaction.value = byTransaction;
     });
+    listenToTransferPartners(database);
     // A failure here must not leave the app stuck on the launch screen
     try {
       notificationPayload = await initializeNotifications();

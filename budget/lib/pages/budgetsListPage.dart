@@ -1,3 +1,4 @@
+import 'package:budget/widgets/tagBudgets.dart';
 import 'package:budget/database/tables.dart';
 import 'package:budget/functions.dart';
 import 'package:budget/pages/addBudgetPage.dart';
@@ -79,6 +80,7 @@ class BudgetsListPageState extends State<BudgetsListPage> {
           ),
       ],
       slivers: [
+        SliverToBoxAdapter(child: TagBudgetsSection()),
         StreamBuilder<List<Budget>>(
           stream: database.watchAllBudgets(hideArchived: true),
           builder: (context, snapshot) {

@@ -3,6 +3,8 @@ import 'package:budget/functions.dart';
 import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/settings.dart';
 import 'package:budget/widgets/textWidgets.dart';
+import 'package:budget/widgets/transactionEntry/transferIcon.dart';
+import 'package:provider/provider.dart';
 import 'package:flutter/material.dart';
 
 class TransactionLabel extends StatelessWidget {
@@ -35,7 +37,10 @@ class TransactionTitleNameLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TextFont(
-      text: transaction.name,
+      text: (transaction.categoryFk == "0"
+              ? transferTitle(Provider.of<AllWallets>(context), transaction)
+              : null) ??
+          transaction.name,
       fontSize: fontSize,
       maxLines:
           appStateSettings["fadeTransactionNameOverflows"] == false ? null : 1,

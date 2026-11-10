@@ -3,6 +3,7 @@ import 'package:budget/database/tables.dart';
 import 'package:budget/database/tags.dart';
 import 'package:budget/functions.dart';
 import 'package:budget/pages/addTransactionPage.dart';
+import 'package:budget/pages/reviewInboxPage.dart';
 import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/widgets/openBottomSheet.dart';
 import 'package:budget/widgets/openPopup.dart';
@@ -33,8 +34,14 @@ class PinnedTransactionsSection extends StatelessWidget {
             children: [
               Padding(
                 padding: EdgeInsetsDirectional.only(
-                  start: (constrained ? getHorizontalPaddingConstrained(context) : 0) + 20,
-                  end: (constrained ? getHorizontalPaddingConstrained(context) : 0) + 20,
+                  start: (constrained
+                          ? getHorizontalPaddingConstrained(context)
+                          : 0) +
+                      20,
+                  end: (constrained
+                          ? getHorizontalPaddingConstrained(context)
+                          : 0) +
+                      20,
                   top: 6,
                   bottom: 4,
                 ),
@@ -80,6 +87,19 @@ class PinnedTransactionsSection extends StatelessWidget {
 // The MCP tags them with this fixed tag pk.
 const String reviewTagPk = "por-revisar";
 
+// Tags that put a movement up for review: the one the bank emails come with
+// and any tag called "Desconocido"
+List<String> reviewTagPks() {
+  return [
+    reviewTagPk,
+    for (Tag tag in tagsCache.values)
+      if (tag.name.trim().toLowerCase() == "desconocido") tag.tagPk,
+  ];
+}
+
+// Rows shown here before the rest wait in the review inbox page
+const int reviewRowsShown = 3;
+
 class ReviewTransactionsSection extends StatelessWidget {
   const ReviewTransactionsSection(
       {required this.listID, this.constrained = true, super.key});
@@ -89,15 +109,19 @@ class ReviewTransactionsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<Transaction>>(
-      stream: database.watchTransactionsWithTag(reviewTagPk),
+      stream: database.watchTransactionsToReview(reviewTagPks()),
       builder: (context, snapshot) {
-        List<Transaction> pending = snapshot.data ?? [];
-        if (pending.isEmpty) return SizedBox.shrink();
+        List<Transaction> allPending = snapshot.data ?? [];
+        if (allPending.isEmpty) return SizedBox.shrink();
+        List<Transaction> pending = allPending.take(reviewRowsShown).toList();
         Color color = getColor(context, "unPaidUpcoming");
         return Container(
           margin: EdgeInsetsDirectional.only(
-            start: (constrained ? getHorizontalPaddingConstrained(context) : 0) + 10,
-            end: (constrained ? getHorizontalPaddingConstrained(context) : 0) + 10,
+            start:
+                (constrained ? getHorizontalPaddingConstrained(context) : 0) +
+                    10,
+            end: (constrained ? getHorizontalPaddingConstrained(context) : 0) +
+                10,
             bottom: 10,
           ),
           padding: const EdgeInsetsDirectional.only(top: 8, bottom: 6),
@@ -113,24 +137,23 @@ class ReviewTransactionsSection extends StatelessWidget {
                 padding: const EdgeInsetsDirectional.symmetric(horizontal: 14),
                 child: Row(
                   children: [
-                    Icon(Icons.mark_email_unread_rounded, size: 18, color: color),
+                    Icon(Icons.mark_email_unread_rounded,
+                        size: 18, color: color),
                     SizedBox(width: 8),
                     Expanded(
                       child: TextFont(
                         text: "to-review".tr() +
                             " (" +
-                            pending.length.toString() +
+                            allPending.length.toString() +
                             ")",
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     TextButton.icon(
-                      onPressed: () => database.removeTagFromTransactions(
-                          [for (Transaction t in pending) t.transactionPk],
-                          reviewTagPk),
-                      icon: Icon(Icons.done_all_rounded, size: 18),
-                      label: Text("confirm-all".tr()),
+                      onPressed: () => pushRoute(context, ReviewInboxPage()),
+                      icon: Icon(Icons.style_rounded, size: 18),
+                      label: Text("review-one-by-one".tr()),
                     ),
                   ],
                 ),
@@ -166,8 +189,11 @@ class ReviewTransactionsSection extends StatelessWidget {
                     ),
                     IconButton(
                       tooltip: "confirm".tr(),
-                      onPressed: () => database.removeTagFromTransactions(
-                          [pending[index].transactionPk], reviewTagPk),
+                      onPressed: () async {
+                        for (String tagPk in reviewTagPks())
+                          await database.removeTagFromTransactions(
+                              [pending[index].transactionPk], tagPk);
+                      },
                       icon: Icon(Icons.check_circle_outline_rounded,
                           color: color),
                     ),

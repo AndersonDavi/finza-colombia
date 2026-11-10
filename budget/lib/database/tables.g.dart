@@ -7286,6 +7286,24 @@ class $TagsTable extends Tags with TableInfo<$TagsTable, Tag> {
       type: DriftSqlType.string,
       requiredDuringInsert: false,
       clientDefault: () => uuid.v4());
+  static const VerificationMeta _budgetAmountMeta =
+      const VerificationMeta('budgetAmount');
+  @override
+  late final GeneratedColumn<double> budgetAmount = GeneratedColumn<double>(
+      'budget_amount', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _budgetStartMeta =
+      const VerificationMeta('budgetStart');
+  @override
+  late final GeneratedColumn<DateTime> budgetStart = GeneratedColumn<DateTime>(
+      'budget_start', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _budgetEndMeta =
+      const VerificationMeta('budgetEnd');
+  @override
+  late final GeneratedColumn<DateTime> budgetEnd = GeneratedColumn<DateTime>(
+      'budget_end', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         dateCreated,
@@ -7296,7 +7314,10 @@ class $TagsTable extends Tags with TableInfo<$TagsTable, Tag> {
         colour,
         iconName,
         emojiIconName,
-        tagPk
+        tagPk,
+        budgetAmount,
+        budgetStart,
+        budgetEnd
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -7354,6 +7375,22 @@ class $TagsTable extends Tags with TableInfo<$TagsTable, Tag> {
       context.handle(
           _tagPkMeta, tagPk.isAcceptableOrUnknown(data['tag_pk']!, _tagPkMeta));
     }
+    if (data.containsKey('budget_amount')) {
+      context.handle(
+          _budgetAmountMeta,
+          budgetAmount.isAcceptableOrUnknown(
+              data['budget_amount']!, _budgetAmountMeta));
+    }
+    if (data.containsKey('budget_start')) {
+      context.handle(
+          _budgetStartMeta,
+          budgetStart.isAcceptableOrUnknown(
+              data['budget_start']!, _budgetStartMeta));
+    }
+    if (data.containsKey('budget_end')) {
+      context.handle(_budgetEndMeta,
+          budgetEnd.isAcceptableOrUnknown(data['budget_end']!, _budgetEndMeta));
+    }
     return context;
   }
 
@@ -7381,6 +7418,12 @@ class $TagsTable extends Tags with TableInfo<$TagsTable, Tag> {
           .read(DriftSqlType.string, data['${effectivePrefix}emoji_icon_name']),
       tagPk: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}tag_pk'])!,
+      budgetAmount: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}budget_amount']),
+      budgetStart: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}budget_start']),
+      budgetEnd: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}budget_end']),
     );
   }
 
@@ -7400,6 +7443,9 @@ class Tag extends DataClass implements Insertable<Tag> {
   final String? iconName;
   final String? emojiIconName;
   final String tagPk;
+  final double? budgetAmount;
+  final DateTime? budgetStart;
+  final DateTime? budgetEnd;
   const Tag(
       {required this.dateCreated,
       this.dateTimeModified,
@@ -7409,7 +7455,10 @@ class Tag extends DataClass implements Insertable<Tag> {
       this.colour,
       this.iconName,
       this.emojiIconName,
-      required this.tagPk});
+      required this.tagPk,
+      this.budgetAmount,
+      this.budgetStart,
+      this.budgetEnd});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -7430,6 +7479,15 @@ class Tag extends DataClass implements Insertable<Tag> {
       map['emoji_icon_name'] = Variable<String>(emojiIconName);
     }
     map['tag_pk'] = Variable<String>(tagPk);
+    if (!nullToAbsent || budgetAmount != null) {
+      map['budget_amount'] = Variable<double>(budgetAmount);
+    }
+    if (!nullToAbsent || budgetStart != null) {
+      map['budget_start'] = Variable<DateTime>(budgetStart);
+    }
+    if (!nullToAbsent || budgetEnd != null) {
+      map['budget_end'] = Variable<DateTime>(budgetEnd);
+    }
     return map;
   }
 
@@ -7451,6 +7509,15 @@ class Tag extends DataClass implements Insertable<Tag> {
           ? const Value.absent()
           : Value(emojiIconName),
       tagPk: Value(tagPk),
+      budgetAmount: budgetAmount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(budgetAmount),
+      budgetStart: budgetStart == null && nullToAbsent
+          ? const Value.absent()
+          : Value(budgetStart),
+      budgetEnd: budgetEnd == null && nullToAbsent
+          ? const Value.absent()
+          : Value(budgetEnd),
     );
   }
 
@@ -7468,6 +7535,9 @@ class Tag extends DataClass implements Insertable<Tag> {
       iconName: serializer.fromJson<String?>(json['iconName']),
       emojiIconName: serializer.fromJson<String?>(json['emojiIconName']),
       tagPk: serializer.fromJson<String>(json['tagPk']),
+      budgetAmount: serializer.fromJson<double?>(json['budgetAmount']),
+      budgetStart: serializer.fromJson<DateTime?>(json['budgetStart']),
+      budgetEnd: serializer.fromJson<DateTime?>(json['budgetEnd']),
     );
   }
   @override
@@ -7483,6 +7553,9 @@ class Tag extends DataClass implements Insertable<Tag> {
       'iconName': serializer.toJson<String?>(iconName),
       'emojiIconName': serializer.toJson<String?>(emojiIconName),
       'tagPk': serializer.toJson<String>(tagPk),
+      'budgetAmount': serializer.toJson<double?>(budgetAmount),
+      'budgetStart': serializer.toJson<DateTime?>(budgetStart),
+      'budgetEnd': serializer.toJson<DateTime?>(budgetEnd),
     };
   }
 
@@ -7495,7 +7568,10 @@ class Tag extends DataClass implements Insertable<Tag> {
           Value<String?> colour = const Value.absent(),
           Value<String?> iconName = const Value.absent(),
           Value<String?> emojiIconName = const Value.absent(),
-          String? tagPk}) =>
+          String? tagPk,
+          Value<double?> budgetAmount = const Value.absent(),
+          Value<DateTime?> budgetStart = const Value.absent(),
+          Value<DateTime?> budgetEnd = const Value.absent()}) =>
       Tag(
         dateCreated: dateCreated ?? this.dateCreated,
         dateTimeModified: dateTimeModified.present
@@ -7509,6 +7585,10 @@ class Tag extends DataClass implements Insertable<Tag> {
         emojiIconName:
             emojiIconName.present ? emojiIconName.value : this.emojiIconName,
         tagPk: tagPk ?? this.tagPk,
+        budgetAmount:
+            budgetAmount.present ? budgetAmount.value : this.budgetAmount,
+        budgetStart: budgetStart.present ? budgetStart.value : this.budgetStart,
+        budgetEnd: budgetEnd.present ? budgetEnd.value : this.budgetEnd,
       );
   Tag copyWithCompanion(TagsCompanion data) {
     return Tag(
@@ -7526,6 +7606,12 @@ class Tag extends DataClass implements Insertable<Tag> {
           ? data.emojiIconName.value
           : this.emojiIconName,
       tagPk: data.tagPk.present ? data.tagPk.value : this.tagPk,
+      budgetAmount: data.budgetAmount.present
+          ? data.budgetAmount.value
+          : this.budgetAmount,
+      budgetStart:
+          data.budgetStart.present ? data.budgetStart.value : this.budgetStart,
+      budgetEnd: data.budgetEnd.present ? data.budgetEnd.value : this.budgetEnd,
     );
   }
 
@@ -7540,14 +7626,28 @@ class Tag extends DataClass implements Insertable<Tag> {
           ..write('colour: $colour, ')
           ..write('iconName: $iconName, ')
           ..write('emojiIconName: $emojiIconName, ')
-          ..write('tagPk: $tagPk')
+          ..write('tagPk: $tagPk, ')
+          ..write('budgetAmount: $budgetAmount, ')
+          ..write('budgetStart: $budgetStart, ')
+          ..write('budgetEnd: $budgetEnd')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(dateCreated, dateTimeModified, order,
-      archived, name, colour, iconName, emojiIconName, tagPk);
+  int get hashCode => Object.hash(
+      dateCreated,
+      dateTimeModified,
+      order,
+      archived,
+      name,
+      colour,
+      iconName,
+      emojiIconName,
+      tagPk,
+      budgetAmount,
+      budgetStart,
+      budgetEnd);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -7560,7 +7660,10 @@ class Tag extends DataClass implements Insertable<Tag> {
           other.colour == this.colour &&
           other.iconName == this.iconName &&
           other.emojiIconName == this.emojiIconName &&
-          other.tagPk == this.tagPk);
+          other.tagPk == this.tagPk &&
+          other.budgetAmount == this.budgetAmount &&
+          other.budgetStart == this.budgetStart &&
+          other.budgetEnd == this.budgetEnd);
 }
 
 class TagsCompanion extends UpdateCompanion<Tag> {
@@ -7573,6 +7676,9 @@ class TagsCompanion extends UpdateCompanion<Tag> {
   final Value<String?> iconName;
   final Value<String?> emojiIconName;
   final Value<String> tagPk;
+  final Value<double?> budgetAmount;
+  final Value<DateTime?> budgetStart;
+  final Value<DateTime?> budgetEnd;
   final Value<int> rowid;
   const TagsCompanion({
     this.dateCreated = const Value.absent(),
@@ -7584,6 +7690,9 @@ class TagsCompanion extends UpdateCompanion<Tag> {
     this.iconName = const Value.absent(),
     this.emojiIconName = const Value.absent(),
     this.tagPk = const Value.absent(),
+    this.budgetAmount = const Value.absent(),
+    this.budgetStart = const Value.absent(),
+    this.budgetEnd = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   TagsCompanion.insert({
@@ -7596,6 +7705,9 @@ class TagsCompanion extends UpdateCompanion<Tag> {
     this.iconName = const Value.absent(),
     this.emojiIconName = const Value.absent(),
     this.tagPk = const Value.absent(),
+    this.budgetAmount = const Value.absent(),
+    this.budgetStart = const Value.absent(),
+    this.budgetEnd = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : order = Value(order),
         name = Value(name);
@@ -7609,6 +7721,9 @@ class TagsCompanion extends UpdateCompanion<Tag> {
     Expression<String>? iconName,
     Expression<String>? emojiIconName,
     Expression<String>? tagPk,
+    Expression<double>? budgetAmount,
+    Expression<DateTime>? budgetStart,
+    Expression<DateTime>? budgetEnd,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -7621,6 +7736,9 @@ class TagsCompanion extends UpdateCompanion<Tag> {
       if (iconName != null) 'icon_name': iconName,
       if (emojiIconName != null) 'emoji_icon_name': emojiIconName,
       if (tagPk != null) 'tag_pk': tagPk,
+      if (budgetAmount != null) 'budget_amount': budgetAmount,
+      if (budgetStart != null) 'budget_start': budgetStart,
+      if (budgetEnd != null) 'budget_end': budgetEnd,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -7635,6 +7753,9 @@ class TagsCompanion extends UpdateCompanion<Tag> {
       Value<String?>? iconName,
       Value<String?>? emojiIconName,
       Value<String>? tagPk,
+      Value<double?>? budgetAmount,
+      Value<DateTime?>? budgetStart,
+      Value<DateTime?>? budgetEnd,
       Value<int>? rowid}) {
     return TagsCompanion(
       dateCreated: dateCreated ?? this.dateCreated,
@@ -7646,6 +7767,9 @@ class TagsCompanion extends UpdateCompanion<Tag> {
       iconName: iconName ?? this.iconName,
       emojiIconName: emojiIconName ?? this.emojiIconName,
       tagPk: tagPk ?? this.tagPk,
+      budgetAmount: budgetAmount ?? this.budgetAmount,
+      budgetStart: budgetStart ?? this.budgetStart,
+      budgetEnd: budgetEnd ?? this.budgetEnd,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -7680,6 +7804,15 @@ class TagsCompanion extends UpdateCompanion<Tag> {
     if (tagPk.present) {
       map['tag_pk'] = Variable<String>(tagPk.value);
     }
+    if (budgetAmount.present) {
+      map['budget_amount'] = Variable<double>(budgetAmount.value);
+    }
+    if (budgetStart.present) {
+      map['budget_start'] = Variable<DateTime>(budgetStart.value);
+    }
+    if (budgetEnd.present) {
+      map['budget_end'] = Variable<DateTime>(budgetEnd.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -7698,6 +7831,9 @@ class TagsCompanion extends UpdateCompanion<Tag> {
           ..write('iconName: $iconName, ')
           ..write('emojiIconName: $emojiIconName, ')
           ..write('tagPk: $tagPk, ')
+          ..write('budgetAmount: $budgetAmount, ')
+          ..write('budgetStart: $budgetStart, ')
+          ..write('budgetEnd: $budgetEnd, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -13879,6 +14015,9 @@ typedef $$TagsTableCreateCompanionBuilder = TagsCompanion Function({
   Value<String?> iconName,
   Value<String?> emojiIconName,
   Value<String> tagPk,
+  Value<double?> budgetAmount,
+  Value<DateTime?> budgetStart,
+  Value<DateTime?> budgetEnd,
   Value<int> rowid,
 });
 typedef $$TagsTableUpdateCompanionBuilder = TagsCompanion Function({
@@ -13891,6 +14030,9 @@ typedef $$TagsTableUpdateCompanionBuilder = TagsCompanion Function({
   Value<String?> iconName,
   Value<String?> emojiIconName,
   Value<String> tagPk,
+  Value<double?> budgetAmount,
+  Value<DateTime?> budgetStart,
+  Value<DateTime?> budgetEnd,
   Value<int> rowid,
 });
 
@@ -13955,6 +14097,15 @@ class $$TagsTableFilterComposer
   ColumnFilters<String> get tagPk => $composableBuilder(
       column: $table.tagPk, builder: (column) => ColumnFilters(column));
 
+  ColumnFilters<double> get budgetAmount => $composableBuilder(
+      column: $table.budgetAmount, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get budgetStart => $composableBuilder(
+      column: $table.budgetStart, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get budgetEnd => $composableBuilder(
+      column: $table.budgetEnd, builder: (column) => ColumnFilters(column));
+
   Expression<bool> transactionToTagLinksRefs(
       Expression<bool> Function($$TransactionToTagLinksTableFilterComposer f)
           f) {
@@ -14016,6 +14167,16 @@ class $$TagsTableOrderingComposer
 
   ColumnOrderings<String> get tagPk => $composableBuilder(
       column: $table.tagPk, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get budgetAmount => $composableBuilder(
+      column: $table.budgetAmount,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get budgetStart => $composableBuilder(
+      column: $table.budgetStart, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get budgetEnd => $composableBuilder(
+      column: $table.budgetEnd, builder: (column) => ColumnOrderings(column));
 }
 
 class $$TagsTableAnnotationComposer
@@ -14053,6 +14214,15 @@ class $$TagsTableAnnotationComposer
 
   GeneratedColumn<String> get tagPk =>
       $composableBuilder(column: $table.tagPk, builder: (column) => column);
+
+  GeneratedColumn<double> get budgetAmount => $composableBuilder(
+      column: $table.budgetAmount, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get budgetStart => $composableBuilder(
+      column: $table.budgetStart, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get budgetEnd =>
+      $composableBuilder(column: $table.budgetEnd, builder: (column) => column);
 
   Expression<T> transactionToTagLinksRefs<T extends Object>(
       Expression<T> Function($$TransactionToTagLinksTableAnnotationComposer a)
@@ -14110,6 +14280,9 @@ class $$TagsTableTableManager extends RootTableManager<
             Value<String?> iconName = const Value.absent(),
             Value<String?> emojiIconName = const Value.absent(),
             Value<String> tagPk = const Value.absent(),
+            Value<double?> budgetAmount = const Value.absent(),
+            Value<DateTime?> budgetStart = const Value.absent(),
+            Value<DateTime?> budgetEnd = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TagsCompanion(
@@ -14122,6 +14295,9 @@ class $$TagsTableTableManager extends RootTableManager<
             iconName: iconName,
             emojiIconName: emojiIconName,
             tagPk: tagPk,
+            budgetAmount: budgetAmount,
+            budgetStart: budgetStart,
+            budgetEnd: budgetEnd,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -14134,6 +14310,9 @@ class $$TagsTableTableManager extends RootTableManager<
             Value<String?> iconName = const Value.absent(),
             Value<String?> emojiIconName = const Value.absent(),
             Value<String> tagPk = const Value.absent(),
+            Value<double?> budgetAmount = const Value.absent(),
+            Value<DateTime?> budgetStart = const Value.absent(),
+            Value<DateTime?> budgetEnd = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               TagsCompanion.insert(
@@ -14146,6 +14325,9 @@ class $$TagsTableTableManager extends RootTableManager<
             iconName: iconName,
             emojiIconName: emojiIconName,
             tagPk: tagPk,
+            budgetAmount: budgetAmount,
+            budgetStart: budgetStart,
+            budgetEnd: budgetEnd,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

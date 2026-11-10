@@ -27,7 +27,7 @@ part 'tables.g.dart';
 
 // 48 is the official 6.x schema; this build's own changes start at 100 so
 // later official versions (49, 50...) never collide with them
-int schemaVersionGlobal = 105;
+int schemaVersionGlobal = 106;
 
 // To update and migrate the database, check the README
 
@@ -576,6 +576,11 @@ class Tags extends Table {
   TextColumn get iconName => text().nullable()();
   TextColumn get emojiIconName => text().nullable()();
   TextColumn get tagPk => text().clientDefault(() => uuid.v4())();
+  // v106: optional spending limit for everything carrying the tag ("Viaje
+  // Cartagena": $800.000), counted between the two dates when they are set
+  RealColumn get budgetAmount => real().nullable()();
+  DateTimeColumn get budgetStart => dateTime().nullable()();
+  DateTimeColumn get budgetEnd => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {tagPk};
@@ -1291,6 +1296,22 @@ class FinanceDatabase extends _$FinanceDatabase {
                     e.toString());
               }
               await m.createTable(schema.walletGroups);
+            },
+            from105To106: (m, schema) async {
+              for (final column in [
+                schema.tags.budgetAmount,
+                schema.tags.budgetStart,
+                schema.tags.budgetEnd,
+              ]) {
+                try {
+                  await m.addColumn(schema.tags, column);
+                } catch (e) {
+                  print("Migration Error: Error creating column tags." +
+                      column.name +
+                      " " +
+                      e.toString());
+                }
+              }
             },
             from104To105: (m, schema) async {
               for (final column in [

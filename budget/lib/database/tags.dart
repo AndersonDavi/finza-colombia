@@ -23,7 +23,8 @@ extension TagQueries on FinanceDatabase {
         tag.copyWith(dateTimeModified: Value(DateTime.now())).toCompanion(true);
     if (insert) {
       int count = (await getAllTags()).length;
-      companion = companion.copyWith(tagPk: Value.absent(), order: Value(count));
+      companion =
+          companion.copyWith(tagPk: Value.absent(), order: Value(count));
       await into(tags).insert(companion);
       return (await getAllTags()).last.tagPk;
     }
@@ -82,7 +83,8 @@ extension TagQueries on FinanceDatabase {
       }
       await (update(transactions)
             ..where((t) => t.transactionPk.equals(transactionPk)))
-          .write(TransactionsCompanion(dateTimeModified: Value(DateTime.now())));
+          .write(
+              TransactionsCompanion(dateTimeModified: Value(DateTime.now())));
     });
   }
 
@@ -91,8 +93,7 @@ extension TagQueries on FinanceDatabase {
       List<String> transactionPks, List<String> tagPks) async {
     for (String transactionPk in transactionPks) {
       List<String> current = await getTagPksOfTransaction(transactionPk);
-      await setTransactionTags(
-          transactionPk, {...current, ...tagPks}.toList());
+      await setTransactionTags(transactionPk, {...current, ...tagPks}.toList());
     }
   }
 
@@ -143,10 +144,23 @@ extension TagQueries on FinanceDatabase {
   // Transactions carrying a tag, newest first (the MCP's "Por revisar" ones)
   Stream<List<Transaction>> watchTransactionsWithTag(String tagPk) {
     return (select(transactions)
-          ..where((t) => t.transactionPk.isInQuery(
-              selectOnly(transactionToTagLinks)
+          ..where(
+              (t) => t.transactionPk.isInQuery(selectOnly(transactionToTagLinks)
                 ..addColumns([transactionToTagLinks.transactionPk])
                 ..where(transactionToTagLinks.tagPk.equals(tagPk))))
+          ..orderBy([(t) => OrderingTerm.desc(t.dateCreated)]))
+        .watch();
+  }
+
+  // Review inbox: what carries one of the review tags, plus movements named
+  // just "?"
+  Stream<List<Transaction>> watchTransactionsToReview(List<String> tagPks) {
+    return (select(transactions)
+          ..where((t) =>
+              t.name.trim().equals("?") |
+              t.transactionPk.isInQuery(selectOnly(transactionToTagLinks)
+                ..addColumns([transactionToTagLinks.transactionPk])
+                ..where(transactionToTagLinks.tagPk.isIn(tagPks))))
           ..orderBy([(t) => OrderingTerm.desc(t.dateCreated)]))
         .watch();
   }

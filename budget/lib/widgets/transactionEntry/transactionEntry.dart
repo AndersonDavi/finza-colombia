@@ -13,6 +13,7 @@ import 'package:budget/widgets/fadeIn.dart';
 import 'package:budget/widgets/openContainerNavigation.dart';
 import 'package:budget/widgets/tappable.dart';
 import 'package:budget/widgets/textWidgets.dart';
+import 'package:budget/widgets/transactionEntry/transferIcon.dart';
 import 'package:budget/widgets/transactionEntry/transactionEntryTypeButton.dart';
 import 'package:budget/widgets/transactionEntry/transactionLabel.dart';
 import 'package:flutter/cupertino.dart';
@@ -331,6 +332,12 @@ class TransactionEntry extends StatelessWidget {
         borderRadius: 100,
         onTap: openContainer,
       );
+      if (transaction.categoryFk == "0")
+        categoryIcon = TransferSplitIcon(
+          transaction: transaction,
+          fallback: categoryIcon,
+          onTap: openContainer,
+        );
       Widget actionButton(EdgeInsetsDirectional padding) {
         Widget actionButton = TransactionEntryActionButton(
           padding: padding,
@@ -524,7 +531,9 @@ class TransactionEntry extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     TextFont(
-                      text: sides[0].name.trim() + " → " + sides[1].name.trim(),
+                      text: transferTitle(
+                              Provider.of<AllWallets>(context), transaction) ??
+                          sides[0].name.trim() + " → " + sides[1].name.trim(),
                       fontSize: fontSize,
                       maxLines: 2,
                     ),

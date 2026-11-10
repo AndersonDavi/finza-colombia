@@ -6,6 +6,7 @@ import 'package:budget/functions.dart';
 import 'package:budget/pages/addWalletPage.dart';
 import 'package:budget/pages/editWalletsPage.dart';
 import 'package:budget/pages/settingsPage.dart';
+import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/settings.dart';
 import 'package:budget/widgets/animatedExpanded.dart';
 import 'package:budget/widgets/button.dart';
@@ -15,6 +16,8 @@ import 'package:budget/widgets/selectChips.dart';
 import 'package:budget/widgets/tappable.dart';
 import 'package:budget/widgets/textWidgets.dart';
 import 'package:budget/widgets/util/contextMenu.dart';
+import 'package:budget/widgets/viewAllTransactionsButton.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/number_symbols_data.dart';
@@ -77,6 +80,7 @@ class SelectAmount extends StatefulWidget {
     this.decimals,
     this.amountTappableBuilder,
     this.showCalculation = true,
+    this.showWholeBalance = false,
   }) : super(key: key);
   final Function(double, String) setSelectedAmount;
   final String amountPassed;
@@ -101,6 +105,8 @@ class SelectAmount extends StatefulWidget {
   final Widget Function(void Function() onLongPress, String amountConverted)?
       amountTappableBuilder;
   final bool showCalculation;
+  // A button that fills in everything the selected account holds (transfers)
+  final bool showWholeBalance;
 
   @override
   _SelectAmountState createState() => _SelectAmountState();
@@ -376,6 +382,42 @@ class _SelectAmountState extends State<SelectAmount> {
                 : double.tryParse(amount) ?? 0),
         amount);
     bottomSheetControllerGlobal.reMeasure();
+  }
+
+  void setWholeBalance(double balance) {
+    String text = removeTrailingZeroes(
+        balance.toStringAsFixed(getDecimals(listen: false)));
+    setState(() {
+      amount = text;
+    });
+    widget.setSelectedAmount(balance, text);
+    _focusNode.requestFocus();
+  }
+
+  Widget wholeBalanceButton() {
+    if (!widget.showWholeBalance || selectedWalletPk == null)
+      return SizedBox.shrink();
+    return StreamBuilder<double?>(
+      stream: database.watchTotalOfWalletNoConversion(selectedWalletPk!),
+      builder: (context, snapshot) {
+        double balance = snapshot.data ?? 0;
+        if (balance <= 0) return SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsetsDirectional.only(bottom: 8),
+          child: LowKeyButton(
+            onTap: () => setWholeBalance(balance),
+            text: "whole-balance".tr() +
+                " · " +
+                convertToMoney(
+                  Provider.of<AllWallets>(context),
+                  balance,
+                  currencyKey: getSelectedWallet(listen: true)?.currency,
+                  decimals: getDecimals(listen: true),
+                ),
+          ),
+        );
+      },
+    );
   }
 
   void removeAll() {
@@ -888,6 +930,7 @@ class _SelectAmountState extends State<SelectAmount> {
                         ),
                       ),
                 SizedBox(height: 5),
+                wholeBalanceButton(),
                 NumberPadAmount(
                   extraWidgetAboveNumbers: widget.extraWidgetAboveNumbers,
                   addToAmount: addToAmount,

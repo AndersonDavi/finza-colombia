@@ -299,6 +299,7 @@ class _TransferBalancePageState extends State<TransferBalancePage> {
             amountPassed: enteredAmount == 0 ? "" : enteredAmount.toString(),
             currencyKey: walletFrom?.currency,
             enableWalletPicker: true,
+            showWholeBalance: true,
             selectedWalletPk: walletFrom?.walletPk,
             setSelectedWalletPk: (walletPk) {
               setState(() {
