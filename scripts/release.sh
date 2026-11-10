@@ -35,7 +35,7 @@ if ! (cd "$app" && flutter build apk --release --target-platform android-arm64);
   exit 1
 fi
 
-apk="$app/build/cashew-$next.apk"
+apk="$app/build/finza-$next.apk"
 cp "$app/build/app/outputs/flutter-apk/app-release.apk" "$apk"
 if [ -n "$previous" ]; then
   notes=$(git -C "$root" log --format="- %s" "$previous..HEAD")
