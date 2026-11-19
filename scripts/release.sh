@@ -57,3 +57,16 @@ if ! "$root/scripts/deploy-web.sh"; then
   echo "The APK is out, but the web did not publish: run scripts/deploy-web.sh" >&2
   exit 1
 fi
+
+# The test build (Finza Debug, with the demo data tools) on the same version,
+# and both APKs in the Drive folder used to install them on the phone. The
+# debug one is not on GitHub: it is only for testing
+drive="${FINZA_DRIVE_DIR:-/g/Mi unidad/Proyectos/Finza}"
+if ! (cd "$app" && flutter build apk --debug --target-platform android-arm64); then
+  echo "Finza Debug did not build" >&2
+elif [ -d "$drive" ]; then
+  rm -f "$drive"/finza-[0-9]*.apk
+  cp "$apk" "$drive/"
+  cp "$app/build/app/outputs/flutter-apk/app-debug.apk" "$drive/finza-debug.apk"
+  echo "APKs copied to $drive"
+fi
