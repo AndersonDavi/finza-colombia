@@ -18,8 +18,8 @@ class LoopbackResult {
 const String callbackPath = "/auth/callback";
 
 // The page the browser shows at the end, in the app's own colors. On Android
-// it has a button that opens Finza again (an intent link to the app's own
-// package) and tries it right away; elsewhere it just says to go back.
+// it is only seen if the redirect to the app is not followed, and its button
+// uses the same link; elsewhere it just says to go back.
 // cancelled: the sign-in was not finished or not allowed
 String doneHtml(String? androidPackage, {bool cancelled = false}) {
   String title = cancelled ? "No se completó" : "¡Listo!";
@@ -31,8 +31,7 @@ String doneHtml(String? androidPackage, {bool cancelled = false}) {
       : """<path d="M7.5 12.5l3 3 6-6.5"/>""";
   String back = androidPackage == null
       ? ""
-      : """<a class="button" id="back" href="intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=$androidPackage;end">Volver a Finza</a>
-<script>setTimeout(function(){location.href=document.getElementById("back").href},600)</script>""";
+      : """<a class="button" href="${appReturnLink(androidPackage)}">Volver a Finza</a>""";
   return """<!doctype html><html lang="es"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0D0C17">
@@ -70,6 +69,12 @@ String doneHtml(String? androidPackage, {bool cancelled = false}) {
 </main></body></html>""";
 }
 
+// The app's own link (its scheme is set in build.gradle.kts): the test build
+// has its own so it never opens the real Finza
+String appReturnLink(String androidPackage) =>
+    (androidPackage.endsWith(".debug") ? "finzadebug" : "finza") +
+    "://auth/done";
+
 // On Android the sign-in opens in a browser tab on top of Finza, so going
 // back lands in the app; elsewhere in the default browser
 Future<void> openSignInPage(Uri url) async {
@@ -104,9 +109,17 @@ Future<LoopbackResult> runLoopbackSignIn(
         await request.response.close();
         continue;
       }
+      bool cancelled = request.uri.queryParameters["error"] != null;
+      if (androidPackage != null) {
+        // A redirect to the app's own link: Android opens Finza right away
+        // (a page or a script cannot do it reliably). The page is only the
+        // fallback if the browser does not follow it
+        request.response.statusCode = HttpStatus.found;
+        request.response.headers
+            .set(HttpHeaders.locationHeader, appReturnLink(androidPackage));
+      }
       request.response.headers.contentType = ContentType.html;
-      request.response.write(doneHtml(androidPackage,
-          cancelled: request.uri.queryParameters["error"] != null));
+      request.response.write(doneHtml(androidPackage, cancelled: cancelled));
       await request.response.close();
       return LoopbackResult(request.uri.queryParameters, redirectUri);
     }

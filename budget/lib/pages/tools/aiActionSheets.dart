@@ -33,29 +33,29 @@ enum AiAction { receipt, text, voice, bankMessage, loanOffer, summary }
 
 // Vector icons, never emoji: emoji fonts look different on every phone
 class AiActionInfo {
-  const AiActionInfo(this.icon, this.color, this.labelKey, this.helpKey);
+  const AiActionInfo(this.icon, this.labelKey, this.helpKey);
   final IconData icon;
-  final Color color;
   final String labelKey;
   final String helpKey;
 }
 
 const Map<AiAction, AiActionInfo> aiActionInfo = {
   AiAction.receipt: AiActionInfo(Icons.photo_camera_rounded,
-      Color(0xFFEF6C00), "ai-action-receipt", "ai-action-receipt-help"),
-  AiAction.text: AiActionInfo(Icons.edit_note_rounded, Color(0xFF1E88E5),
-      "ai-action-text", "ai-action-text-help"),
-  AiAction.voice: AiActionInfo(Icons.mic_rounded, Color(0xFFE53935),
-      "ai-action-voice", "ai-action-voice-help"),
-  AiAction.bankMessage: AiActionInfo(Icons.sms_rounded, Color(0xFF43A047),
+      "ai-action-receipt", "ai-action-receipt-help"),
+  AiAction.text: AiActionInfo(
+      Icons.edit_note_rounded, "ai-action-text", "ai-action-text-help"),
+  AiAction.voice: AiActionInfo(
+      Icons.mic_rounded, "ai-action-voice", "ai-action-voice-help"),
+  AiAction.bankMessage: AiActionInfo(Icons.sms_rounded,
       "ai-action-bank-message", "ai-action-bank-message-help"),
-  AiAction.loanOffer: AiActionInfo(Icons.request_quote_rounded,
-      Color(0xFF8E24AA), "ai-action-loan", "ai-action-loan-help"),
-  AiAction.summary: AiActionInfo(Icons.insights_rounded, Color(0xFF00897B),
-      "ai-action-summary", "ai-action-summary-help"),
+  AiAction.loanOffer: AiActionInfo(
+      Icons.request_quote_rounded, "ai-action-loan", "ai-action-loan-help"),
+  AiAction.summary: AiActionInfo(
+      Icons.insights_rounded, "ai-action-summary", "ai-action-summary-help"),
 };
 
-// The action's icon on a soft square of its color
+// The action's icon in the light primary color (the one of the send button),
+// so it reads well on the tiles in both themes
 class AiActionIcon extends StatelessWidget {
   const AiActionIcon(this.info, {this.size = 40, super.key});
   final AiActionInfo info;
@@ -63,14 +63,15 @@ class AiActionIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Color primary = Theme.of(context).colorScheme.primary;
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: info.color.withOpacity(0.18),
+        color: primary.withOpacity(0.16),
         borderRadius: BorderRadius.circular(size * 0.3),
       ),
-      child: Icon(info.icon, color: info.color, size: size * 0.6),
+      child: Icon(info.icon, color: primary, size: size * 0.6),
     );
   }
 }

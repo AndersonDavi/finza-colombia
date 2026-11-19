@@ -4,14 +4,20 @@ import 'package:budget/functions.dart';
 import 'package:budget/pages/tools/aiActionSheets.dart';
 import 'package:budget/struct/aiActions.dart';
 import 'package:budget/struct/aiAttachments.dart';
+import 'package:budget/struct/aiChanges.dart';
+import 'package:budget/struct/aiQueries.dart';
 import 'package:budget/struct/aiChat.dart';
+import 'package:budget/struct/aiConversations.dart';
+import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/chatgptSignIn.dart';
 import 'package:budget/struct/settings.dart';
+import 'package:budget/widgets/aiMarkdown.dart';
 import 'package:budget/widgets/button.dart';
 import 'package:budget/widgets/framework/popupFramework.dart';
 import 'package:budget/widgets/openBottomSheet.dart';
 import 'package:budget/widgets/framework/pageFramework.dart';
 import 'package:budget/widgets/helpGuide.dart';
+import 'package:budget/widgets/openPopup.dart';
 import 'package:budget/widgets/radioItems.dart';
 import 'package:budget/widgets/settingsContainers.dart';
 import 'package:budget/widgets/textInput.dart';
@@ -47,10 +53,22 @@ class _AiChatPageState extends State<AiChatPage> {
   bool errorManagesUsage = false;
   final TextEditingController keyController = TextEditingController();
   final TextEditingController messageController = TextEditingController();
+  final ScrollController chatScroll = ScrollController();
+  // The chat being shown; it is saved on the device after every answer
+  String conversationId = uuid.v4();
+  // The service and model settings, opened from the gear once set up
+  bool showSettings = false;
+  // The changes proposed in each answer, checked against the data once
+  final Map<ChatMessage, Future<List<AiChangePlan>>> changePlans = {};
+  // While the AI is reading more data from the app
+  bool lookingUp = false;
 
   @override
   void initState() {
     super.initState();
+    // Coming back to the page opens the last chat where it was left
+    AiConversation? last = loadAiConversations().firstOrNull;
+    if (last != null) openConversation(last, scroll: false);
     loadProvider();
   }
 
@@ -58,7 +76,115 @@ class _AiChatPageState extends State<AiChatPage> {
   void dispose() {
     keyController.dispose();
     messageController.dispose();
+    chatScroll.dispose();
     super.dispose();
+  }
+
+  void openConversation(AiConversation saved, {bool scroll = true}) {
+    List<ChatMessage> messages = [];
+    Set<ChatMessage> savedSummaries = {};
+    for (SavedMessage m in saved.messages) {
+      ChatMessage message = ChatMessage(m.fromUser, m.text,
+          attachmentName: m.attachmentName, hidden: m.hidden);
+      message.changeStatus.addAll(m.changeStatus);
+      messages.add(message);
+      if (m.summary) savedSummaries.add(message);
+    }
+    setState(() {
+      conversationId = saved.id;
+      conversation = messages;
+      summaries
+        ..clear()
+        ..addAll(savedSummaries);
+      attachment = null;
+      error = null;
+    });
+    if (scroll) scrollToBottom();
+  }
+
+  void newConversation() {
+    setState(() {
+      conversationId = uuid.v4();
+      conversation = [];
+      summaries.clear();
+      attachment = null;
+      error = null;
+      messageController.clear();
+    });
+  }
+
+  Future<void> persist() async {
+    await saveAiConversation(conversationId, conversation,
+        summaries: summaries);
+  }
+
+  void scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!chatScroll.hasClients) return;
+      chatScroll.animateTo(
+        chatScroll.position.maxScrollExtent,
+        duration: Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  // The saved chats, newest first: tap to open, the bin deletes one
+  Future<void> openHistory() async {
+    await openBottomSheet(
+      context,
+      PopupFramework(
+        title: "ai-history".tr(),
+        subtitle: "ai-history-subtitle".tr(),
+        child: StatefulBuilder(builder: (sheetContext, setSheetState) {
+          List<AiConversation> saved = loadAiConversations();
+          if (saved.isEmpty) return note("ai-history-empty".tr());
+          return Column(children: [
+            for (AiConversation c in saved)
+              SettingsContainer(
+                title: c.title == "" ? "ai-chat".tr() : c.title,
+                description:
+                    getWordedDateShortMore(c.updated, includeTime: true),
+                icon: c.id == conversationId
+                    ? Icons.chat_rounded
+                    : Icons.chat_bubble_outline_rounded,
+                onTap: () {
+                  popRoute(sheetContext);
+                  openConversation(c);
+                },
+                afterWidget: IconButton(
+                  tooltip: "delete".tr(),
+                  icon: Icon(Icons.delete_outline_rounded),
+                  onPressed: () async {
+                    await deleteAiConversation(c.id);
+                    if (c.id == conversationId) newConversation();
+                    setSheetState(() {});
+                  },
+                ),
+              ),
+          ]);
+        }),
+      ),
+    );
+  }
+
+  // All the actions in a sheet, from the chat bar
+  Future<void> openActionsSheet() async {
+    await openBottomSheet(
+      context,
+      PopupFramework(
+        child: Builder(
+          builder: (sheetContext) => AiActionsGrid(
+            onTap: (action) {
+              popRoute(sheetContext);
+              runAction(action);
+            },
+            providerName: providerLabel(provider),
+            readsImages: model.readsImages,
+          ),
+        ),
+      ),
+    );
   }
 
   bool get ready => provider == AiProvider.chatgpt
@@ -167,6 +293,7 @@ class _AiChatPageState extends State<AiChatPage> {
       sending = true;
       error = null;
     });
+    scrollToBottom();
     try {
       String summary = await monthlySummary(
         await buildFinanceContext(allWallets),
@@ -177,10 +304,12 @@ class _AiChatPageState extends State<AiChatPage> {
         summaries.add(answer);
         conversation.add(answer);
       });
+      await persist();
     } catch (e) {
       showError(e);
     }
     setState(() => sending = false);
+    scrollToBottom();
   }
 
   Future<void> chooseProvider(AiProvider value) async {
@@ -198,18 +327,34 @@ class _AiChatPageState extends State<AiChatPage> {
         if (info.fast) "ai-tag-fast".tr(),
       ].join("  ·  ");
 
+  // The first model of each list is the one the app picks by default
+  String get recommendedModelId => models.first.id;
+
+  String modelDescription(AiModelInfo info) => [
+        if (info.id == recommendedModelId) "ai-model-recommended".tr(),
+        if (modelTags(info) != "") modelTags(info),
+      ].join("  ·  ");
+
   Future<void> chooseModel() async {
     if (models.isEmpty) return;
     await openBottomSheet(
       context,
       PopupFramework(
         title: "ai-choose-model".tr(),
+        subtitle: "ai-choose-model-help".tr(),
         child: Builder(
           builder: (sheetContext) => RadioItems<String>(
             initial: model.id,
-            items: [for (AiModelInfo m in models) m.id],
+            // The recommended one, then the fast ones, then the rest
+            items: [
+              models.first.id,
+              for (AiModelInfo m in models.skip(1))
+                if (m.fast) m.id,
+              for (AiModelInfo m in models.skip(1))
+                if (!m.fast) m.id,
+            ],
             displayFilter: (id) => modelInfo(provider, id).label,
-            getDescription: (id) => modelTags(modelInfo(provider, id)),
+            getDescription: (id) => modelDescription(modelInfo(provider, id)),
             onChanged: (id) async {
               popRoute(sheetContext);
               await setSelectedModel(provider, id);
@@ -340,26 +485,50 @@ class _AiChatPageState extends State<AiChatPage> {
       error = null;
       messageController.clear();
     });
+    scrollToBottom();
     try {
-      String? context =
-          shareData ? await buildFinanceContext(allWallets) : null;
-      String reply = await sendChat(
-        conversation,
-        financeContext: context,
-        onDelta: (soFar) => setState(() {
-          answer.text = soFar;
-          if (conversation.contains(answer) == false) conversation.add(answer);
-        }),
-      );
-      setState(() {
-        answer.text = reply;
-        if (conversation.contains(answer) == false) conversation.add(answer);
-      });
+      // The AI may ask the app for more data first: the results go back to
+      // it as a hidden message and it answers again, a few rounds at most
+      for (int round = 0;; round++) {
+        String? context =
+            shareData ? await buildFinanceContext(allWallets) : null;
+        ChatMessage current = answer;
+        String reply = await sendChat(
+          conversation,
+          financeContext: context,
+          onDelta: (soFar) => setState(() {
+            current.text = soFar;
+            if (conversation.contains(current) == false) {
+              conversation.add(current);
+            }
+          }),
+        );
+        setState(() {
+          current.text = reply;
+          if (conversation.contains(current) == false) {
+            conversation.add(current);
+          }
+        });
+        List<Map<String, dynamic>> queries = extractAiQueries(reply);
+        if (queries.isEmpty || round >= maxAiQueryRounds) break;
+        setState(() => lookingUp = true);
+        String results = await runAiQueries(queries, allWallets);
+        answer = ChatMessage(false, "");
+        setState(() {
+          conversation.add(ChatMessage(true, results, hidden: true));
+          lookingUp = false;
+        });
+      }
+      await persist();
     } catch (e) {
-      conversation.remove(answer);
+      if (answer.text.trim() == "") conversation.remove(answer);
       showError(e);
     }
-    setState(() => sending = false);
+    setState(() {
+      sending = false;
+      lookingUp = false;
+    });
+    scrollToBottom();
   }
 
   String providerLabel(AiProvider p) => switch (p) {
@@ -533,9 +702,7 @@ class _AiChatPageState extends State<AiChatPage> {
             ),
           ]),
           SizedBox(height: 10),
-          SelectableText(message.text,
-              style: TextStyle(
-                  fontSize: 15, height: 1.35, color: colors.onSurface)),
+          AiMarkdownText(message.text, color: colors.onSurface),
           SizedBox(height: 12),
           TextFont(
             text: "ai-summary-note".tr(),
@@ -548,9 +715,220 @@ class _AiChatPageState extends State<AiChatPage> {
     );
   }
 
+  Future<List<AiChangePlan>> plansFor(ChatMessage message) {
+    return changePlans.putIfAbsent(message, () async {
+      AllWallets allWallets = Provider.of<AllWallets>(context, listen: false);
+      List<AiChangePlan> plans = [];
+      for (Map<String, dynamic> json in extractAiChanges(message.text)) {
+        try {
+          plans.add(await planAiChange(json, allWallets));
+        } catch (e) {
+          print("AI change could not be checked: " + e.toString());
+          AiChangeKind kind = aiChangeKindOf(json["action"])!;
+          plans.add(AiChangePlan(
+              kind: kind,
+              title: ("ai-change-" + kind.name).tr(),
+              error: "ai-change-failed".tr()));
+        }
+      }
+      return plans;
+    });
+  }
+
+  Future<bool> confirmDelete(AiChangePlan plan) async {
+    bool confirmed = false;
+    await openPopup(
+      context,
+      icon: Icons.delete_rounded,
+      title: "ai-change-delete-title".tr(),
+      description: ([...plan.details, "ai-change-cannot-undo".tr()]).join("\n"),
+      onCancel: () => popRoute(context),
+      onCancelLabel: "cancel".tr(),
+      onSubmit: () {
+        confirmed = true;
+        popRoute(context);
+      },
+      onSubmitLabel: "delete".tr(),
+    );
+    return confirmed;
+  }
+
+  // Checks the change again with the data as it is now, then applies it
+  Future<void> applyChange(ChatMessage message, int index) async {
+    AllWallets allWallets = Provider.of<AllWallets>(context, listen: false);
+    List<Map<String, dynamic>> changes = extractAiChanges(message.text);
+    if (index >= changes.length) return;
+    AiChangePlan plan;
+    try {
+      plan = await planAiChange(changes[index], allWallets);
+    } catch (e) {
+      setState(() => message.changeStatus[index] = "failed");
+      await persist();
+      return;
+    }
+    if (!plan.canApply) {
+      setState(() => changePlans.remove(message));
+      return;
+    }
+    if (plan.destructive && !await confirmDelete(plan)) return;
+    try {
+      String status = await plan.apply!(context);
+      setState(() => message.changeStatus[index] = status);
+    } catch (e) {
+      print("AI change failed: " + e.toString());
+      setState(() => message.changeStatus[index] = "failed");
+    }
+    changePlans.remove(message);
+    await persist();
+  }
+
+  Widget changeCard(ChatMessage message, int index, AiChangePlan plan) {
+    ColorScheme colors = Theme.of(context).colorScheme;
+    String? status = message.changeStatus[index];
+    Widget statusLine(IconData icon, String text, Color color) =>
+        Row(children: [
+          Icon(icon, size: 18, color: color),
+          SizedBox(width: 6),
+          Expanded(
+            child: TextFont(
+                text: text, fontSize: 14, maxLines: 3, textColor: color),
+          ),
+        ]);
+    return Container(
+      constraints: BoxConstraints(maxWidth: 520),
+      margin:
+          const EdgeInsetsDirectional.symmetric(horizontal: 15, vertical: 4),
+      padding: const EdgeInsetsDirectional.all(14),
+      decoration: BoxDecoration(
+        color: colors.secondaryContainer,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: plan.destructive
+              ? colors.error.withOpacity(0.6)
+              : colors.primary.withOpacity(0.4),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: (plan.destructive ? colors.error : colors.primary)
+                    .withOpacity(0.16),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(aiChangeIcon(plan.kind),
+                  size: 20,
+                  color: plan.destructive ? colors.error : colors.primary),
+            ),
+            SizedBox(width: 10),
+            Expanded(
+              child: TextFont(
+                text: plan.title,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                maxLines: 2,
+              ),
+            ),
+          ]),
+          SizedBox(height: 8),
+          for (String line in plan.details)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(bottom: 2),
+              child: TextFont(text: line, fontSize: 14, maxLines: 4),
+            ),
+          SizedBox(height: 8),
+          if (status == "done")
+            statusLine(Icons.check_circle_rounded, "ai-change-done".tr(),
+                getColor(context, "incomeAmount"))
+          else if (status == "opened")
+            statusLine(Icons.open_in_new_rounded, "ai-change-opened".tr(),
+                colors.primary)
+          else if (status == "cancelled")
+            statusLine(Icons.block_rounded, "ai-change-cancelled".tr(),
+                getColor(context, "black").withOpacity(0.6))
+          else if (status == "failed")
+            statusLine(Icons.error_rounded, "ai-change-failed".tr(),
+                getColor(context, "expenseAmount"))
+          else if (plan.error != null)
+            statusLine(Icons.error_outline_rounded, plan.error!,
+                getColor(context, "expenseAmount"))
+          else
+            Row(children: [
+              Expanded(
+                child: Button(
+                  label: "cancel".tr(),
+                  color: colors.surfaceContainerHighest,
+                  textColor: colors.onSurface,
+                  onTap: () async {
+                    setState(() => message.changeStatus[index] = "cancelled");
+                    await persist();
+                  },
+                ),
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: Button(
+                  label: plan.kind == AiChangeKind.addTransaction
+                      ? "ai-change-review".tr()
+                      : plan.destructive
+                          ? "delete".tr()
+                          : "ai-change-confirm".tr(),
+                  color: plan.destructive ? colors.error : colors.primary,
+                  textColor:
+                      plan.destructive ? colors.onError : colors.onPrimary,
+                  onTap: () => applyChange(message, index),
+                ),
+              ),
+            ]),
+        ],
+      ),
+    );
+  }
+
+  Widget changeCards(ChatMessage message) {
+    return FutureBuilder<List<AiChangePlan>>(
+      future: plansFor(message),
+      builder: (context, snapshot) {
+        List<AiChangePlan> plans = snapshot.data ?? [];
+        return Column(children: [
+          for (int i = 0; i < plans.length; i++)
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: changeCard(message, i, plans[i]),
+            ),
+        ]);
+      },
+    );
+  }
+
+  // What the bubble shows: the answer without the change and query blocks
+  String shownText(ChatMessage message) => message.fromUser
+      ? message.text
+      : stripAiQueries(stripAiChanges(message.text));
+
+  Widget messageWidget(ChatMessage message) {
+    if (message.hidden) return SizedBox.shrink();
+    bool streaming = sending && message == conversation.lastOrNull;
+    bool hasChanges = message.fromUser == false &&
+        streaming == false &&
+        message.text.contains("```" + aiChangeFence);
+    bool hasText = shownText(message) != "" ||
+        message.attachment != null ||
+        message.attachmentName != null;
+    return Column(children: [
+      if (hasText) bubble(message),
+      if (hasChanges) changeCards(message),
+    ]);
+  }
+
   Widget bubble(ChatMessage message) {
     if (summaries.contains(message)) return summaryCard(message);
     ColorScheme colors = Theme.of(context).colorScheme;
+    String? fileName = message.attachment?.name ?? message.attachmentName;
     return Align(
       alignment: message.fromUser
           ? AlignmentDirectional.centerEnd
@@ -571,35 +949,64 @@ class _AiChatPageState extends State<AiChatPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (message.attachment != null)
+            if (fileName != null)
               Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(attachmentIcon(message.attachment!),
-                    size: 18, color: colors.onSurface),
+                Icon(
+                    message.attachment == null
+                        ? Icons.attach_file_rounded
+                        : attachmentIcon(message.attachment!),
+                    size: 18,
+                    color: colors.onSurface),
                 SizedBox(width: 6),
                 Flexible(
                   child: TextFont(
-                    text: message.attachment!.name,
+                    text: fileName,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                     maxLines: 2,
                   ),
                 ),
               ]),
-            if (message.attachment != null && message.text != "")
+            if (fileName != null && shownText(message) != "")
               SizedBox(height: 6),
-            if (message.text != "")
-              SelectableText(message.text,
-                  style: TextStyle(fontSize: 15, color: colors.onSurface)),
+            if (shownText(message) != "")
+              message.fromUser
+                  ? SelectableText(message.text,
+                      style: TextStyle(fontSize: 15, color: colors.onSurface))
+                  : AiMarkdownText(shownText(message), color: colors.onSurface),
           ],
         ),
       ),
     );
   }
 
+  Widget errorLine() => Padding(
+        padding: const EdgeInsetsDirectional.symmetric(horizontal: 18),
+        child: Column(children: [
+          TextFont(
+            text: error!,
+            fontSize: 14,
+            maxLines: 6,
+            textColor: getColor(context, "expenseAmount"),
+          ),
+          if (errorManagesUsage)
+            TextButton(
+              onPressed: () => openUrl(chatGptUsageUrl),
+              child: TextFont(text: "ai-manage-usage".tr()),
+            ),
+        ]),
+      );
+
   @override
   Widget build(BuildContext context) {
+    // Once a service works the page is a chat; its settings move to the gear
+    if (ready && showSettings == false) return chatPage();
+    return settingsPage();
+  }
+
+  Widget settingsPage() {
     return PageFramework(
-      title: "ai-chat".tr(),
+      title: ready ? "ai-settings".tr() : "ai-chat".tr(),
       dragDownToDismiss: true,
       horizontalPaddingConstrained: true,
       actions: [HelpGuideButton(guide: HelpGuides.aiChat())],
@@ -634,7 +1041,9 @@ class _AiChatPageState extends State<AiChatPage> {
           SettingsContainer(
             title: "ai-model".tr(),
             description: model.label +
-                (modelTags(model) == "" ? "" : "\n" + modelTags(model)),
+                (modelDescription(model) == ""
+                    ? ""
+                    : "\n" + modelDescription(model)),
             icon: Icons.memory_rounded,
             afterWidget: Icon(Icons.unfold_more_rounded),
             onTap: chooseModel,
@@ -651,118 +1060,233 @@ class _AiChatPageState extends State<AiChatPage> {
               setState(() => shareData = value);
             },
           ),
-        if (error != null)
-          Padding(
-            padding: const EdgeInsetsDirectional.symmetric(horizontal: 18),
-            child: Column(children: [
-              TextFont(
-                text: error!,
-                fontSize: 14,
-                maxLines: 6,
-                textColor: getColor(context, "expenseAmount"),
-              ),
-              if (errorManagesUsage)
-                TextButton(
-                  onPressed: () => openUrl(chatGptUsageUrl),
-                  child: TextFont(text: "ai-manage-usage".tr()),
-                ),
-            ]),
-          ),
+        if (error != null) errorLine(),
         SizedBox(height: 10),
-        AiActionsGrid(
-          onTap: runAction,
-          providerName: providerLabel(provider),
-          readsImages: model.readsImages,
-        ),
-        SizedBox(height: 6),
-        if (ready && conversation.isEmpty)
-          Padding(
-            padding: const EdgeInsetsDirectional.symmetric(horizontal: 18),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (String key in [
-                  "ai-example-1",
-                  "ai-example-2",
-                  "ai-example-3",
-                ])
-                  ActionChip(
-                    label: Text(key.tr()),
-                    onPressed: () {
-                      messageController.text = key.tr();
-                      send();
-                    },
-                  ),
-              ],
-            ),
-          ),
-        for (ChatMessage message in conversation) bubble(message),
-        if (sending && (conversation.lastOrNull?.fromUser ?? false))
-          Padding(
-            padding: const EdgeInsetsDirectional.all(15),
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2)),
-            ),
-          ),
         if (ready)
           Padding(
-            padding: const EdgeInsetsDirectional.symmetric(
-                horizontal: 15, vertical: 10),
-            child: Column(children: [
-              if (attachment != null)
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: Padding(
-                    padding: const EdgeInsetsDirectional.only(bottom: 8),
-                    child: InputChip(
-                      avatar: Icon(attachmentIcon(attachment!), size: 18),
-                      label: ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: 240),
-                        child: Text(attachment!.name,
-                            overflow: TextOverflow.ellipsis),
+            padding: const EdgeInsetsDirectional.symmetric(horizontal: 15),
+            child: Button(
+              label: "ai-back-to-chat".tr(),
+              icon: Icons.chat_rounded,
+              expandedLayout: true,
+              onTap: () => setState(() {
+                showSettings = false;
+                error = null;
+              }),
+            ),
+          )
+        else
+          // Shown before setting up, so it is clear what the chat can do
+          AiActionsGrid(
+            onTap: runAction,
+            providerName: providerLabel(provider),
+            readsImages: model.readsImages,
+          ),
+        SizedBox(height: 60),
+      ],
+    );
+  }
+
+  Widget chatPage() {
+    ColorScheme colors = Theme.of(context).colorScheme;
+    List<Widget> body = conversation.isEmpty
+        ? [
+            Padding(
+              padding: const EdgeInsetsDirectional.only(
+                  start: 18, end: 18, top: 4, bottom: 4),
+              child: TextFont(
+                text: "ai-chat-empty-title".tr(),
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                maxLines: 3,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsetsDirectional.symmetric(horizontal: 18),
+              child: note("ai-chat-empty-subtitle"
+                  .tr(namedArgs: {"provider": providerLabel(provider)})),
+            ),
+            Padding(
+              padding: const EdgeInsetsDirectional.only(
+                  start: 18, end: 18, top: 4, bottom: 16),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (String key in [
+                    "ai-example-1",
+                    "ai-example-2",
+                    "ai-example-3",
+                  ])
+                    ActionChip(
+                      label: Text(key.tr()),
+                      onPressed: () {
+                        messageController.text = key.tr();
+                        send();
+                      },
+                    ),
+                ],
+              ),
+            ),
+            AiActionsGrid(
+              onTap: runAction,
+              providerName: providerLabel(provider),
+              readsImages: model.readsImages,
+            ),
+            Padding(
+              padding: const EdgeInsetsDirectional.symmetric(horizontal: 18),
+              child: note("ai-disclaimer".tr()),
+            ),
+          ]
+        : [
+            for (ChatMessage message in conversation) messageWidget(message),
+            if (sending &&
+                (conversation.lastOrNull == null ||
+                    conversation.last.fromUser ||
+                    shownText(conversation.last) == ""))
+              Padding(
+                padding: const EdgeInsetsDirectional.all(15),
+                child: Row(children: [
+                  SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2)),
+                  if (lookingUp) ...[
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: TextFont(
+                        text: "ai-looking-up".tr(),
+                        fontSize: 14,
+                        maxLines: 2,
+                        textColor: getColor(context, "black").withOpacity(0.6),
                       ),
-                      onDeleted: () => setState(() => attachment = null),
-                      deleteButtonTooltipMessage: "ai-attach-remove".tr(),
+                    ),
+                  ],
+                ]),
+              ),
+          ];
+
+    Widget inputBar = Container(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      padding: EdgeInsetsDirectional.only(
+        start: 8,
+        end: 12,
+        top: 6,
+        // Above the phone's gesture bar when the keyboard is closed
+        bottom: 8 +
+            (MediaQuery.viewInsetsOf(context).bottom > 0
+                ? 0
+                : MediaQuery.viewPaddingOf(context).bottom),
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 760),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            if (error != null)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(bottom: 6),
+                child: errorLine(),
+              ),
+            if (attachment != null)
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Padding(
+                  padding:
+                      const EdgeInsetsDirectional.only(start: 8, bottom: 6),
+                  child: InputChip(
+                    avatar: Icon(attachmentIcon(attachment!), size: 18),
+                    label: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: 240),
+                      child: Text(attachment!.name,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    onDeleted: () => setState(() => attachment = null),
+                    deleteButtonTooltipMessage: "ai-attach-remove".tr(),
+                  ),
+                ),
+              ),
+            Row(children: [
+              IconButton(
+                onPressed: sending ? null : openActionsSheet,
+                tooltip: "ai-actions-title".tr(),
+                icon: Icon(Icons.auto_awesome_rounded, color: colors.primary),
+              ),
+              IconButton(
+                onPressed: sending ? null : openAttachSheet,
+                tooltip: "ai-attach".tr(),
+                icon: Icon(Icons.attach_file_rounded),
+              ),
+              Expanded(
+                child: TextInput(
+                  labelText: attachment == null
+                      ? "ai-ask-placeholder".tr()
+                      : "ai-ask-about-file".tr(),
+                  controller: messageController,
+                  padding: EdgeInsetsDirectional.zero,
+                  onSubmitted: (_) => send(),
+                  minLines: 1,
+                  maxLines: 5,
+                ),
+              ),
+              SizedBox(width: 8),
+              IconButton.filled(
+                onPressed: sending ? null : send,
+                tooltip: "ai-send".tr(),
+                icon: Icon(Icons.send_rounded),
+              ),
+            ]),
+          ]),
+        ),
+      ),
+    );
+
+    return PageFramework(
+      title: "ai-chat".tr(),
+      dragDownToDismiss: true,
+      resizeToAvoidBottomInset: true,
+      scrollController: chatScroll,
+      actions: [
+        IconButton(
+          tooltip: "ai-new-chat".tr(),
+          onPressed: sending ? null : newConversation,
+          icon: Icon(Icons.add_comment_rounded),
+        ),
+        IconButton(
+          tooltip: "ai-history".tr(),
+          onPressed: openHistory,
+          icon: Icon(Icons.history_rounded),
+        ),
+        IconButton(
+          tooltip: "ai-settings".tr(),
+          onPressed: () => setState(() => showSettings = true),
+          icon: Icon(Icons.settings_rounded),
+        ),
+      ],
+      bodyBuilder: (scrollController, scrollPhysics, sliverAppBar) => Column(
+        children: [
+          Expanded(
+            child: CustomScrollView(
+              controller: scrollController,
+              physics: scrollPhysics,
+              slivers: [
+                sliverAppBar,
+                SliverToBoxAdapter(
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: 760),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [...body, SizedBox(height: 12)],
+                      ),
                     ),
                   ),
                 ),
-              Row(children: [
-                IconButton(
-                  onPressed: sending ? null : openAttachSheet,
-                  tooltip: "ai-attach".tr(),
-                  icon: Icon(Icons.attach_file_rounded),
-                ),
-                Expanded(
-                  child: TextInput(
-                    labelText: attachment == null
-                        ? "ai-ask-placeholder".tr()
-                        : "ai-ask-about-file".tr(),
-                    controller: messageController,
-                    padding: EdgeInsetsDirectional.zero,
-                    onSubmitted: (_) => send(),
-                    minLines: 1,
-                    maxLines: 4,
-                  ),
-                ),
-                SizedBox(width: 8),
-                IconButton.filled(
-                  onPressed: sending ? null : send,
-                  icon: Icon(Icons.send_rounded),
-                ),
-              ]),
-            ]),
+              ],
+            ),
           ),
-        Padding(
-          padding: const EdgeInsetsDirectional.symmetric(horizontal: 18),
-          child: note("ai-disclaimer".tr()),
-        ),
-        SizedBox(height: 60),
-      ],
+          inputBar,
+        ],
+      ),
     );
   }
 }

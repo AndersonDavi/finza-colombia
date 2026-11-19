@@ -62,6 +62,15 @@
                 <data android:scheme="https" android:host="cashewapp.web.app" android:pathPrefix="/addTransactionRoute"/>
             </intent-filter>
 
+            <!-- The end of the ChatGPT sign-in sends the browser here, which
+                 brings Finza back to the front -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="${appScheme}" android:host="auth" />
+            </intent-filter>
+
             <!-- Specifies an Android theme to apply to this Activity as soon as
                  the Android process has started. This theme is visible to the user
                  while the Flutter UI initializes. After that, this theme continues

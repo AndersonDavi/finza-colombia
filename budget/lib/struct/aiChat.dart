@@ -1,7 +1,10 @@
+import 'dart:math';
 import 'dart:convert';
 
 import 'package:budget/database/tables.dart';
 import 'package:budget/database/walletGroups.dart';
+import 'package:budget/struct/aiChanges.dart';
+import 'package:budget/struct/aiQueries.dart';
 import 'package:budget/functions.dart';
 import 'package:budget/struct/chatgptSignIn.dart';
 import 'package:budget/struct/country.dart';
@@ -138,11 +141,19 @@ Uri geminiGenerateUri(AiProvider provider, String model) =>
 const FlutterSecureStorage secureStorage = FlutterSecureStorage();
 
 class ChatMessage {
-  ChatMessage(this.fromUser, this.text, {this.attachment});
+  ChatMessage(this.fromUser, this.text,
+      {this.attachment, this.attachmentName, this.hidden = false});
   final bool fromUser;
   String text;
   // A file sent with this message
   final AiAttachment? attachment;
+  // The name of a file sent in a saved chat; the file itself is not kept
+  final String? attachmentName;
+  // What happened to each change the AI proposed in this answer, by its
+  // position: done, opened, cancelled or failed
+  final Map<int, String> changeStatus = {};
+  // Sent to the model but not shown: the results of its data queries
+  final bool hidden;
 }
 
 class AiError implements Exception {
@@ -587,6 +598,9 @@ financial or tax advice.""";
 // arrives, for providers that stream it.
 // Only the latest attachment goes with its message; older ones are replaced
 // by a note with their name, which keeps requests small
+// The last messages of a chat sent with each question
+const int maxChatMessagesSent = 40;
+
 Future<String> sendChat(
   List<ChatMessage> conversation, {
   required String? financeContext,
@@ -595,9 +609,19 @@ Future<String> sendChat(
   AiProvider provider = selectedAiProvider();
   String model = await ensureModel(provider);
   String instructions = financeInstructions +
+      aiChangeInstructions +
+      aiQueryInstructions +
       (financeContext == null ? "" : "\n\nUser data:\n" + financeContext);
   AiApi api = aiApiOf(provider);
   AiModelInfo info = modelInfo(provider, model);
+  // Only the end of a long chat goes to the model, so the request stays small
+  // and inside its context window; the whole chat is still kept and shown.
+  // It starts on a question of the user, as some services require
+  int first = max(0, conversation.length - maxChatMessagesSent);
+  while (first < conversation.length - 1 && !conversation[first].fromUser) {
+    first++;
+  }
+  conversation = conversation.sublist(first);
   int attached = conversation.lastIndexWhere((m) => m.attachment != null);
   if (attached != -1) {
     AiAttachment attachment = conversation[attached].attachment!;
@@ -719,7 +743,8 @@ class AiChatTurn {
   factory AiChatTurn.of(ChatMessage message, {required bool withAttachment}) {
     AiAttachment? attachment = message.attachment;
     if (attachment == null) {
-      return AiChatTurn(message.fromUser, message.text, null);
+      return AiChatTurn(message.fromUser,
+          message.text + aiChangeStatusNote(message.changeStatus), null);
     }
     String text = message.text.trim();
     String join(String extra) => text == "" ? extra : text + "\n\n" + extra;
@@ -1133,9 +1158,17 @@ Future<String> buildFinanceContext(AllWallets allWallets) async {
     out.writeln("- ${entry.key}: " + convertToMoney(allWallets, entry.value));
   }
 
-  out.writeln("\nLast movements (date, title, category, pocket, amount):");
+  out.writeln("\nCategories: " +
+      categories.values
+          .where((c) => c.archived == false && c.categoryPk != "0")
+          .map((c) => c.name + (c.income ? " (income)" : ""))
+          .join(", "));
+
+  out.writeln(
+      "\nLast movements (#id, date, title, category, pocket, amount):");
   for (Transaction t in recent.take(150)) {
     out.writeln([
+      "#" + shortTransactionId(t.transactionPk),
       t.dateCreated.toIso8601String().substring(0, 10),
       t.name,
       categories[t.categoryFk]?.name ?? "",

@@ -35,6 +35,8 @@ android {
         versionName = flutter.versionName
         multiDexEnabled = true
         manifestPlaceholders["appLabel"] = "Finza"
+        // Link that brings the app back from the ChatGPT sign-in
+        manifestPlaceholders["appScheme"] = "finza"
     }
 
     lint {
@@ -60,6 +62,7 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             manifestPlaceholders["appLabel"] = "Finza Debug"
+            manifestPlaceholders["appScheme"] = "finzadebug"
         }
         release {
             // Without key.properties the release build is signed with the debug key
