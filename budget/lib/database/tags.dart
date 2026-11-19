@@ -154,13 +154,18 @@ extension TagQueries on FinanceDatabase {
 
   // Review inbox: what carries one of the review tags, plus movements named
   // just "?"
-  Stream<List<Transaction>> watchTransactionsToReview(List<String> tagPks) {
+  Stream<List<Transaction>> watchTransactionsToReview(
+      List<String> reviewTagPks, List<String> unknownTagPks) {
+    Expression<bool> taggedWith($TransactionsTable t, List<String> pks) =>
+        t.transactionPk.isInQuery(selectOnly(transactionToTagLinks)
+          ..addColumns([transactionToTagLinks.transactionPk])
+          ..where(transactionToTagLinks.tagPk.isIn(pks)));
     return (select(transactions)
           ..where((t) =>
-              t.name.trim().equals("?") |
-              t.transactionPk.isInQuery(selectOnly(transactionToTagLinks)
-                ..addColumns([transactionToTagLinks.transactionPk])
-                ..where(transactionToTagLinks.tagPk.isIn(tagPks))))
+              taggedWith(t, reviewTagPks) |
+              // A "?" already tagged as unknown was spent on who knows what
+              // on purpose, there is nothing to review
+              (t.name.trim().equals("?") & taggedWith(t, unknownTagPks).not()))
           ..orderBy([(t) => OrderingTerm.desc(t.dateCreated)]))
         .watch();
   }

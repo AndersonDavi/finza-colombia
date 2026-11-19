@@ -88,13 +88,43 @@ class PinnedTransactionsSection extends StatelessWidget {
 const String reviewTagPk = "por-revisar";
 
 // Tags that put a movement up for review: the one the bank emails come with
-// and any tag called "Desconocido"
-List<String> reviewTagPks() {
-  return [
-    reviewTagPk,
-    for (Tag tag in tagsCache.values)
-      if (tag.name.trim().toLowerCase() == "desconocido") tag.tagPk,
-  ];
+List<String> reviewTagPks() => [reviewTagPk];
+
+// A tag called "Desconocido" marks money spent on something unknown on
+// purpose: those stay out of the review
+const String unknownTagName = "Desconocido";
+
+List<String> unknownTagPks() => [
+      for (Tag tag in tagsCache.values)
+        if (tag.name.trim().toLowerCase() == unknownTagName.toLowerCase())
+          tag.tagPk,
+    ];
+
+Stream<List<Transaction>> watchTransactionsToReview() =>
+    database.watchTransactionsToReview(reviewTagPks(), unknownTagPks());
+
+// The check: an email one is confirmed as it came; a "?" one is kept as
+// unknown, tagged Desconocido (made the first time it is needed)
+Future<void> confirmReviewed(Transaction transaction) async {
+  if (transaction.name.trim() == "?") {
+    List<String> unknown = unknownTagPks();
+    String tagPk = unknown.isNotEmpty
+        ? unknown.first
+        : await database.createOrUpdateTag(
+            insert: true,
+            Tag(
+              tagPk: "-1",
+              name: unknownTagName,
+              order: 0,
+              archived: false,
+              dateCreated: DateTime.now(),
+            ),
+          );
+    await database.addTagsToTransactions([transaction.transactionPk], [tagPk]);
+  }
+  for (String tagPk in reviewTagPks())
+    await database.removeTagFromTransactions(
+        [transaction.transactionPk], tagPk);
 }
 
 // Rows shown here before the rest wait in the review inbox page
@@ -109,7 +139,7 @@ class ReviewTransactionsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<Transaction>>(
-      stream: database.watchTransactionsToReview(reviewTagPks()),
+      stream: watchTransactionsToReview(),
       builder: (context, snapshot) {
         List<Transaction> allPending = snapshot.data ?? [];
         if (allPending.isEmpty) return SizedBox.shrink();
@@ -180,7 +210,10 @@ class ReviewTransactionsSection extends StatelessWidget {
                         ),
                         transaction: pending[index],
                         listID: listID,
-                        useHorizontalPaddingConstrained: constrained,
+                        // The box already leaves the page margins; adding
+                        // them again squeezed the rows to nothing on wide
+                        // pages
+                        useHorizontalPaddingConstrained: false,
                         transactionBefore:
                             nullIfIndexOutOfRange(pending, index - 1),
                         transactionAfter:
@@ -189,11 +222,7 @@ class ReviewTransactionsSection extends StatelessWidget {
                     ),
                     IconButton(
                       tooltip: "confirm".tr(),
-                      onPressed: () async {
-                        for (String tagPk in reviewTagPks())
-                          await database.removeTagFromTransactions(
-                              [pending[index].transactionPk], tagPk);
-                      },
+                      onPressed: () => confirmReviewed(pending[index]),
                       icon: Icon(Icons.check_circle_outline_rounded,
                           color: color),
                     ),

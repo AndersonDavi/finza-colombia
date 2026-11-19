@@ -96,7 +96,7 @@ class _ReviewInboxPageState extends State<ReviewInboxPage> {
       dragDownToDismiss: true,
       listWidgets: [
         StreamBuilder<List<Transaction>>(
-          stream: database.watchTransactionsToReview(reviewTagPks()),
+          stream: watchTransactionsToReview(),
           builder: (context, snapshot) {
             List<Transaction> pending = snapshot.data ?? [];
             if (snapshot.hasData == false) return SizedBox.shrink();
