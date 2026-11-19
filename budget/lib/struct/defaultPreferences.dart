@@ -190,6 +190,16 @@ Future<Map<String, dynamic>> getDefaultPreferences() async {
     "distributionTemplatesModified": null,
     // "CO" turns on the Colombian taxes; null or "other" means no taxes
     "country": null,
+    // Loan simulator: how the user is paid ("monthly", "biweekly" or
+    // "variable"), how much, on which day, and what already goes out monthly
+    "loanIncomeFrequency": null,
+    "loanIncomeAmount": 0,
+    "loanIncomePayday": 30,
+    "loanMonthlyExpenses": 0,
+    "loanOtherDebtPayments": 0,
+    "loanPaydayRemindersDate": null,
+    // Screens whose first-time help tip was already dismissed
+    "helpGuidesSeen": [],
     // Time of the last "use this copy on every device" this device acted on
     "copyForAllHandled": null,
     // Mark this device puts on its sync file after "use this copy on every device"

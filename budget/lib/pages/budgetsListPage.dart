@@ -1,3 +1,4 @@
+import 'package:budget/widgets/helpGuide.dart';
 import 'package:budget/widgets/tagBudgets.dart';
 import 'package:budget/database/tables.dart';
 import 'package:budget/functions.dart';
@@ -44,6 +45,7 @@ class BudgetsListPageState extends State<BudgetsListPage> {
       dragDownToDismiss: widget.enableBackButton,
       horizontalPaddingConstrained: enableDoubleColumn(context) == false,
       actions: [
+        HelpGuideButton(guide: HelpGuides.budgets()),
         IconButton(
           padding: EdgeInsetsDirectional.all(15),
           tooltip: "edit-budgets".tr(),
@@ -80,6 +82,9 @@ class BudgetsListPageState extends State<BudgetsListPage> {
           ),
       ],
       slivers: [
+        SliverToBoxAdapter(
+          child: HelpFirstTimeTip(guide: HelpGuides.budgets()),
+        ),
         SliverToBoxAdapter(child: TagBudgetsSection()),
         StreamBuilder<List<Budget>>(
           stream: database.watchAllBudgets(hideArchived: true),

@@ -141,6 +141,153 @@ void main() {
     });
   });
 
+  group("independent worker", () {
+    test("contributions on 40% of the income, health and pension in full", () {
+      expect(independentMandatoryContributionRate, closeTo(0.114, 1e-9));
+      expect(mandatoryContributionRate(IncomeTaxWorkerKind.employee),
+          employeeMandatoryContributionRate);
+    });
+
+    test("with the 25% exempt it works like an employee", () {
+      IncomeTaxInput independent = IncomeTaxInput(
+        uvt: uvt,
+        kind: IncomeTaxWorkerKind.independent,
+        laborIncome: 3000 * uvt,
+        mandatoryContributions: 3000 * uvt * 0.114,
+        costs: 900 * uvt, // ignored without deductCosts
+      );
+      IncomeTaxResult r = computeIncomeTax(independent);
+      IncomeTaxResult employee = computeIncomeTax(IncomeTaxInput(
+        uvt: uvt,
+        laborIncome: 3000 * uvt,
+        mandatoryContributions: 3000 * uvt * 0.114,
+      ));
+      expect(r.costs, 0);
+      expect(r.taxableIncome, closeTo(employee.taxableIncome, 1e-6));
+      // 3000 - 342 = 2658, 25% = 664.5
+      expect(inUVT(r.laborExempt), closeTo(664.5, 1e-6));
+      expect(inUVT(r.taxableIncome), closeTo(2658 - 664.5, 1e-6));
+    });
+
+    test("real costs and the 25% exempt never go together", () {
+      IncomeTaxResult r = computeIncomeTax(IncomeTaxInput(
+        uvt: uvt,
+        kind: IncomeTaxWorkerKind.independent,
+        deductCosts: true,
+        laborIncome: 3000 * uvt,
+        mandatoryContributions: 342 * uvt,
+        costs: 900 * uvt,
+        prepaidHealth: 100 * uvt,
+        dependents: 1,
+      ));
+      expect(r.laborExempt, 0);
+      expect(inUVT(r.costs), closeTo(900, 1e-6));
+      expect(inUVT(r.netIncome), closeTo(3000 - 342 - 900, 1e-6));
+      // The 40% is taken before costs: 40% of 2658
+      expect(inUVT(r.cap), closeTo(2658 * 0.4, 1e-6));
+      expect(inUVT(r.allowedWithinCap), closeTo(100, 1e-6));
+      expect(inUVT(r.taxableIncome), closeTo(1758 - 100 - 72, 1e-6));
+      expect(r.taxUVT, closeTo((1586 - 1090) * 0.19, 1e-6));
+    });
+
+    test("costs can't go below zero income", () {
+      IncomeTaxResult r = computeIncomeTax(IncomeTaxInput(
+        uvt: uvt,
+        kind: IncomeTaxWorkerKind.independent,
+        deductCosts: true,
+        laborIncome: 1000 * uvt,
+        costs: 5000 * uvt,
+        dependents: 2,
+      ));
+      expect(inUVT(r.costs), closeTo(1000, 1e-6));
+      expect(r.dependents, 0);
+      expect(r.taxableIncome, 0);
+    });
+
+    test("an employee can't take real costs", () {
+      IncomeTaxResult r = computeIncomeTax(IncomeTaxInput(
+        uvt: uvt,
+        deductCosts: true,
+        laborIncome: 3000 * uvt,
+        costs: 900 * uvt,
+      ));
+      expect(r.costs, 0);
+      expect(inUVT(r.laborExempt), closeTo(750, 1e-6));
+    });
+
+    test("comparing both options", () {
+      IncomeTaxInput lowCosts = IncomeTaxInput(
+        uvt: uvt,
+        kind: IncomeTaxWorkerKind.independent,
+        laborIncome: 3000 * uvt,
+        costs: 300 * uvt,
+      );
+      IncomeTaxResult exempt = computeIncomeTax(lowCosts);
+      IncomeTaxResult withCosts = computeOtherIndependentOption(lowCosts);
+      // 750 exempt beats 300 of costs
+      expect(exempt.tax, lessThan(withCosts.tax));
+      IncomeTaxInput highCosts = IncomeTaxInput(
+        uvt: uvt,
+        kind: IncomeTaxWorkerKind.independent,
+        deductCosts: true,
+        laborIncome: 3000 * uvt,
+        costs: 1500 * uvt,
+      );
+      expect(computeIncomeTax(highCosts).tax,
+          lessThan(computeOtherIndependentOption(highCosts).tax));
+    });
+  });
+
+  group("other income and brackets", () {
+    test("other income gets no 25% exempt but counts for the 40%", () {
+      IncomeTaxResult r = computeIncomeTax(IncomeTaxInput(
+        uvt: uvt,
+        laborIncome: 2000 * uvt,
+        otherIncome: 1000 * uvt,
+      ));
+      expect(inUVT(r.grossIncome), closeTo(3000, 1e-6));
+      expect(inUVT(r.laborExempt), closeTo(500, 1e-6));
+      expect(inUVT(r.cap), closeTo(1200, 1e-6));
+      expect(inUVT(r.taxableIncome), closeTo(2500, 1e-6));
+    });
+
+    test("bracket, effective rate and distance to the next bracket", () {
+      expect(incomeTaxBracketIndex(0), 0);
+      expect(incomeTaxBracketIndex(1090), 0);
+      expect(incomeTaxBracketIndex(1091), 1);
+      expect(incomeTaxBracketIndex(50000), incomeTaxBrackets.length - 1);
+      IncomeTaxResult r = computeIncomeTax(
+          IncomeTaxInput(uvt: uvt, laborIncome: 2000 * uvt));
+      // 1500 UVT taxable
+      expect(r.bracket.rate, 0.19);
+      expect(r.uvtToNextBracket, closeTo(200, 1e-6));
+      expect(r.effectiveRate, closeTo(r.tax / (2000 * uvt), 1e-12));
+      IncomeTaxResult top = computeIncomeTax(
+          IncomeTaxInput(uvt: uvt, laborIncome: 100000 * uvt));
+      expect(top.uvtToNextBracket, null);
+      expect(computeIncomeTax(IncomeTaxInput(uvt: uvt)).effectiveRate, 0);
+    });
+
+    test("example case: 8 million a month, one dependent", () {
+      double salary = 8000000.0 * 12;
+      IncomeTaxResult r = computeIncomeTax(IncomeTaxInput(
+        uvt: uvt,
+        laborIncome: salary,
+        mandatoryContributions: salary * employeeMandatoryContributionRate,
+        dependents: 1,
+        prepaidHealth: 250000.0 * 12,
+        electronicInvoicePurchases: 4000000.0 * 12 * 0.4,
+        withholdings: 600000,
+      ));
+      FilingChecks checks = FilingChecks(
+          FilingValues(grossIncome: salary, deposits: salary), uvt);
+      expect(checks.mustFile, true);
+      expect(r.capBinds, false);
+      expect(r.bracket.rate, 0.19);
+      expect(r.tax, greaterThan(r.withholdings));
+    });
+  });
+
   group("filing", () {
     test("gross income obliges from 1400 UVT, the rest above the limit", () {
       FilingChecks atLimit = FilingChecks(

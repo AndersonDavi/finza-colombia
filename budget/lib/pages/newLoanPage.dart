@@ -1,5 +1,6 @@
 import 'package:budget/colors.dart';
 import 'package:budget/database/tables.dart';
+import 'package:budget/pages/addWalletPage.dart';
 import 'package:budget/functions.dart';
 import 'package:budget/pages/creditDebtTransactionsPage.dart';
 import 'package:budget/pages/editWalletsPage.dart';
@@ -108,6 +109,9 @@ class _NewLoanPageState extends State<NewLoanPage> {
     TransactionWallet? wallet = Provider.of<AllWallets>(context, listen: false)
         .indexedByPk[walletPk];
     if (wallet == null || amount <= 0) return;
+    // A fresh install has no balance correction category yet, and the loan's
+    // money is added with it
+    await initializeBalanceCorrectionCategory();
     int order = (await database.getTotalCountOfObjectives(
             objectiveType: ObjectiveType.loan))[0] ??
         0;

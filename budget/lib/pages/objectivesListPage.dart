@@ -967,15 +967,22 @@ String getObjectiveStatus(BuildContext context, Objective objective,
                         : "spend".tr()) +
                     " ")
             : "") +
-        convertToMoney(Provider.of<AllWallets>(context), amount.abs()) +
-        "/" +
-        "day".tr() +
-        " " +
-        "for".tr() +
-        " " +
-        remainingDays.toString() +
-        " " +
-        (remainingDays == 1 ? "day".tr() : "days".tr());
+        (remainingDays > 45
+            // Long goals and loans read better per month than per day
+            ? "objective-per-month".tr(namedArgs: {
+                "amount": convertToMoney(Provider.of<AllWallets>(context),
+                    amount.abs() * remainingDays / (remainingDays / 30.44).ceil()),
+                "months": (remainingDays / 30.44).ceil().toString(),
+              })
+            : convertToMoney(Provider.of<AllWallets>(context), amount.abs()) +
+                "/" +
+                "day".tr() +
+                " " +
+                "for".tr() +
+                " " +
+                remainingDays.toString() +
+                " " +
+                (remainingDays == 1 ? "day".tr() : "days".tr()));
   }
   return content;
 }

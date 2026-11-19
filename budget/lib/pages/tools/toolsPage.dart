@@ -6,8 +6,10 @@ import 'package:budget/pages/tools/loanSimulatorPage.dart';
 import 'package:budget/pages/tools/paymentsCenterPage.dart';
 import 'package:budget/pages/tools/pilaCalculatorPage.dart';
 import 'package:budget/pages/tools/rateCalculatorPage.dart';
+import 'package:budget/pages/tools/toolWidgets.dart';
 import 'package:budget/struct/country.dart';
 import 'package:budget/widgets/framework/pageFramework.dart';
+import 'package:budget/widgets/helpGuide.dart';
 import 'package:budget/widgets/settingsContainers.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -32,7 +34,13 @@ class ToolsPage extends StatelessWidget {
       title: "tools".tr(),
       dragDownToDismiss: true,
       horizontalPaddingConstrained: true,
+      actions: [HelpGuideButton(guide: HelpGuides.tools())],
       listWidgets: [
+        Padding(
+          padding: const EdgeInsetsDirectional.symmetric(horizontal: 18),
+          child: ToolNote(text: "ux-tools-intro".tr()),
+        ),
+        HelpFirstTimeTip(guide: HelpGuides.tools()),
         SettingsHeader(title: "tools-section-money".tr()),
         tool("payments-center", "payments-center-description",
             Icons.event_available_rounded, PaymentsCenterPage()),

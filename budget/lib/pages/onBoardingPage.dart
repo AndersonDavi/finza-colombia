@@ -396,6 +396,7 @@ class OnBoardingPageBodyState extends State<OnBoardingPageBody> {
               maxLines: 5,
             ),
           ),
+          onboardingText("ux-onboarding-budget-description".tr()),
           SizedBox(height: 10),
           BudgetDetails(
             determineBottomButton: () {},

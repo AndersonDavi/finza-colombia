@@ -10,9 +10,10 @@ import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/settings.dart';
 import 'package:budget/widgets/button.dart';
 import 'package:budget/widgets/framework/popupFramework.dart';
+import 'package:budget/widgets/helpGuide.dart';
+import 'package:budget/pages/tools/toolWidgets.dart';
 import 'package:budget/widgets/openBottomSheet.dart';
 import 'package:budget/widgets/openPopup.dart';
-import 'package:budget/widgets/outlinedButtonStacked.dart';
 import 'package:budget/widgets/selectColor.dart';
 import 'package:budget/widgets/settingsContainers.dart';
 import 'package:budget/widgets/tappable.dart';
@@ -564,6 +565,8 @@ class _EditWalletGroupPopupState extends State<EditWalletGroupPopup> {
   late String? freeWalletFk = widget.group?.freeWalletFk;
   late bool? gmfCharged = widget.group?.gmfCharged;
   late double? gmfExemptUVT = widget.group?.gmfExemptUVT;
+  // The guide unfolds inside the sheet; a second sheet on top doesn't open
+  bool showHelp = false;
 
   Future<void> deleteGroup() async {
     dynamic confirmed = await openPopup(
@@ -618,25 +621,24 @@ class _EditWalletGroupPopupState extends State<EditWalletGroupPopup> {
   @override
   Widget build(BuildContext context) {
     Widget kindOption(WalletGroupKind option) {
-      return Padding(
-        padding: const EdgeInsetsDirectional.all(4),
-        child: OutlinedButtonStacked(
-          filled: kind == option,
-          alignStart: true,
-          alignBeside: true,
-          padding:
-              EdgeInsetsDirectional.symmetric(horizontal: 14, vertical: 12),
-          text: walletGroupKindLabel(option),
-          iconData: walletGroupKindIcon(option),
-          onTap: () => setState(() => kind = option),
-        ),
+      return ChoiceChip(
+        avatar: Icon(walletGroupKindIcon(option), size: 18),
+        showCheckmark: false,
+        label: TextFont(text: walletGroupKindLabel(option), fontSize: 15),
+        selected: kind == option,
+        onSelected: (_) => setState(() => kind = option),
       );
     }
 
     return PopupFramework(
       title: widget.group == null ? "new-group".tr() : "edit-group".tr(),
       outsideExtraWidget: widget.group == null
-          ? null
+          ? OutsideExtraWidgetIconButton(
+              iconData: appStateSettings["outlinedIcons"]
+                  ? Icons.help_outline_outlined
+                  : Icons.help_outline_rounded,
+              onPressed: () => setState(() => showHelp = !showHelp),
+            )
           : OutsideExtraWidgetIconButton(
               iconData: appStateSettings["outlinedIcons"]
                   ? Icons.delete_outlined
@@ -645,6 +647,17 @@ class _EditWalletGroupPopupState extends State<EditWalletGroupPopup> {
             ),
       child: Column(
         children: [
+          AnimatedSize(
+            duration: Duration(milliseconds: 300),
+            curve: Curves.easeInOutCubic,
+            child: showHelp
+                ? Column(children: [
+                    for (final (i, step)
+                        in HelpGuides.accountEditor().steps.indexed)
+                      HelpStepRow(number: i + 1, text: step),
+                  ])
+                : SizedBox(width: double.infinity),
+          ),
           TextInput(
             labelText: "name-placeholder".tr(),
             initialValue: name,
@@ -652,9 +665,22 @@ class _EditWalletGroupPopupState extends State<EditWalletGroupPopup> {
             onChanged: (text) => setState(() => name = text),
             padding: EdgeInsetsDirectional.zero,
           ),
-          SizedBox(height: 12),
+          SizedBox(height: 14),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: Padding(
+              padding: const EdgeInsetsDirectional.only(start: 5, bottom: 6),
+              child: TextFont(
+                text: "ux-account-kind-question".tr(),
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
           Wrap(
-            alignment: WrapAlignment.center,
+            alignment: WrapAlignment.start,
+            spacing: 8,
+            runSpacing: 8,
             children: [
               for (WalletGroupKind option in WalletGroupKind.values)
                 kindOption(option),
@@ -725,6 +751,7 @@ class GmfSetting extends StatelessWidget {
         );
     return Column(
       children: [
+        ToolNote(text: "ux-gmf-what".tr()),
         SettingsContainerSwitch(
           title: "gmf-charged".tr(),
           description: "gmf-charged-description".tr(),

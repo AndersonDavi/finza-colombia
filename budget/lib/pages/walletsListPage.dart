@@ -1,3 +1,4 @@
+import 'package:budget/widgets/helpGuide.dart';
 import 'package:budget/colors.dart';
 import 'package:budget/database/tables.dart';
 import 'package:budget/pages/addWalletPage.dart';
@@ -39,6 +40,7 @@ class WalletsListPageState extends State<WalletsListPage> {
       title: "accounts".tr(),
       backButton: false,
       actions: [
+        HelpGuideButton(guide: HelpGuides.pockets()),
         IconButton(
           tooltip: "distribute".tr(),
           onPressed: () => pushRoute(context, DistributePage()),
@@ -62,6 +64,13 @@ class WalletsListPageState extends State<WalletsListPage> {
             maxWidth: 700,
             horizontalPadding: 0,
             child: HomePageNetWorth(),
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: CenteredPageContent(
+            maxWidth: 700,
+            horizontalPadding: 0,
+            child: HelpFirstTimeTip(guide: HelpGuides.pockets()),
           ),
         ),
         StreamBuilder<List<WalletWithDetails>>(

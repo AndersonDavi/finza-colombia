@@ -1,3 +1,4 @@
+import 'package:budget/widgets/helpGuide.dart';
 import 'package:budget/colors.dart';
 import 'package:budget/database/generatePreviewData.dart';
 import 'package:budget/database/tables.dart';
@@ -277,6 +278,7 @@ class HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            HelpGuideButton(guide: HelpGuides.home()),
                             Tooltip(
                               message: "privacy-mode".tr(),
                               child: IconButton(
@@ -347,6 +349,7 @@ class HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             ),
                           )
                         : SizedBox(height: 5),
+                    HelpFirstTimeTip(guide: HelpGuides.home()),
                     // Not full screen
                     if (enableDoubleColumn(context) != true) ...[
                       KeepAliveClientMixin(child: HomePageRatingBox()),

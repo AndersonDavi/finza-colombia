@@ -109,6 +109,15 @@ enum AmortizationSystem { fixedInstallment, constantPrincipal }
 
 enum ExtraPaymentMode { reduceTerm, reduceInstallment }
 
+// An abono extraordinario: money paid to the principal on top of the
+// installment of that month. Without a mode it uses the loan's
+class ExtraPayment {
+  const ExtraPayment({required this.month, required this.amount, this.mode});
+  final int month;
+  final double amount;
+  final ExtraPaymentMode? mode;
+}
+
 class AmortizationRow {
   const AmortizationRow({
     required this.month,
@@ -160,9 +169,28 @@ LoanResult simulateLoan({
   double extraAmount = 0,
   int extraMonth = 0,
   ExtraPaymentMode extraMode = ExtraPaymentMode.reduceTerm,
+  List<ExtraPayment> extraPayments = const [],
 }) {
   List<AmortizationRow> rows = [];
   if (amount <= 0 || months <= 0) return LoanResult(amount, rows);
+
+  // Extra payments grouped by month; the single extra payment is kept for
+  // older callers
+  Map<int, double> extraByMonth = {};
+  Map<int, ExtraPaymentMode> modeByMonth = {};
+  void addExtra(int month, double value, ExtraPaymentMode mode) {
+    if (value <= 0 || month <= 0) return;
+    extraByMonth[month] = (extraByMonth[month] ?? 0) + value;
+    // Reducing the installment wins when two payments share a month
+    if (modeByMonth[month] != ExtraPaymentMode.reduceInstallment) {
+      modeByMonth[month] = mode;
+    }
+  }
+
+  addExtra(extraMonth, extraAmount, extraMode);
+  for (ExtraPayment payment in extraPayments) {
+    addExtra(payment.month, payment.amount, payment.mode ?? extraMode);
+  }
 
   double balance = amount;
   double payment = fixedInstallment(amount, monthlyRate, months);
@@ -177,11 +205,13 @@ LoanResult simulateLoan({
     balance -= principal;
 
     double extra = 0;
-    if (extraAmount > 0 && month == extraMonth && balance > 0) {
-      extra = min(extraAmount, balance);
+    double extraDue = extraByMonth[month] ?? 0;
+    if (extraDue > 0 && balance > 0) {
+      extra = min(extraDue, balance);
       balance -= extra;
       int remaining = months - month;
-      if (extraMode == ExtraPaymentMode.reduceInstallment && remaining > 0) {
+      if (modeByMonth[month] == ExtraPaymentMode.reduceInstallment &&
+          remaining > 0) {
         payment = fixedInstallment(balance, monthlyRate, remaining);
         principalPart = balance / remaining;
       }
@@ -197,4 +227,140 @@ LoanResult simulateLoan({
     ));
   }
   return LoanResult(amount, rows);
+}
+
+// How a loan offer states its rate. Monthly rates come "mes vencido" (paid
+// at the end of the month) or "mes anticipado" (charged at the start).
+// Everything is simulated with the equivalent effective monthly rate
+enum LoanRateKind { ea, monthlyArrears, monthlyAnticipated, nmv, nama }
+
+// An anticipated monthly rate ia costs the same as i = ia / (1 - ia) in
+// arrears
+double anticipatedToArrears(double anticipated) =>
+    anticipated / (1 - anticipated);
+
+double arrearsToAnticipated(double arrears) => arrears / (1 + arrears);
+
+bool isValidLoanRate(double rate, LoanRateKind kind) {
+  if (rate.isNaN || rate.isInfinite || rate < 0) return false;
+  if (kind == LoanRateKind.monthlyAnticipated && rate >= 1) return false;
+  if (kind == LoanRateKind.nama) return isValidRate(rate, RateType.nama);
+  return true;
+}
+
+double loanRateToMonthlyEffective(double rate, LoanRateKind kind) {
+  switch (kind) {
+    case LoanRateKind.ea:
+      return rateToMonthlyEffective(rate, RateType.ea);
+    case LoanRateKind.monthlyArrears:
+      return rate;
+    case LoanRateKind.monthlyAnticipated:
+      return anticipatedToArrears(rate);
+    case LoanRateKind.nmv:
+      return rateToMonthlyEffective(rate, RateType.nmv);
+    case LoanRateKind.nama:
+      return rateToMonthlyEffective(rate, RateType.nama);
+  }
+}
+
+double monthlyEffectiveToLoanRate(double monthly, LoanRateKind kind) {
+  switch (kind) {
+    case LoanRateKind.ea:
+      return monthlyEffectiveToRate(monthly, RateType.ea);
+    case LoanRateKind.monthlyArrears:
+      return monthly;
+    case LoanRateKind.monthlyAnticipated:
+      return arrearsToAnticipated(monthly);
+    case LoanRateKind.nmv:
+      return monthlyEffectiveToRate(monthly, RateType.nmv);
+    case LoanRateKind.nama:
+      return monthlyEffectiveToRate(monthly, RateType.nama);
+  }
+}
+
+// Savings of a plan with extra payments against the same loan without them
+class ExtraPaymentSavings {
+  ExtraPaymentSavings(LoanResult base, LoanResult withExtra)
+      : interest = base.totalInterest - withExtra.totalInterest,
+        fees = base.totalFees - withExtra.totalFees,
+        months = base.months - withExtra.months;
+  final double interest;
+  final double fees;
+  final int months;
+
+  double get total => interest + fees;
+}
+
+// Affordability. Common guidance: up to 30% of the monthly income going to
+// debt installments is healthy, 30% to 40% calls for caution, above 40% is
+// risky. It is a general guide, not a rule of any bank
+
+enum DebtLevel { healthy, caution, risky }
+
+const double debtHealthyLimit = 0.30;
+const double debtCautionLimit = 0.40;
+
+// Share of the monthly income that goes to installments, null without income
+double? debtToIncomeRatio(double monthlyInstallments, double monthlyIncome) {
+  if (monthlyIncome <= 0) return null;
+  return monthlyInstallments / monthlyIncome;
+}
+
+DebtLevel debtLevel(double ratio) {
+  if (ratio <= debtHealthyLimit + 1e-9) return DebtLevel.healthy;
+  if (ratio <= debtCautionLimit + 1e-9) return DebtLevel.caution;
+  return DebtLevel.risky;
+}
+
+// The biggest installment that stays within a share of the income, after
+// the installments already being paid
+double maxAffordableInstallment(
+    double monthlyIncome, double currentInstallments,
+    {double limit = debtHealthyLimit}) {
+  return max(0, monthlyIncome * limit - currentInstallments);
+}
+
+enum PayFrequency { monthly, biweekly, variable }
+
+// Monthly income from what is received each time: biweekly pay comes twice
+double monthlyIncomeFrom(PayFrequency frequency, double amount) {
+  if (amount <= 0) return 0;
+  return frequency == PayFrequency.biweekly ? amount * 2 : amount;
+}
+
+// Dates
+
+int daysInMonth(int year, int month) => DateTime(year, month + 1, 0).day;
+
+// The same day some months later, moved back to the last day when the month
+// is shorter: Jan 31 + 1 month is Feb 28
+DateTime addMonthsClamped(DateTime date, int months) {
+  int monthIndex = date.month - 1 + months;
+  int year = date.year + (monthIndex / 12).floor();
+  int month = monthIndex % 12 + 1;
+  return DateTime(year, month, min(date.day, daysInMonth(year, month)));
+}
+
+// The next date, from today on, that falls on that day of the month
+// (clamped to the last day of short months)
+DateTime nextDayOfMonth(DateTime from, int day) {
+  DateTime today = DateTime(from.year, from.month, from.day);
+  DateTime candidate = DateTime(
+      today.year, today.month, min(day, daysInMonth(today.year, today.month)));
+  if (candidate.isBefore(today)) {
+    int year = today.month == 12 ? today.year + 1 : today.year;
+    int month = today.month == 12 ? 1 : today.month + 1;
+    candidate = DateTime(year, month, min(day, daysInMonth(year, month)));
+  }
+  return candidate;
+}
+
+// Monthly installments left from the next one up to the last one, both
+// included
+int remainingMonthlyInstallments(DateTime next, DateTime last) {
+  if (last.isBefore(DateTime(next.year, next.month, next.day))) return 0;
+  int months = (last.year - next.year) * 12 + last.month - next.month;
+  if (last.day < next.day && last.day < daysInMonth(last.year, last.month))
+    months--;
+  return max(0, months + 1);
 }

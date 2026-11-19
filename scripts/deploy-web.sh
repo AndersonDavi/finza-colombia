@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Builds the web app and publishes it on Cloudflare Pages
-# (finza.pages.dev). release.sh runs it after every Android release so
-# both stay on the same version; it also works on its own.
+# Publishes finza.pages.dev on Cloudflare Pages: the download page from
+# landing/ at the root and the web app under /app. release.sh runs it after
+# every Android release so both stay on the same version; it also works on
+# its own.
 # Needs Flutter in the PATH, Node 18 or newer for wrangler and a wrangler login
 # for the Cloudflare account that owns the Pages project.
 set -euo pipefail
@@ -18,8 +19,12 @@ if [ -n "${APPDATA:-}" ] && command -v cygpath > /dev/null; then
   [ -d "$node24" ] && export PATH="$node24:$PATH"
 fi
 
-(cd "$app" && flutter build web --release --no-wasm-dry-run)
+(cd "$app" && flutter build web --release --no-wasm-dry-run --base-href /app/)
+site="$app/build/site"
+rm -rf "$site"
+cp -r "$root/landing" "$site"
+cp -r "$app/build/web" "$site/app"
 # From the build folder so wrangler's cache stays out of the repo
-(cd "$app/build" && npx -y wrangler@4.45.0 pages deploy "$app/build/web" \
+(cd "$app/build" && npx -y wrangler@4.45.0 pages deploy "$site" \
   --project-name "$project" --branch main --commit-dirty=true)
 echo "Web published: $(sed -n 's/^version: //p' "$app/pubspec.yaml")"

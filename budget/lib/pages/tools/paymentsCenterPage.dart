@@ -8,6 +8,7 @@ import 'package:budget/struct/country.dart';
 import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/settings.dart';
 import 'package:budget/widgets/framework/pageFramework.dart';
+import 'package:budget/widgets/helpGuide.dart';
 import 'package:budget/widgets/openPopup.dart';
 import 'package:budget/widgets/settingsContainers.dart';
 import 'package:budget/widgets/transactionEntry/transactionEntry.dart';
@@ -56,7 +57,9 @@ class PaymentsCenterPage extends StatelessWidget {
       title: "payments-center".tr(),
       dragDownToDismiss: true,
       horizontalPaddingConstrained: true,
+      actions: [HelpGuideButton(guide: HelpGuides.paymentsCenter())],
       listWidgets: [
+        HelpFirstTimeTip(guide: HelpGuides.paymentsCenter()),
         StreamBuilder<List<Transaction>>(
           stream: database.getAllSubscriptions().$1,
           builder: (context, snapshot) {
@@ -105,6 +108,10 @@ class PaymentsCenterPage extends StatelessWidget {
         Padding(
           padding: const EdgeInsetsDirectional.symmetric(horizontal: 13),
           child: ToolSectionTitle(text: "add-a-due-payment".tr()),
+        ),
+        Padding(
+          padding: const EdgeInsetsDirectional.symmetric(horizontal: 13),
+          child: ToolNote(text: "ux-payments-presets-hint".tr()),
         ),
         Padding(
           padding: const EdgeInsetsDirectional.symmetric(horizontal: 13),

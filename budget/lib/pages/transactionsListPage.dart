@@ -18,6 +18,7 @@ import 'package:budget/widgets/settingsContainers.dart';
 import 'package:budget/widgets/textWidgets.dart';
 import 'package:budget/widgets/transactionEntries.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:budget/widgets/helpGuide.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:sliver_tools/sliver_tools.dart';
@@ -131,6 +132,8 @@ class TransactionsListPageState extends State<TransactionsListPage>
       selectedTransactionsAppBar: SelectedTransactionsAppBar(pageID: pageId),
       scrollbar: false,
       actions: [
+        HelpGuideButton(guide: HelpGuides.transactions()),
+        HelpGuideButton(guide: HelpGuides.transactions()),
         IconButton(
           tooltip: "filters".tr(),
           onPressed: () {

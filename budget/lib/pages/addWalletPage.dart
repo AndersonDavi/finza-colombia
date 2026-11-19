@@ -1,3 +1,6 @@
+import 'package:budget/struct/country.dart';
+import 'package:budget/widgets/viewAllTransactionsButton.dart';
+import 'package:budget/widgets/helpGuide.dart';
 import 'package:budget/database/tables.dart';
 import 'package:budget/functions.dart';
 import 'package:budget/pages/addTransactionPage.dart';
@@ -69,6 +72,9 @@ class _AddWalletPageState extends State<AddWalletPage> {
   String? selectedIconName;
   Map<String, dynamic> currencies = {};
   bool customCurrencyIcon = false;
+  // Currency and decimals stay behind "More options" so a new pocket only
+  // asks for a name, a color and its account
+  bool showAdvancedOptions = false;
   String? searchCurrency = "";
   String selectedCurrency =
       getDevicesDefaultCurrencyCode(); //if no currency selected use empty string
@@ -226,6 +232,14 @@ class _AddWalletPageState extends State<AddWalletPage> {
           : HexColor(widget.wallet!.colour);
       selectedCurrency = widget.wallet!.currency ?? "usd";
       selectedDecimals = widget.wallet!.decimals;
+    } else {
+      // The currency picker is folded away, so a new pocket starts in the
+      // currency of the selected pocket instead of the device's
+      TransactionWallet? primary = Provider.of<AllWallets>(context,
+              listen: false)
+          .indexedByPk[appStateSettings["selectedWalletPk"]];
+      if (primary?.currency != null) selectedCurrency = primary!.currency!;
+      if (livesInColombia()) selectedDecimals = defaultPocketDecimals();
     }
     populateCurrencies();
     Future.delayed(Duration.zero, () async {
@@ -445,6 +459,7 @@ class _AddWalletPageState extends State<AddWalletPage> {
           }
         },
         actions: [
+          HelpGuideButton(guide: HelpGuides.pocketEditor()),
           CustomPopupMenuButton(
             showButtons: true,
             keepOutFirst: true,
@@ -844,7 +859,19 @@ class _AddWalletPageState extends State<AddWalletPage> {
                 ),
               ),
             ),
-          if (widget.wallet == null)
+          if (showAdvancedOptions == false)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsetsDirectional.only(top: 5),
+                child: Center(
+                  child: LowKeyButton(
+                    onTap: () => setState(() => showAdvancedOptions = true),
+                    text: "ux-pocket-more-options".tr(),
+                  ),
+                ),
+              ),
+            ),
+          if (showAdvancedOptions && widget.wallet == null)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsetsDirectional.only(
@@ -868,18 +895,20 @@ class _AddWalletPageState extends State<AddWalletPage> {
                 ),
               ),
             ),
-          SliverToBoxAdapter(child: SizedBox(height: 10)),
-          CurrencyPicker(
-            showExchangeRateInfoNotice: true,
-            onSelected: setSelectedCurrency,
-            initialCurrency: selectedCurrency,
-            onHasFocus: () {
-              // Disable scroll when focus - because iOS header height is different than that of Android.
-              // Future.delayed(Duration(milliseconds: 500), () {
-              //   addWalletPageKey.currentState?.scrollTo(250);
-              // });
-            },
-          ),
+          if (showAdvancedOptions) ...[
+            SliverToBoxAdapter(child: SizedBox(height: 10)),
+            CurrencyPicker(
+              showExchangeRateInfoNotice: true,
+              onSelected: setSelectedCurrency,
+              initialCurrency: selectedCurrency,
+              onHasFocus: () {
+                // Disable scroll when focus - because iOS header height is different than that of Android.
+                // Future.delayed(Duration(milliseconds: 500), () {
+                //   addWalletPageKey.currentState?.scrollTo(250);
+                // });
+              },
+            ),
+          ],
           SliverToBoxAdapter(child: SizedBox(height: 65)),
           // SliverToBoxAdapter(
           //   child: KeyboardHeightAreaAnimated(),

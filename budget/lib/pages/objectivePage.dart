@@ -3,6 +3,7 @@ import 'package:budget/functions.dart';
 import 'package:budget/pages/addObjectivePage.dart';
 import 'package:budget/pages/addTransactionPage.dart';
 import 'package:budget/pages/objectivesListPage.dart';
+import 'package:budget/pages/tools/activeLoans.dart';
 import 'package:budget/pages/transactionFilters.dart';
 import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/defaultPreferences.dart';
@@ -512,48 +513,54 @@ class _ObjectivePageContentState extends State<_ObjectivePageContent> {
                             child: Padding(
                               padding: const EdgeInsetsDirectional.only(
                                   top: 20.0, start: 20, end: 20),
-                              child: Column(
-                                children: [
-                                  TextFont(
-                                    text: getWordedDateShortMore(
-                                          widget.objective.dateCreated,
-                                          includeYear: widget
-                                                  .objective.dateCreated.year !=
-                                              DateTime.now().year,
-                                        ) +
-                                        (widget.objective.endDate != null
-                                            ? " – " +
-                                                getWordedDateShortMore(
-                                                  widget.objective.endDate!,
-                                                  includeYear: widget.objective
-                                                          .endDate!.year !=
-                                                      DateTime.now().year,
-                                                )
-                                            : ""),
-                                    maxLines: 3,
-                                    textAlign: TextAlign.center,
-                                    fontSize: 21,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  if (widget.objective.endDate != null)
-                                    Padding(
-                                      padding: const EdgeInsetsDirectional.only(
-                                          top: 12),
-                                      child: TextFont(
-                                        text: getObjectiveStatus(
-                                          context,
-                                          widget.objective,
-                                          totalAmount,
-                                          percentageTowardsGoal,
-                                          objectiveAmount,
-                                          addSpendingSavingIndication: true,
-                                        ),
-                                        maxLines: 3,
-                                        textAlign: TextAlign.center,
-                                        fontSize: 16,
-                                      ),
+                              child: LoanObjectiveSummary(
+                                objective: widget.objective,
+                                fallback: Column(
+                                  children: [
+                                    TextFont(
+                                      text: getWordedDateShortMore(
+                                            widget.objective.dateCreated,
+                                            includeYear: widget.objective
+                                                    .dateCreated.year !=
+                                                DateTime.now().year,
+                                          ) +
+                                          (widget.objective.endDate != null
+                                              ? " – " +
+                                                  getWordedDateShortMore(
+                                                    widget.objective.endDate!,
+                                                    includeYear: widget
+                                                            .objective
+                                                            .endDate!
+                                                            .year !=
+                                                        DateTime.now().year,
+                                                  )
+                                              : ""),
+                                      maxLines: 3,
+                                      textAlign: TextAlign.center,
+                                      fontSize: 21,
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                ],
+                                    if (widget.objective.endDate != null)
+                                      Padding(
+                                        padding:
+                                            const EdgeInsetsDirectional.only(
+                                                top: 12),
+                                        child: TextFont(
+                                          text: getObjectiveStatus(
+                                            context,
+                                            widget.objective,
+                                            totalAmount,
+                                            percentageTowardsGoal,
+                                            objectiveAmount,
+                                            addSpendingSavingIndication: true,
+                                          ),
+                                          maxLines: 3,
+                                          textAlign: TextAlign.center,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),

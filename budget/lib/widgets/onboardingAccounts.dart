@@ -3,6 +3,7 @@ import 'package:budget/database/tables.dart';
 import 'package:budget/database/walletGroups.dart';
 import 'package:budget/struct/country.dart';
 import 'package:budget/struct/databaseGlobal.dart';
+import 'package:budget/struct/defaultCategories.dart';
 import 'package:budget/widgets/categoryIcon.dart';
 import 'package:budget/widgets/textWidgets.dart';
 import 'package:budget/widgets/walletGroups.dart';
@@ -186,16 +187,20 @@ class OnboardingAccountsStep extends StatelessWidget {
                 ),
               ],
             ),
-            if (groups.isNotEmpty) ...[
-              SizedBox(height: 15),
-              TextFont(
+            // Always laid out so the chips don't move when the first one
+            // is picked; it only fades in
+            SizedBox(height: 15),
+            AnimatedOpacity(
+              opacity: groups.isNotEmpty ? 1 : 0,
+              duration: Duration(milliseconds: 250),
+              child: TextFont(
                 text: "onboarding-accounts-edit-hint".tr(),
                 fontSize: 14,
                 textAlign: TextAlign.center,
                 maxLines: 3,
                 textColor: getColor(context, "black").withOpacity(0.5),
               ),
-            ],
+            ),
           ],
         );
       },
@@ -269,19 +274,33 @@ class PocketsExample extends StatelessWidget {
   }
 }
 
-// The default categories, so the user sees what is already there
-class CategoriesExample extends StatelessWidget {
+// The default categories, so the user sees what is already there. Until the
+// first install has written them, the built-in list is shown instead, so the
+// step is never empty
+class CategoriesExample extends StatefulWidget {
   const CategoriesExample({super.key});
+
+  @override
+  State<CategoriesExample> createState() => _CategoriesExampleState();
+}
+
+class _CategoriesExampleState extends State<CategoriesExample> {
+  late final Stream<List<TransactionCategory>> categoriesStream =
+      database.watchAllCategories();
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<TransactionCategory>>(
-      stream: database.watchAllCategories(),
+      stream: categoriesStream,
       builder: (context, snapshot) {
-        List<TransactionCategory> categories = (snapshot.data ?? [])
-            .where((c) => c.categoryPk != "0" && c.mainCategoryPk == null)
-            .take(12)
-            .toList();
+        bool mainOnly(TransactionCategory c) =>
+            c.categoryPk != "0" && c.mainCategoryPk == null;
+        List<TransactionCategory> categories =
+            (snapshot.data ?? []).where(mainOnly).toList();
+        if (categories.isEmpty) {
+          categories = defaultCategories().where(mainOnly).toList();
+        }
+        categories = categories.take(12).toList();
         return Wrap(
           alignment: WrapAlignment.center,
           spacing: 4,

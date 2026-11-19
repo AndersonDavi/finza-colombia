@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cartel Finza</title>
+  <link rel="icon" href="favicon.png">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* A printable sign: open it and print to a letter page */
+    @page { size: letter; margin: 0; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #E9E7F7;
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+      color: #17152A;
+    }
+    .sheet {
+      width: 8.5in; min-height: 11in;
+      margin: 24px auto;
+      background: #fff;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 0.6in;
+      text-align: center;
+      box-shadow: 0 10px 40px rgba(23, 21, 42, .15);
+    }
+    .brand { display: flex; align-items: center; gap: 18px; }
+    .brand img { width: 1.2in; height: 1.2in; border-radius: 0.3in; }
+    .brand h1 { font-size: 64pt; margin: 0; letter-spacing: -2px; }
+    .tagline {
+      font-size: 22pt; font-weight: 700; margin: 12px 0 0;
+      background: linear-gradient(90deg, #4F46E5, #8B5CF6);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .what { font-size: 15pt; color: #4A4766; max-width: 6in; margin: 14px 0 26px; }
+    .qr {
+      padding: 0.18in; border-radius: 0.3in;
+      background: linear-gradient(135deg, #4F46E5, #8B5CF6);
+    }
+    .qr img { display: block; width: 4.2in; height: 4.2in; background: #fff; border-radius: 0.18in; }
+    .scan { font-size: 26pt; font-weight: 800; margin: 26px 0 4px; }
+    .url { font-size: 18pt; font-weight: 700; color: #4F46E5; margin: 0; }
+    .small { font-size: 11pt; color: #6B6889; margin-top: 22px; }
+    .print { margin: 0 auto 24px; display: block; font: inherit; font-weight: 700; padding: 12px 22px; border-radius: 12px; border: 0; background: #4F46E5; color: #fff; cursor: pointer; }
+    @media print {
+      body { background: #fff; }
+      .sheet { margin: 0; box-shadow: none; }
+      .print { display: none; }
+    }
+    @media (max-width: 900px) {
+      .sheet { width: auto; min-height: 0; margin: 0; padding: 32px 16px; }
+      .brand h1 { font-size: 48px; }
+      .brand img { width: 72px; height: 72px; border-radius: 18px; }
+      .qr img { width: min(78vw, 4.2in); height: min(78vw, 4.2in); }
+    }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="brand">
+      <img src="icon.png" alt="">
+      <h1>Finza</h1>
+    </div>
+    <p class="tagline">Controla tu dinero, alcanza tus metas.</p>
+    <p class="what">Finanzas personales para Colombia: bolsillos, 4x1000, recordatorios de pagos, simulador de crédito y renta.</p>
+    <div class="qr"><img src="qr-finza.png" alt="Código QR a finza.pages.dev"></div>
+    <p class="scan">Escanea y descárgala gratis</p>
+    <p class="url">finza.pages.dev</p>
+    <p class="small">App para Android · Proyecto académico basado en Cashew (GPL-3.0)</p>
+  </div>
+  <button class="print" onclick="window.print()">Imprimir cartel</button>
+</body>
+</html>

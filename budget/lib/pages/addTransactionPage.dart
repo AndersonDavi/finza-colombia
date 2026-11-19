@@ -1,3 +1,4 @@
+import 'package:budget/widgets/helpGuide.dart';
 import 'package:budget/database/generatePreviewData.dart';
 import 'package:budget/database/tables.dart';
 import 'package:budget/database/undoDelete.dart';
@@ -1202,7 +1203,8 @@ class _AddTransactionPageState extends State<AddTransactionPage>
                             widget.selectedType, isAddedToLoanObjective,
                             keepLoanTypes: isLoanTransaction),
                     getLabel: (item) {
-                      if (item is TransactionSpecialType || item == null) {
+                      if (item == null) return "ux-type-normal".tr();
+                      if (item is TransactionSpecialType) {
                         return transactionTypeDisplayToEnum[item]
                                 ?.toString()
                                 .toLowerCase()
@@ -1246,6 +1248,7 @@ class _AddTransactionPageState extends State<AddTransactionPage>
                   ),
                 ),
               ),
+              TransactionTypeHint(type: selectedType),
               ScheduledAutoPayLine(type: selectedType),
               AnimatedExpanded(
                 expand: selectedType == TransactionSpecialType.repetitive ||
@@ -2125,6 +2128,7 @@ class _AddTransactionPageState extends State<AddTransactionPage>
           }
         },
         actions: [
+          HelpGuideButton(guide: HelpGuides.addTransaction()),
           if (widget.transaction != null)
             IconButton(
               padding: EdgeInsetsDirectional.all(15),
@@ -3651,6 +3655,39 @@ Future deleteTransactionsPopup(
   return action;
 }
 
+// One plain line under the type chips saying what the picked type does
+class TransactionTypeHint extends StatelessWidget {
+  const TransactionTypeHint({required this.type, super.key});
+  final TransactionSpecialType? type;
+
+  @override
+  Widget build(BuildContext context) {
+    String key = switch (type) {
+      null => "ux-type-hint-normal",
+      TransactionSpecialType.upcoming => "ux-type-hint-upcoming",
+      TransactionSpecialType.subscription => "ux-type-hint-subscription",
+      TransactionSpecialType.repetitive => "ux-type-hint-repetitive",
+      TransactionSpecialType.credit => "ux-type-hint-lent",
+      TransactionSpecialType.debt => "ux-type-hint-borrowed",
+    };
+    return Padding(
+      padding: const EdgeInsetsDirectional.only(
+          start: 22, end: 22, top: 6, bottom: 4),
+      child: AnimatedSwitcher(
+        duration: Duration(milliseconds: 200),
+        child: TextFont(
+          key: ValueKey(key),
+          text: key.tr(),
+          fontSize: 14,
+          maxLines: 3,
+          textAlign: TextAlign.center,
+          textColor: getColor(context, "textLight"),
+        ),
+      ),
+    );
+  }
+}
+
 class SelectTransactionTypePopup extends StatelessWidget {
   const SelectTransactionTypePopup({
     required this.setTransactionType,
@@ -3674,7 +3711,7 @@ class SelectTransactionTypePopup extends StatelessWidget {
             setTransactionType: setTransactionType,
             transactionTypesToShow: transactionTypesToShow,
             transactionType: null,
-            title: "default".tr(),
+            title: "ux-type-normal".tr(),
             onTap: () {
               setTransactionType(null);
               popRoute(context);

@@ -6,6 +6,7 @@ import 'package:budget/struct/chatgptSignIn.dart';
 import 'package:budget/struct/settings.dart';
 import 'package:budget/widgets/button.dart';
 import 'package:budget/widgets/framework/pageFramework.dart';
+import 'package:budget/widgets/helpGuide.dart';
 import 'package:budget/widgets/settingsContainers.dart';
 import 'package:budget/widgets/textInput.dart';
 import 'package:budget/widgets/textWidgets.dart';
@@ -195,16 +196,28 @@ class _AiChatPageState extends State<AiChatPage> {
         ),
       );
     }
+    HelpGuide guide = HelpGuides.aiChat();
     return Padding(
       padding: const EdgeInsetsDirectional.symmetric(horizontal: 18),
       child: Column(children: [
-        note((provider == AiProvider.gemini
-                ? "ai-gemini-key-description"
-                : "ai-openai-key-description")
-            .tr()),
+        if (provider == AiProvider.gemini) ...[
+          // The same steps as the help guide, right where the key goes
+          SizedBox(height: 6),
+          for (int i = 0; i < guide.steps.length; i++)
+            HelpStepRow(number: i + 1, text: guide.steps[i]),
+          Button(
+            label: guide.action!.label,
+            icon: guide.action!.icon,
+            onTap: guide.action!.onTap,
+            expandedLayout: true,
+          ),
+          SizedBox(height: 6),
+          note("ai-gemini-key-description".tr()),
+        ] else
+          note("ai-openai-key-description".tr()),
         SizedBox(height: 10),
         TextInput(
-          labelText: "ai-api-key".tr(),
+          labelText: "ux-ai-paste-key".tr(),
           controller: keyController,
           obscureText: true,
           padding: EdgeInsetsDirectional.zero,
@@ -259,7 +272,14 @@ class _AiChatPageState extends State<AiChatPage> {
       title: "ai-chat".tr(),
       dragDownToDismiss: true,
       horizontalPaddingConstrained: true,
+      actions: [HelpGuideButton(guide: HelpGuides.aiChat())],
       listWidgets: [
+        if (ready == false)
+          Padding(
+            padding: const EdgeInsetsDirectional.only(
+                start: 18, end: 18, bottom: 8),
+            child: note("ux-ai-intro".tr()),
+          ),
         Padding(
           padding: const EdgeInsetsDirectional.symmetric(horizontal: 15),
           child: Wrap(

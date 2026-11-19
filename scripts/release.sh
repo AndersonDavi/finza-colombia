@@ -37,6 +37,9 @@ fi
 
 apk="$app/build/finza-$next.apk"
 cp "$app/build/app/outputs/flutter-apk/app-release.apk" "$apk"
+# Same file under a fixed name, so releases/latest/download/finza.apk (the
+# link on the download page) always gets the newest one
+cp "$apk" "$app/build/finza.apk"
 if [ -n "$previous" ]; then
   notes=$(git -C "$root" log --format="- %s" "$previous..HEAD")
 else
@@ -46,7 +49,7 @@ fi
 git -C "$root" commit -q -m "Version $next" -- budget/pubspec.yaml
 git -C "$root" tag "v$next"
 git -C "$root" push -q origin HEAD "v$next"
-gh release create "v$next" "$apk" --repo "$repo" --title "$next" \
+gh release create "v$next" "$apk" "$app/build/finza.apk" --repo "$repo" --title "$next" \
   --notes "${notes:-No changes besides the version.}"
 echo "Published $next"
 

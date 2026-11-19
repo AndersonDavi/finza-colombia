@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Finza</title>
+  <meta name="description" content="Finza: app de finanzas personales hecha para Colombia. Cuentas y bolsillos, 4x1000, recordatorios de pagos, simulador de crédito y renta.">
+  <meta property="og:title" content="Finza">
+  <meta property="og:description" content="Controla tu dinero, alcanza tus metas. App de finanzas personales para Colombia.">
+  <meta property="og:image" content="icon.png">
+  <meta name="theme-color" content="#0D0C17">
+  <link rel="icon" href="favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0D0C17;
+      --surface: #17152A;
+      --surface-high: #221F3B;
+      --line: #2E2A4A;
+      --text: #F4F3FF;
+      --muted: #A9A6C8;
+      --indigo: #4F46E5;
+      --violet: #8B5CF6;
+      --mint: #34D399;
+      --amber: #FBBF24;
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+    a { color: inherit; }
+    .wrap { max-width: 960px; margin: 0 auto; padding: 0 16px; }
+
+    header.hero {
+      position: relative;
+      overflow: hidden;
+      padding: 56px 0 48px;
+      text-align: center;
+    }
+    header.hero::before {
+      content: "";
+      position: absolute;
+      inset: -40% -20% auto;
+      height: 520px;
+      background: radial-gradient(closest-side, rgba(139, 92, 246, .35), transparent),
+                  radial-gradient(closest-side, rgba(79, 70, 229, .35), transparent) 60% 30% / 80% 80% no-repeat;
+      filter: blur(20px);
+      z-index: -1;
+    }
+    .logo {
+      width: 96px; height: 96px;
+      border-radius: 26px;
+      box-shadow: 0 18px 50px rgba(79, 70, 229, .45);
+    }
+    h1 { font-size: clamp(40px, 9vw, 64px); margin: 18px 0 4px; letter-spacing: -1px; }
+    .tagline { font-size: clamp(18px, 4.4vw, 22px); font-weight: 700; margin: 0; }
+    .tagline span {
+      background: linear-gradient(90deg, var(--indigo), var(--violet));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .lead { color: var(--muted); max-width: 560px; margin: 14px auto 28px; font-size: 17px; }
+
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 15px 24px;
+      border-radius: 16px;
+      font-weight: 700; font-size: 17px;
+      text-decoration: none;
+      transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+    }
+    .btn:active { transform: scale(.98); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--indigo), var(--violet));
+      box-shadow: 0 12px 30px rgba(79, 70, 229, .45);
+    }
+    .btn-primary:hover { box-shadow: 0 16px 38px rgba(79, 70, 229, .6); }
+    .btn-secondary { background: var(--surface-high); border: 1px solid var(--line); }
+    .btn-secondary:hover { background: #2B2748; }
+    .btn svg { width: 22px; height: 22px; flex: none; }
+    .release { color: var(--muted); font-size: 14px; margin-top: 12px; min-height: 1.5em; }
+
+    section { padding: 36px 0; }
+    h2 { font-size: 26px; margin: 0 0 18px; letter-spacing: -.3px; }
+    .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 20px;
+    }
+    .card .icon {
+      width: 44px; height: 44px; border-radius: 14px;
+      display: grid; place-items: center;
+      background: rgba(139, 92, 246, .16);
+      color: var(--violet);
+      margin-bottom: 12px;
+    }
+    .card .icon svg { width: 24px; height: 24px; }
+    .card h3 { margin: 0 0 6px; font-size: 18px; }
+    .card p { margin: 0; color: var(--muted); font-size: 15px; }
+    .tag {
+      display: inline-block; margin-top: 10px;
+      font-size: 12px; font-weight: 700;
+      color: var(--mint); background: rgba(52, 211, 153, .12);
+      padding: 3px 10px; border-radius: 999px;
+    }
+
+    ol.steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; counter-reset: step; }
+    ol.steps li {
+      counter-increment: step;
+      display: flex; gap: 14px; align-items: flex-start;
+      background: var(--surface); border: 1px solid var(--line);
+      border-radius: 18px; padding: 16px;
+    }
+    ol.steps li::before {
+      content: counter(step);
+      flex: none;
+      width: 32px; height: 32px; border-radius: 50%;
+      display: grid; place-items: center;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--indigo), var(--violet));
+    }
+    ol.steps b { display: block; }
+    ol.steps span { color: var(--muted); font-size: 15px; }
+
+    .notice {
+      border: 1px solid rgba(251, 191, 36, .35);
+      background: rgba(251, 191, 36, .08);
+      color: #FDE68A;
+      border-radius: 16px; padding: 14px 16px; font-size: 15px;
+    }
+
+    footer { padding: 32px 0 48px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--line); margin-top: 24px; }
+    footer p { margin: 6px 0; }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <img class="logo" src="icon.png" alt="Logo de Finza" width="96" height="96">
+      <h1>Finza</h1>
+      <p class="tagline"><span>Controla tu dinero, alcanza tus metas.</span></p>
+      <p class="lead">Una app de finanzas personales hecha para Colombia: registra tus gastos, separa la plata en bolsillos, recuerda tus pagos y simula créditos y tu renta antes de decidir.</p>
+      <div class="actions">
+        <a class="btn btn-primary" id="download" href="https://github.com/AndersonDavi/finza-colombia/releases/latest/download/finza.apk">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+          Descargar para Android
+        </a>
+        <a class="btn btn-secondary" href="app/">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8"/></svg>
+          Probar en la web
+        </a>
+      </div>
+      <p class="release" id="release">APK gratis para Android</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section>
+      <h2>¿Qué hace Finza?</h2>
+      <div class="grid">
+        <article class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18"/><path d="M5 10V20M19 10v10M9 10v10M15 10v10"/><path d="M3 20h18"/><path d="m12 3 9 5H3z"/></svg></div>
+          <h3>Cuentas y bolsillos</h3>
+          <p>Tus bancos, Nequi, Daviplata y el efectivo, cada uno con bolsillos como en tu banco: el arriendo, el ahorro, lo que está libre para gastar.</p>
+        </article>
+        <article class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div>
+          <h3>4x1000 automático</h3>
+          <p>Calcula el GMF en cada retiro o transferencia, respeta la cuenta exenta y las billeteras de bajo monto, y puedes apagarlo por cuenta.</p>
+          <span class="tag">Solo en Colombia</span>
+        </article>
+        <article class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></div>
+          <h3>Recordatorios y centro de pagos</h3>
+          <p>Suscripciones, cuotas, SOAT, predial y servicios en un solo lugar, con aviso antes de la fecha. Nada se marca pagado sin que tú lo confirmes.</p>
+        </article>
+        <article class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h2M14 10h2M8 14h2M14 14h2M8 18h2M14 18h2"/></svg></div>
+          <h3>Simulador de crédito</h3>
+          <p>Cuota, intereses, tabla de amortización y abonos. Con tus ingresos y préstamos activos te dice si la cuota te alcanza.</p>
+        </article>
+        <article class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></div>
+          <h3>Declaración de renta</h3>
+          <p>¿Debes declarar? ¿Cuánto pagarías? Un estimado con las reglas de la DIAN y la UVT del año, con tus movimientos o a mano.</p>
+          <span class="tag">Solo en Colombia</span>
+        </article>
+        <article class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 17l.8 2.2L22 20l-2.2.8L19 23l-.8-2.2L16 20l2.2-.8z"/></svg></div>
+          <h3>Chat con IA</h3>
+          <p>Pregúntale en qué se te va la plata o qué pagos vienen. Funciona con una API key gratis de Gemini o con tu plan de ChatGPT.</p>
+        </article>
+        <article class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+          <h3>Tasas, CDT y más</h3>
+          <p>Conversor de tasas (EA, mes vencido, anticipada) con aviso de usura, simulador de CDT, prestaciones sociales y PILA para independientes.</p>
+        </article>
+      </div>
+    </section>
+
+    <section>
+      <h2>Cómo instalarla</h2>
+      <ol class="steps">
+        <li><div><b>Descarga el APK</b><span>Toca “Descargar para Android”. Si Chrome pregunta, elige descargar de todas formas.</span></div></li>
+        <li><div><b>Permite instalar la app</b><span>Al abrir el archivo, Android pide permiso para instalar apps de esta fuente. Actívalo solo para tu navegador.</span></div></li>
+        <li><div><b>Abre Finza</b><span>Elige tu país y tus cuentas, y empieza a registrar. Tus datos se quedan en tu celular.</span></div></li>
+      </ol>
+    </section>
+
+    <section>
+      <p class="notice">Las simulaciones de crédito y los estimados de renta son educativos y usan datos proyectados: confirma tasas, cuotas y condiciones con tu banco, y tu renta con la DIAN o un contador.</p>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <p>Proyecto académico de finanzas personales.</p>
+      <p>Finza está basada en <a href="https://github.com/jameskokoska/Cashew">Cashew</a>, de James, y es software libre bajo la licencia GPL-3.0. El código está en <a href="https://github.com/AndersonDavi/finza-colombia">GitHub</a>.</p>
+    </div>
+  </footer>
+
+  <script>
+    // Version and size of the latest APK, from GitHub's public API
+    fetch("https://api.github.com/repos/AndersonDavi/finza-colombia/releases/latest")
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (release) {
+        if (!release) return;
+        var apk = (release.assets || []).find(function (a) { return a.name === "finza.apk"; });
+        if (!apk) return;
+        var mb = (apk.size / 1048576).toFixed(0);
+        document.getElementById("release").textContent =
+          "Versión " + release.tag_name.replace(/^v/, "") + " · " + mb + " MB · Android";
+      })
+      .catch(function () {});
+  </script>
+</body>
+</html>

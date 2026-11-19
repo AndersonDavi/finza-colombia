@@ -1,3 +1,4 @@
+import 'package:budget/widgets/helpGuide.dart';
 import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/widgets/globalSnackbar.dart';
 import 'package:budget/widgets/openSnackbar.dart';
@@ -105,6 +106,7 @@ class MoreActionsPageState extends State<MoreActionsPage> {
         backButton: false,
         horizontalPaddingConstrained: true,
         actions: [
+          HelpGuideButton(guide: HelpGuides.more()),
           CustomPopupMenuButton(
             showButtons: true,
             keepOutFirst: true,
@@ -398,6 +400,7 @@ class SettingsPageFrameworkState extends State<SettingsPageFramework> {
     return PageFramework(
       title: "settings".tr(),
       dragDownToDismiss: true,
+      actions: [HelpGuideButton(guide: HelpGuides.settings())],
       listWidgets: [SettingsPageContent()],
     );
   }
