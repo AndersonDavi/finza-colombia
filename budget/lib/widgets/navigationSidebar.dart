@@ -27,6 +27,8 @@ double getWidthNavigationSidebar(BuildContext context) {
   double minScreenWidth = 700;
 
   if (MediaQuery.sizeOf(context).width < minScreenWidth) return 0;
+  // No sidebar during the first onboarding: it has nothing to open yet
+  if (appStateSettings["hasOnboarded"] != true) return 0;
   if (appStateSettings["expandedNavigationSidebar"] == false) {
     return 70 + MediaQuery.viewPaddingOf(context).left;
   }

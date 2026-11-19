@@ -113,6 +113,7 @@
       padding: 3px 10px; border-radius: 999px;
     }
 
+    .section-lead { color: var(--muted); margin: -8px 0 16px; }
     ol.steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; counter-reset: step; }
     ol.steps li {
       counter-increment: step;
@@ -159,7 +160,7 @@
           Probar en la web
         </a>
       </div>
-      <p class="release" id="release">APK gratis para Android</p>
+      <p class="release" id="release">Gratis para Android · en iPhone, desde Safari</p>
     </div>
   </header>
 
@@ -216,6 +217,17 @@
       </ol>
     </section>
 
+    <section id="iphone">
+      <h2>¿Tienes iPhone?</h2>
+      <p class="section-lead">En iPhone no se descarga un archivo: Finza se instala desde Safari como una app web y queda con su ícono en tu pantalla.</p>
+      <ol class="steps">
+        <li><div><b>Abre Finza en Safari</b><span>Entra a <a href="app/">finza.pages.dev/app</a> desde Safari (no desde Chrome ni desde Instagram).</span></div></li>
+        <li><div><b>Toca Compartir</b><span>Es el cuadrito con la flecha hacia arriba, abajo en la pantalla.</span></div></li>
+        <li><div><b>“Agregar a pantalla de inicio”</b><span>Baja en el menú, tócalo y luego “Agregar”.</span></div></li>
+        <li><div><b>Ábrela desde el ícono</b><span>Funciona como una app más. Tus datos se quedan en tu iPhone.</span></div></li>
+      </ol>
+    </section>
+
     <section>
       <p class="notice">Las simulaciones de crédito y los estimados de renta son educativos y usan datos proyectados: confirma tasas, cuotas y condiciones con tu banco, y tu renta con la DIAN o un contador.</p>
     </section>
@@ -225,15 +237,26 @@
     <div class="wrap">
       <p>Proyecto académico de finanzas personales.</p>
       <p>Finza está basada en <a href="https://github.com/jameskokoska/Cashew">Cashew</a>, de James, y es software libre bajo la licencia GPL-3.0. El código está en <a href="https://github.com/AndersonDavi/finza-colombia">GitHub</a>.</p>
+      <p><a href="privacidad">Política de privacidad</a></p>
     </div>
   </footer>
 
   <script>
+    // On an iPhone there is no APK: the main button leads to the Safari steps
+    var isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    if (isIos) {
+      var main = document.getElementById("download");
+      main.href = "#iphone";
+      main.lastChild.textContent = " Instalar en iPhone";
+      document.getElementById("release").textContent = "En iPhone se instala desde Safari, sin descargar nada";
+    }
+
     // Version and size of the latest APK, from GitHub's public API
     fetch("https://api.github.com/repos/AndersonDavi/finza-colombia/releases/latest")
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (release) {
-        if (!release) return;
+        if (!release || isIos) return;
         var apk = (release.assets || []).find(function (a) { return a.name === "finza.apk"; });
         if (!apk) return;
         var mb = (apk.size / 1048576).toFixed(0);

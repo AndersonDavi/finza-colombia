@@ -5,6 +5,7 @@ import 'package:budget/struct/country.dart';
 import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/defaultCategories.dart';
 import 'package:budget/widgets/categoryIcon.dart';
+import 'package:budget/widgets/onboardingWidgets.dart';
 import 'package:budget/widgets/textWidgets.dart';
 import 'package:budget/widgets/walletGroups.dart';
 import 'package:drift/drift.dart' hide Column;
@@ -142,23 +143,23 @@ class OnboardingAccountsStep extends StatelessWidget {
             .toList();
         return Column(
           children: [
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8,
-              runSpacing: 8,
+            OnboardingTileGrid(
               children: [
                 for (AccountPreset preset in presets)
                   Builder(builder: (context) {
                     WalletGroup? existing = groupNamed(preset.name);
-                    return FilterChip(
-                      avatar: Icon(
-                        walletGroupKindIcon(preset.kind),
-                        size: 18,
-                        color: pickedColor(context, toHexString(preset.colour)),
+                    return OnboardingTile(
+                      vertical: true,
+                      leading: OnboardingAvatar(
+                        color: preset.colour,
+                        name: preset.name,
+                        icon: preset.kind == WalletGroupKind.cash
+                            ? walletGroupKindIcon(preset.kind)
+                            : null,
                       ),
-                      label: TextFont(text: preset.name, fontSize: 15),
+                      title: preset.name,
                       selected: existing != null,
-                      onSelected: (selected) async {
+                      onTap: () async {
                         if (existing != null) {
                           await removeOnboardingAccount(existing);
                         } else {
@@ -168,22 +169,26 @@ class OnboardingAccountsStep extends StatelessWidget {
                     );
                   }),
                 for (WalletGroup group in custom)
-                  FilterChip(
-                    avatar: Icon(
-                      walletGroupKindIcon(group.kind),
-                      size: 18,
+                  OnboardingTile(
+                    vertical: true,
+                    leading: OnboardingAvatar(
                       color: pickedColor(context, group.colour),
+                      name: group.name,
                     ),
-                    label: TextFont(text: group.name, fontSize: 15),
+                    title: group.name,
                     selected: true,
-                    onSelected: (_) =>
+                    onTap: () =>
                         openEditWalletGroupPopup(context, group: group),
                   ),
-                ActionChip(
-                  avatar: Icon(Icons.add_rounded, size: 18),
-                  label: TextFont(
-                      text: "onboarding-other-account".tr(), fontSize: 15),
-                  onPressed: () => addOther(context),
+                OnboardingTile(
+                  vertical: true,
+                  showCheck: false,
+                  leading: OnboardingAvatar(
+                    color: Theme.of(context).colorScheme.primary,
+                    icon: Icons.add_rounded,
+                  ),
+                  title: "onboarding-other-account".tr(),
+                  onTap: () => addOther(context),
                 ),
               ],
             ),
@@ -195,7 +200,7 @@ class OnboardingAccountsStep extends StatelessWidget {
               duration: Duration(milliseconds: 250),
               child: TextFont(
                 text: "onboarding-accounts-edit-hint".tr(),
-                fontSize: 14,
+                fontSize: 15,
                 textAlign: TextAlign.center,
                 maxLines: 3,
                 textColor: getColor(context, "black").withOpacity(0.5),
@@ -278,7 +283,8 @@ class PocketsExample extends StatelessWidget {
 // first install has written them, the built-in list is shown instead, so the
 // step is never empty
 class CategoriesExample extends StatefulWidget {
-  const CategoriesExample({super.key});
+  const CategoriesExample({this.limit = 12, super.key});
+  final int limit;
 
   @override
   State<CategoriesExample> createState() => _CategoriesExampleState();
@@ -300,7 +306,7 @@ class _CategoriesExampleState extends State<CategoriesExample> {
         if (categories.isEmpty) {
           categories = defaultCategories().where(mainOnly).toList();
         }
-        categories = categories.take(12).toList();
+        categories = categories.take(widget.limit).toList();
         return Wrap(
           alignment: WrapAlignment.center,
           spacing: 4,

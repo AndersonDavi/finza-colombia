@@ -106,9 +106,11 @@ class HelpGuideSteps extends StatelessWidget {
 
 // A numbered step: a round badge and one or two short sentences
 class HelpStepRow extends StatelessWidget {
-  const HelpStepRow({required this.number, required this.text, super.key});
+  const HelpStepRow(
+      {required this.number, required this.text, this.fontSize = 16, super.key});
   final int number;
   final String text;
+  final double fontSize;
 
   @override
   Widget build(BuildContext context) {
@@ -137,7 +139,7 @@ class HelpStepRow extends StatelessWidget {
           Expanded(
             child: Padding(
               padding: const EdgeInsetsDirectional.only(top: 4),
-              child: TextFont(text: text, fontSize: 16, maxLines: 8),
+              child: TextFont(text: text, fontSize: fontSize, maxLines: 8),
             ),
           ),
         ],
