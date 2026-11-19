@@ -19,7 +19,8 @@ if [ -n "${APPDATA:-}" ] && command -v cygpath > /dev/null; then
   [ -d "$node24" ] && export PATH="$node24:$PATH"
 fi
 
-(cd "$app" && flutter build web --release --no-wasm-dry-run --base-href /app/)
+# Git Bash turns a lone "/app/" argument into a Windows path without this
+(cd "$app" && MSYS_NO_PATHCONV=1 flutter build web --release --no-wasm-dry-run --base-href /app/)
 site="$app/build/site"
 rm -rf "$site"
 cp -r "$root/landing" "$site"
