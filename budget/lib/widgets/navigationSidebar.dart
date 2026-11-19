@@ -465,19 +465,35 @@ class SidebarClock extends StatelessWidget {
   }
 }
 
+Future<void> syncWithDriveNow(BuildContext context) async {
+  if (runningCloudFunctions) return;
+  // Silent sign-in cannot bring the session back once it is lost (always
+  // the case on the web after a reload), so ask with the Google popup
+  if (googleUser == null) {
+    await signInAndSync(context, next: () {});
+  } else {
+    await runAllCloudFunctions(context, forceSignIn: true);
+  }
+}
+
+// Last sync older than a day, or none yet
+bool isDriveSyncStale(DateTime? dateTimeLastSynced) =>
+    dateTimeLastSynced == null ||
+    DateTime.now().difference(dateTimeLastSynced).inDays >= 1;
+
+// Yellow syncing, red failed or stale, green synced
+Color getDriveSyncStatusColor(
+    BuildContext context, SyncStatus status, DateTime? dateTimeLastSynced) {
+  bool stale = isDriveSyncStale(dateTimeLastSynced);
+  return status == SyncStatus.syncing
+      ? Colors.amber.shade400
+      : status == SyncStatus.failed || (status == SyncStatus.idle && stale)
+          ? getColor(context, "expenseAmount")
+          : getColor(context, "incomeAmount");
+}
+
 class SyncButton extends StatelessWidget {
   const SyncButton({super.key});
-
-  Future<void> sync(BuildContext context) async {
-    if (runningCloudFunctions) return;
-    // Silent sign-in cannot bring the session back once it is lost (always
-    // the case on the web after a reload), so ask with the Google popup
-    if (googleUser == null) {
-      await signInAndSync(context, next: () {});
-    } else {
-      await runAllCloudFunctions(context, forceSignIn: true);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -490,21 +506,16 @@ class SyncButton extends StatelessWidget {
             const EdgeInsetsDirectional.symmetric(horizontal: 5, vertical: 1),
         child: Tappable(
           borderRadius: getPlatform() == PlatformOS.isIOS ? 10 : 50,
-          onTap: () => sync(context),
+          onTap: () => syncWithDriveNow(context),
           child: ValueListenableBuilder<SyncStatus>(
             valueListenable: syncStatus,
             builder: (context, status, _) => TimerBuilder.periodic(
               Duration(seconds: 5),
               builder: (context) {
                 DateTime? dateTimeLastSynced = getTimeLastSynced();
-                bool stale = dateTimeLastSynced == null ||
-                    DateTime.now().difference(dateTimeLastSynced).inDays >= 1;
-                Color statusColor = status == SyncStatus.syncing
-                    ? Colors.amber.shade400
-                    : status == SyncStatus.failed ||
-                            (status == SyncStatus.idle && stale)
-                        ? getColor(context, "expenseAmount")
-                        : getColor(context, "incomeAmount");
+                bool stale = isDriveSyncStale(dateTimeLastSynced);
+                Color statusColor = getDriveSyncStatusColor(
+                    context, status, dateTimeLastSynced);
                 Widget icon = DriveSyncIcon(
                   statusColor: statusColor,
                   pulse: status == SyncStatus.syncing,
@@ -563,16 +574,19 @@ class SyncButton extends StatelessWidget {
 }
 
 // Flat Google Drive logo in the same grey as the other sidebar icons, with a
-// dot for the sync state: green synced, yellow syncing, red failed or stale
+// dot for the sync state: green synced, yellow syncing, red failed or stale.
+// No dot when statusColor is null
 class DriveSyncIcon extends StatefulWidget {
   const DriveSyncIcon({
     required this.statusColor,
     this.pulse = false,
+    this.logoColor,
     super.key,
   });
 
-  final Color statusColor;
+  final Color? statusColor;
   final bool pulse;
+  final Color? logoColor;
 
   @override
   State<DriveSyncIcon> createState() => _DriveSyncIconState();
@@ -623,25 +637,75 @@ class _DriveSyncIconState extends State<DriveSyncIcon>
           CustomPaint(
             size: Size(24, 24),
             painter: DriveLogoPainter(
-                color: Theme.of(context).colorScheme.secondary),
+                color: widget.logoColor ??
+                    Theme.of(context).colorScheme.secondary),
           ),
-          PositionedDirectional(
-            end: -3,
-            bottom: -2,
-            child: FadeTransition(
-              opacity: pulseController,
-              child: AnimatedContainer(
-                duration: Duration(milliseconds: 400),
-                width: 9,
-                height: 9,
-                decoration: BoxDecoration(
-                  color: widget.statusColor,
-                  shape: BoxShape.circle,
+          if (widget.statusColor != null)
+            PositionedDirectional(
+              end: -3,
+              bottom: -2,
+              child: FadeTransition(
+                opacity: pulseController,
+                child: AnimatedContainer(
+                  duration: Duration(milliseconds: 400),
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: widget.statusColor!,
+                    shape: BoxShape.circle,
+                  ),
                 ),
               ),
             ),
-          ),
         ],
+      ),
+    );
+  }
+}
+
+// Drive icon for page headers. Grey with no dot until a Google account is
+// linked, then the sidebar colors. A tap signs in, or syncs right away
+class DriveSyncHeaderButton extends StatelessWidget {
+  const DriveSyncHeaderButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<SyncStatus>(
+      valueListenable: syncStatus,
+      builder: (context, status, _) => TimerBuilder.periodic(
+        Duration(seconds: 5),
+        builder: (context) {
+          bool signedIn = appStateSettings["hasSignedIn"] == true;
+          DateTime? dateTimeLastSynced = getTimeLastSynced();
+          String message;
+          if (signedIn == false) {
+            message = "home-drive-signed-out".tr();
+          } else if (status == SyncStatus.syncing) {
+            message = "home-drive-syncing".tr();
+          } else if (status == SyncStatus.failed) {
+            message = "home-drive-failed".tr();
+          } else if (dateTimeLastSynced == null) {
+            message = "home-drive-not-synced".tr();
+          } else {
+            message = "home-drive-synced-ago".tr(
+                namedArgs: {"time": getTimeAgo(dateTimeLastSynced)});
+          }
+          Color iconColor = IconTheme.of(context).color ??
+              Theme.of(context).colorScheme.onSurface;
+          return IconButton(
+            padding: EdgeInsetsDirectional.all(15),
+            tooltip: message,
+            onPressed: () => syncWithDriveNow(context),
+            icon: DriveSyncIcon(
+              statusColor: signedIn
+                  ? getDriveSyncStatusColor(
+                      context, status, dateTimeLastSynced)
+                  : null,
+              pulse: signedIn && status == SyncStatus.syncing,
+              logoColor: signedIn ? iconColor : iconColor.withOpacity(0.4),
+            ),
+          );
+        },
       ),
     );
   }

@@ -27,6 +27,7 @@ import 'package:flutter/material.dart';
 const Map<String, String?> sidebarEntries = {
   "sidebarHome": "home",
   "sidebarTransactions": "transactions",
+  "sidebarTools": "tools",
   "sidebarAccounts": "accounts",
   "sidebarBudgets": "budgets",
   "sidebarGoals": "goals",

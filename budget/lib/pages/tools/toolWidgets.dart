@@ -2,6 +2,7 @@ import 'package:budget/colors.dart';
 import 'package:budget/database/tables.dart';
 import 'package:budget/functions.dart';
 import 'package:budget/struct/settings.dart';
+import 'package:budget/widgets/amountInputFormatter.dart';
 import 'package:budget/widgets/selectAmount.dart';
 import 'package:budget/widgets/textInput.dart';
 import 'package:budget/widgets/textWidgets.dart';
@@ -65,7 +66,8 @@ String formatToolPercent(double fraction, {int decimals = 2}) {
       "%";
 }
 
-class ToolInputField extends StatelessWidget {
+// Amount fields (those with a "$" prefix) group thousands as they are typed
+class ToolInputField extends StatefulWidget {
   const ToolInputField({
     required this.label,
     required this.controller,
@@ -82,6 +84,27 @@ class ToolInputField extends StatelessWidget {
   final String? suffix;
   final String? prefix;
 
+  bool get isAmount => prefix?.contains("\$") ?? false;
+
+  @override
+  State<ToolInputField> createState() => _ToolInputFieldState();
+}
+
+class _ToolInputFieldState extends State<ToolInputField> {
+  VoidCallback? grouping;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isAmount) grouping = groupThousandsOnChange(widget.controller);
+  }
+
+  @override
+  void dispose() {
+    if (grouping != null) widget.controller.removeListener(grouping!);
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -92,22 +115,24 @@ class ToolInputField extends StatelessWidget {
           Padding(
             padding: const EdgeInsetsDirectional.only(start: 5, bottom: 5),
             child: TextFont(
-              text: label,
+              text: widget.label,
               fontSize: 15,
               fontWeight: FontWeight.bold,
               maxLines: 3,
             ),
           ),
           TextInput(
-            labelText: hint ?? label,
-            controller: controller,
-            onChanged: onChanged,
+            labelText: widget.hint ?? widget.label,
+            controller: widget.controller,
+            onChanged: widget.onChanged,
             padding: EdgeInsetsDirectional.zero,
             keyboardType: TextInputType.numberWithOptions(decimal: true),
             textInputAction: TextInputAction.done,
             autocorrect: false,
-            prefix: prefix,
-            suffix: suffix,
+            prefix: widget.prefix,
+            suffix: widget.suffix,
+            inputFormatters:
+                widget.isAmount ? [ThousandsInputFormatter()] : null,
           ),
         ],
       ),

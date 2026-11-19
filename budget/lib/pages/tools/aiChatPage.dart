@@ -1,10 +1,14 @@
 import 'package:budget/colors.dart';
 import 'package:budget/database/tables.dart';
 import 'package:budget/functions.dart';
+import 'package:budget/pages/tools/aiActionSheets.dart';
+import 'package:budget/struct/aiActions.dart';
 import 'package:budget/struct/aiChat.dart';
 import 'package:budget/struct/chatgptSignIn.dart';
 import 'package:budget/struct/settings.dart';
 import 'package:budget/widgets/button.dart';
+import 'package:budget/widgets/framework/popupFramework.dart';
+import 'package:budget/widgets/openBottomSheet.dart';
 import 'package:budget/widgets/framework/pageFramework.dart';
 import 'package:budget/widgets/helpGuide.dart';
 import 'package:budget/widgets/settingsContainers.dart';
@@ -28,6 +32,8 @@ class _AiChatPageState extends State<AiChatPage> {
   String? planEmail;
   List<String> models = [];
   List<ChatMessage> conversation = [];
+  // Answers of the month summary action, shown as a card
+  final Set<ChatMessage> summaries = {};
   bool sending = false;
   bool shareData = appStateSettings["aiShareData"] ?? true;
   String? error;
@@ -48,12 +54,13 @@ class _AiChatPageState extends State<AiChatPage> {
     super.dispose();
   }
 
-  bool get ready => provider == AiProvider.chatgpt ? signedIn : hasKey;
+  bool get ready => provider == AiProvider.chatgpt
+      ? signedIn
+      : (aiNeedsApiKey(provider) ? hasKey : true);
 
   Future<void> loadProvider() async {
-    bool key = provider == AiProvider.chatgpt
-        ? false
-        : await readApiKey(provider) != null;
+    bool key =
+        aiNeedsApiKey(provider) ? await readApiKey(provider) != null : false;
     bool session = await ChatGptSession.isSignedIn();
     String? email = await ChatGptSession.email();
     setState(() {
@@ -77,10 +84,72 @@ class _AiChatPageState extends State<AiChatPage> {
 
   void showError(Object e) {
     setState(() {
-      String message = e.toString();
-      error = message.startsWith("ai-") ? message.tr() : message;
+      error = aiErrorText(e);
       errorManagesUsage = e is AiError && e.manageUsage;
     });
+  }
+
+  void runAction(AiAction action) {
+    if (action == AiAction.summary && ready) {
+      runSummary();
+    } else {
+      openAiAction(context, action, ready: ready);
+    }
+  }
+
+  // Month summary with tips, added to the conversation as a card
+  Future<void> runSummary() async {
+    if (sending) return;
+    if (shareData == false) {
+      await openBottomSheet(
+        context,
+        PopupFramework(
+          title: "📊 " + "ai-action-summary".tr(),
+          child: Builder(
+            builder: (sheetContext) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                note("ai-summary-needs-data".tr()),
+                SizedBox(height: 10),
+                Button(
+                  label: "ai-summary-share-and-run".tr(),
+                  expandedLayout: true,
+                  onTap: () {
+                    popRoute(sheetContext);
+                    updateSettings("aiShareData", true,
+                        updateGlobalState: false);
+                    setState(() => shareData = true);
+                    runSummary();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+    AllWallets allWallets = Provider.of<AllWallets>(context, listen: false);
+    String languageCode = context.locale.languageCode;
+    setState(() {
+      conversation.add(ChatMessage(true, "ai-summary-request".tr()));
+      sending = true;
+      error = null;
+    });
+    try {
+      String summary = await monthlySummary(
+        await buildFinanceContext(allWallets),
+        languageCode: languageCode,
+      );
+      ChatMessage answer = ChatMessage(false, summary);
+      setState(() {
+        summaries.add(answer);
+        conversation.add(answer);
+      });
+    } catch (e) {
+      showError(e);
+    }
+    setState(() => sending = false);
   }
 
   Future<void> chooseProvider(AiProvider value) async {
@@ -141,9 +210,19 @@ class _AiChatPageState extends State<AiChatPage> {
         AiProvider.gemini => "Gemini",
         AiProvider.openai => "OpenAI",
         AiProvider.chatgpt => "ai-provider-chatgpt-plan".tr(),
+        AiProvider.finza => "ai-provider-finza".tr(),
+        AiProvider.openrouter => "OpenRouter",
+        AiProvider.claude => "Claude",
+        AiProvider.deepseek => "DeepSeek",
       };
 
   Widget setupSection() {
+    if (provider == AiProvider.finza) {
+      return Padding(
+        padding: const EdgeInsetsDirectional.symmetric(horizontal: 18),
+        child: note("ai-finza-description".tr()),
+      );
+    }
     if (provider == AiProvider.chatgpt) {
       if (chatGptSignInSupported == false) {
         return note("ai-plan-not-on-web".tr());
@@ -183,6 +262,7 @@ class _AiChatPageState extends State<AiChatPage> {
         ]),
       );
     }
+    if (aiNeedsApiKey(provider) == false) return SizedBox.shrink();
     if (hasKey) {
       return SettingsContainer(
         title: "ai-key-saved".tr(),
@@ -213,8 +293,15 @@ class _AiChatPageState extends State<AiChatPage> {
           ),
           SizedBox(height: 6),
           note("ai-gemini-key-description".tr()),
-        ] else
-          note("ai-openai-key-description".tr()),
+        ] else ...[
+          note(("ai-key-help-" + provider.name).tr()),
+          if (aiKeyUrl(provider) != null)
+            Button(
+              label: "ai-get-my-key".tr(),
+              onTap: () => openUrl(aiKeyUrl(provider)!),
+              expandedLayout: true,
+            ),
+        ],
         SizedBox(height: 10),
         TextInput(
           labelText: "ux-ai-paste-key".tr(),
@@ -242,7 +329,49 @@ class _AiChatPageState extends State<AiChatPage> {
         ),
       );
 
+  Widget summaryCard(ChatMessage message) {
+    ColorScheme colors = Theme.of(context).colorScheme;
+    return Container(
+      constraints: BoxConstraints(maxWidth: 560),
+      margin:
+          const EdgeInsetsDirectional.symmetric(horizontal: 15, vertical: 6),
+      padding: const EdgeInsetsDirectional.all(16),
+      decoration: BoxDecoration(
+        color: colors.secondaryContainer,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Text("📊", style: TextStyle(fontSize: 22)),
+            SizedBox(width: 8),
+            Expanded(
+              child: TextFont(
+                text: "ai-summary-title".tr(),
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ]),
+          SizedBox(height: 10),
+          SelectableText(message.text,
+              style: TextStyle(
+                  fontSize: 15, height: 1.35, color: colors.onSurface)),
+          SizedBox(height: 12),
+          TextFont(
+            text: "ai-summary-note".tr(),
+            fontSize: 13,
+            maxLines: 4,
+            textColor: getColor(context, "black").withOpacity(0.6),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget bubble(ChatMessage message) {
+    if (summaries.contains(message)) return summaryCard(message);
     ColorScheme colors = Theme.of(context).colorScheme;
     return Align(
       alignment: message.fromUser
@@ -250,8 +379,8 @@ class _AiChatPageState extends State<AiChatPage> {
           : AlignmentDirectional.centerStart,
       child: Container(
         constraints: BoxConstraints(maxWidth: 520),
-        margin: const EdgeInsetsDirectional.symmetric(
-            horizontal: 15, vertical: 5),
+        margin:
+            const EdgeInsetsDirectional.symmetric(horizontal: 15, vertical: 5),
         padding:
             const EdgeInsetsDirectional.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
@@ -276,8 +405,8 @@ class _AiChatPageState extends State<AiChatPage> {
       listWidgets: [
         if (ready == false)
           Padding(
-            padding: const EdgeInsetsDirectional.only(
-                start: 18, end: 18, bottom: 8),
+            padding:
+                const EdgeInsetsDirectional.only(start: 18, end: 18, bottom: 8),
             child: note("ux-ai-intro".tr()),
           ),
         Padding(
@@ -287,7 +416,11 @@ class _AiChatPageState extends State<AiChatPage> {
             children: [
               for (AiProvider p in AiProvider.values)
                 ChoiceChip(
-                  label: TextFont(text: providerLabel(p), fontSize: 15),
+                  label: TextFont(
+                      text: p == AiProvider.chatgpt && !chatGptSignInSupported
+                          ? providerLabel(p) + " · " + "ai-app-only".tr()
+                          : providerLabel(p),
+                      fontSize: 15),
                   selected: provider == p,
                   onSelected: (_) => chooseProvider(p),
                 ),
@@ -337,6 +470,11 @@ class _AiChatPageState extends State<AiChatPage> {
             ]),
           ),
         SizedBox(height: 10),
+        AiActionsGrid(
+          onTap: runAction,
+          providerName: providerLabel(provider),
+        ),
+        SizedBox(height: 6),
         if (ready && conversation.isEmpty)
           Padding(
             padding: const EdgeInsetsDirectional.symmetric(horizontal: 18),

@@ -12,6 +12,10 @@
   <string>Cashew uses photos to attach to a transaction entry</string>
   <key>NSCameraUsageDescription</key>
   <string>Cashew uses the camera to capture a photo to be used as a transaction attachment</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Finza uses the microphone to turn a voice note into a transaction</string>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>Finza turns your voice note into text to fill in a transaction</string>
   <key>ITSAppUsesNonExemptEncryption</key>
   <false/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>

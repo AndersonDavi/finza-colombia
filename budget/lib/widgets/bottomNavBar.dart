@@ -60,6 +60,8 @@ class BottomNavBarState extends State<BottomNavBar> {
         upcomingOverdueTransactionsStateKey.currentState?.scrollToTop();
       if (navigationStackedIndex == 17)
         creditDebtTransactionsKey.currentState?.scrollToTop();
+      if (navigationStackedIndex == 21)
+        toolsPageStateKey.currentState?.scrollToTop();
     } else {
       // We need to change to the navigation index
       widget.onChanged(navigationStackedIndex);
@@ -413,6 +415,10 @@ class SelectNavBarShortcutPopup extends StatelessWidget {
               ),
             );
           },
+        ),
+        NavBarShortcutSelection(
+          shortcutAppSettingKey: shortcutAppSettingKey,
+          navBarIconDataKey: "tools",
         ),
         NavBarShortcutSelection(
           shortcutAppSettingKey: shortcutAppSettingKey,

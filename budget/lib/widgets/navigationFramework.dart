@@ -32,6 +32,8 @@ import 'package:budget/pages/transactionsListPage.dart';
 import 'package:budget/pages/upcomingOverdueTransactionsPage.dart';
 import 'package:budget/pages/walletDetailsPage.dart';
 import 'package:budget/pages/creditDebtTransactionsPage.dart';
+import 'package:budget/pages/tools/toolsPage.dart';
+import 'package:budget/widgets/guidedTour.dart';
 import 'package:budget/struct/currencyFunctions.dart';
 import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/defaultPreferences.dart';
@@ -294,6 +296,7 @@ GlobalKey<UpcomingOverdueTransactionsState>
 GlobalKey<CreditDebtTransactionsState> creditDebtTransactionsKey = GlobalKey();
 GlobalKey<ProductsState> purchasesStateKey = GlobalKey();
 GlobalKey<AccountsPageState> accountsPageStateKey = GlobalKey();
+GlobalKey<ToolsPageState> toolsPageStateKey = GlobalKey();
 GlobalKey<GoogleAccountLoginButtonState> settingsGoogleAccountLoginButtonKey =
     GlobalKey();
 GlobalKey<NavigationSidebarState> sidebarStateKey = GlobalKey();
@@ -384,6 +387,7 @@ class PageNavigationFrameworkState extends State<PageNavigationFramework> {
     ActivityPage(), //18
     WalletsListPage(), //19
     CalendarPage(), //20
+    ToolsPage(key: toolsPageStateKey, backButton: false), //21
   ];
 
   late int currentPage = widget.widthSideNavigationBar <= 0
@@ -508,11 +512,14 @@ class PageNavigationFrameworkState extends State<PageNavigationFramework> {
                   : Duration(milliseconds: 300),
         ),
         extendBody: false,
-        bottomNavigationBar: BottomNavBar(
-          currentNavigationStackedIndex: currentPage,
-          onChanged: (index) {
-            changePage(index);
-          },
+        bottomNavigationBar: KeyedSubtree(
+          key: homeTourKeys.navigation,
+          child: BottomNavBar(
+            currentNavigationStackedIndex: currentPage,
+            onChanged: (index) {
+              changePage(index);
+            },
+          ),
         ),
       ),
       Align(
@@ -526,15 +533,18 @@ class PageNavigationFrameworkState extends State<PageNavigationFramework> {
             end: 15,
             start: 15,
           ),
-          child: AnimateFAB(
-            key: ValueKey(1),
-            fab: AddFAB(
-              tooltip: "add-transaction".tr(),
-              openPage: AddTransactionPage(
-                routesToPopAfterDelete: RoutesToPopAfterDelete.None,
+          child: KeyedSubtree(
+            key: homeTourKeys.addButton,
+            child: AnimateFAB(
+              key: ValueKey(1),
+              fab: AddFAB(
+                tooltip: "add-transaction".tr(),
+                openPage: AddTransactionPage(
+                  routesToPopAfterDelete: RoutesToPopAfterDelete.None,
+                ),
               ),
+              condition: [0, 1, 2, 14].contains(currentPage),
             ),
-            condition: [0, 1, 2, 14].contains(currentPage),
           ),
         ),
       ),

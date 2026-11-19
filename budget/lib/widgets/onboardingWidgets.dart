@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:budget/colors.dart';
+import 'package:budget/widgets/amountInputFormatter.dart';
 import 'package:budget/widgets/tappable.dart';
 import 'package:budget/widgets/textInput.dart';
 import 'package:budget/widgets/textWidgets.dart';
@@ -125,18 +126,22 @@ class OnboardingTile extends StatelessWidget {
 }
 
 // Round avatar with a colour and the initials of a name, or an icon. No
-// logos: only letters and colours
+// logos: only letters and colours. With iconName it shows one of the
+// category pictures instead, in the same tile shape as the categories
 class OnboardingAvatar extends StatelessWidget {
   const OnboardingAvatar({
     required this.color,
     this.name,
     this.icon,
+    this.iconName,
     this.size = 44,
     super.key,
   });
   final Color color;
   final String? name;
   final IconData? icon;
+  // A file in assets/categories, like the category icons use
+  final String? iconName;
   final double size;
 
   // "Banco de Bogotá" -> "BB", "Nequi" -> "N"
@@ -155,6 +160,19 @@ class OnboardingAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (iconName != null) {
+      return Container(
+        width: size * 1.15,
+        height: size * 1.15,
+        padding: EdgeInsets.all(size * 0.18),
+        decoration: BoxDecoration(
+          color: dynamicPastel(context, color,
+              amountLight: 0.55, amountDark: 0.35),
+          borderRadius: BorderRadius.circular(size * 0.36),
+        ),
+        child: Image.asset("assets/categories/" + iconName!),
+      );
+    }
     Color foreground =
         color.computeLuminance() > 0.5 ? Colors.black87 : Colors.white;
     return Container(
@@ -257,6 +275,7 @@ class OnboardingField extends StatelessWidget {
     this.focusNode,
     this.keyboardType,
     this.prefix,
+    this.amount = false,
     this.onChanged,
     super.key,
   });
@@ -268,6 +287,8 @@ class OnboardingField extends StatelessWidget {
   final FocusNode? focusNode;
   final TextInputType? keyboardType;
   final String? prefix;
+  // Groups thousands as they are typed: 3.500.000
+  final bool amount;
   final ValueChanged<String>? onChanged;
 
   @override
@@ -320,6 +341,7 @@ class OnboardingField extends StatelessWidget {
               autocorrect: false,
               prefix: prefix,
               fontSize: 18,
+              inputFormatters: amount ? [ThousandsInputFormatter()] : null,
             ),
           ),
           if (error != null)

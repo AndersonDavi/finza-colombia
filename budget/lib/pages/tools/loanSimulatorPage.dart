@@ -64,8 +64,23 @@ class _ExtraPaymentInput {
 }
 
 class LoanSimulatorPage extends StatefulWidget {
-  const LoanSimulatorPage({this.initialTab = 0, super.key});
+  const LoanSimulatorPage({
+    this.initialTab = 0,
+    this.initialAmount,
+    this.initialRatePercent,
+    this.initialRateKind,
+    this.initialMonths,
+    this.initialMonthlyFee,
+    super.key,
+  });
   final int initialTab;
+  // Prefill from a loan offer read elsewhere; empty fields when absent
+  final double? initialAmount;
+  // 26.5 means 26.5%
+  final double? initialRatePercent;
+  final LoanRateKind? initialRateKind;
+  final int? initialMonths;
+  final double? initialMonthlyFee;
 
   @override
   State<LoanSimulatorPage> createState() => _LoanSimulatorPageState();
@@ -85,6 +100,30 @@ class _LoanSimulatorPageState extends State<LoanSimulatorPage> {
   ExtraPaymentMode extraMode = ExtraPaymentMode.reduceTerm;
   DateTime firstInstallment = addMonthsClamped(DateTime.now(), 1);
   IncomeProfile profile = IncomeProfile.load();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialAmount != null && widget.initialAmount! > 0) {
+      amountController.text = _groupThousands(widget.initialAmount!);
+    }
+    if (widget.initialRatePercent != null) {
+      rateController.text = toolNumberToInput(widget.initialRatePercent!);
+    }
+    if (widget.initialRateKind != null) rateKind = widget.initialRateKind!;
+    if (widget.initialMonths != null && widget.initialMonths! > 0) {
+      monthsController.text = widget.initialMonths.toString();
+    }
+    if (widget.initialMonthlyFee != null && widget.initialMonthlyFee! > 0) {
+      feeController.text = _groupThousands(widget.initialMonthlyFee!);
+    }
+  }
+
+  // 8000000 -> "8.000.000", the way the amount fields show it
+  String _groupThousands(double value) {
+    String digits = value.round().toString();
+    return digits.replaceAllMapped(RegExp(r"\B(?=(\d{3})+(?!\d))"), (_) => ".");
+  }
 
   @override
   void dispose() {

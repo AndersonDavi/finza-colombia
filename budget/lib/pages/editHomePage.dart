@@ -96,6 +96,16 @@ class _EditHomePageState extends State<EditHomePage> {
               );
             },
           ),
+          "tools": EditHomePageItem(
+            icon: appStateSettings["outlinedIcons"]
+                ? Icons.calculate_outlined
+                : Icons.calculate_rounded,
+            name: "tools".tr(),
+            isEnabled: isHomeScreenSectionEnabled(context, "showHomeTools"),
+            onSwitched: (value) {
+              switchHomeScreenSection(context, "showHomeTools", value);
+            },
+          ),
           "walletsList": EditHomePageItem(
             icon: appStateSettings["outlinedIcons"]
                 ? Icons.format_list_bulleted_outlined
@@ -246,114 +256,133 @@ class _EditHomePageState extends State<EditHomePage> {
                 context,
                 PopupFramework(
                   title: "select-graph".tr(),
-                  child: RadioItems(
-                    items: [
-                      defaultLabel,
-                      allTimeLabel,
-                      customLabel,
-                      ...[
-                        for (Budget budget in allBudgets)
-                          budget.budgetPk.toString()
-                      ],
-                    ],
-                    colorFilter: (budgetPk) {
-                      for (Budget budget in allBudgets)
-                        if (budget.budgetPk.toString() == budgetPk.toString()) {
-                          return dynamicPastel(
-                            context,
-                            lightenPastel(
-                              HexColor(
-                                budget.colour,
-                                defaultColor:
-                                    Theme.of(context).colorScheme.primary,
-                              ),
-                              amount: 0.2,
-                            ),
-                            amount: 0.1,
+                  child: Column(
+                    children: [
+                      SettingsContainerSwitch(
+                        title: "home-graph-income-expense".tr(),
+                        icon: Icons.stacked_line_chart_rounded,
+                        initialValue:
+                            appStateSettings["lineGraphIncomeAndExpense"] ==
+                                true,
+                        onSwitched: (value) {
+                          updateSettings(
+                            "lineGraphIncomeAndExpense",
+                            value,
+                            pagesNeedingRefresh: [0],
+                            updateGlobalState: false,
                           );
-                        }
-                      return null;
-                    },
-                    displayFilter: (budgetPk) {
-                      for (Budget budget in allBudgets)
-                        if (budget.budgetPk.toString() == budgetPk.toString()) {
-                          return budget.name;
-                        }
-                      if (budgetPk == customLabel)
-                        return ('${customLabel} (${getWordedDateShortMore(DateTime.parse(appStateSettings["lineGraphStartDate"]), includeYear: true)})');
-                      return budgetPk;
-                    },
-                    initial: appStateSettings["lineGraphDisplayType"] ==
-                            LineGraphDisplay.Default30Days.index
-                        ? defaultLabel
-                        : appStateSettings["lineGraphDisplayType"] ==
-                                LineGraphDisplay.AllTime.index
-                            ? allTimeLabel
+                        },
+                      ),
+                      RadioItems(
+                        items: [
+                          defaultLabel,
+                          allTimeLabel,
+                          customLabel,
+                          ...[
+                            for (Budget budget in allBudgets)
+                              budget.budgetPk.toString()
+                          ],
+                        ],
+                        colorFilter: (budgetPk) {
+                          for (Budget budget in allBudgets)
+                            if (budget.budgetPk.toString() == budgetPk.toString()) {
+                              return dynamicPastel(
+                                context,
+                                lightenPastel(
+                                  HexColor(
+                                    budget.colour,
+                                    defaultColor:
+                                        Theme.of(context).colorScheme.primary,
+                                  ),
+                                  amount: 0.2,
+                                ),
+                                amount: 0.1,
+                              );
+                            }
+                          return null;
+                        },
+                        displayFilter: (budgetPk) {
+                          for (Budget budget in allBudgets)
+                            if (budget.budgetPk.toString() == budgetPk.toString()) {
+                              return budget.name;
+                            }
+                          if (budgetPk == customLabel)
+                            return ('${customLabel} (${getWordedDateShortMore(DateTime.parse(appStateSettings["lineGraphStartDate"]), includeYear: true)})');
+                          return budgetPk;
+                        },
+                        initial: appStateSettings["lineGraphDisplayType"] ==
+                                LineGraphDisplay.Default30Days.index
+                            ? defaultLabel
                             : appStateSettings["lineGraphDisplayType"] ==
-                                    LineGraphDisplay.CustomStartDate.index
-                                ? customLabel
-                                : appStateSettings["lineGraphReferenceBudgetPk"]
-                                    .toString(),
-                    onChanged: (value) async {
-                      if (value == defaultLabel) {
-                        updateSettings(
-                          "lineGraphDisplayType",
-                          LineGraphDisplay.Default30Days.index,
-                          pagesNeedingRefresh: [],
-                          updateGlobalState: false,
-                        );
-                      } else if (value == allTimeLabel) {
-                        updateSettings(
-                          "lineGraphDisplayType",
-                          LineGraphDisplay.AllTime.index,
-                          pagesNeedingRefresh: [],
-                          updateGlobalState: false,
-                        );
-                      } else if (value == customLabel) {
-                        DateTime? picked = await showCustomDatePicker(
-                          context,
-                          DateTime.parse(
-                              appStateSettings["lineGraphStartDate"]),
-                        );
-                        if (picked == null || picked.isAfter(DateTime.now())) {
-                          if (DateTime.parse(
-                                  appStateSettings["lineGraphStartDate"])
-                              .isAfter(DateTime.now())) {
-                            picked = DateTime.now();
+                                    LineGraphDisplay.AllTime.index
+                                ? allTimeLabel
+                                : appStateSettings["lineGraphDisplayType"] ==
+                                        LineGraphDisplay.CustomStartDate.index
+                                    ? customLabel
+                                    : appStateSettings["lineGraphReferenceBudgetPk"]
+                                        .toString(),
+                        onChanged: (value) async {
+                          if (value == defaultLabel) {
+                            updateSettings(
+                              "lineGraphDisplayType",
+                              LineGraphDisplay.Default30Days.index,
+                              pagesNeedingRefresh: [],
+                              updateGlobalState: false,
+                            );
+                          } else if (value == allTimeLabel) {
+                            updateSettings(
+                              "lineGraphDisplayType",
+                              LineGraphDisplay.AllTime.index,
+                              pagesNeedingRefresh: [],
+                              updateGlobalState: false,
+                            );
+                          } else if (value == customLabel) {
+                            DateTime? picked = await showCustomDatePicker(
+                              context,
+                              DateTime.parse(
+                                  appStateSettings["lineGraphStartDate"]),
+                            );
+                            if (picked == null || picked.isAfter(DateTime.now())) {
+                              if (DateTime.parse(
+                                      appStateSettings["lineGraphStartDate"])
+                                  .isAfter(DateTime.now())) {
+                                picked = DateTime.now();
+                              } else {
+                                picked = DateTime.parse(
+                                    appStateSettings["lineGraphStartDate"]);
+                              }
+                            }
+                            updateSettings(
+                              "lineGraphStartDate",
+                              (picked ?? appStateSettings["lineGraphDisplayType"])
+                                  .toString(),
+                              pagesNeedingRefresh: [],
+                              updateGlobalState: false,
+                            );
+                            updateSettings(
+                              "lineGraphDisplayType",
+                              LineGraphDisplay.CustomStartDate.index,
+                              pagesNeedingRefresh: [],
+                              updateGlobalState: false,
+                            );
                           } else {
-                            picked = DateTime.parse(
-                                appStateSettings["lineGraphStartDate"]);
+                            updateSettings(
+                              "lineGraphReferenceBudgetPk",
+                              value,
+                              pagesNeedingRefresh: [],
+                              updateGlobalState: false,
+                            );
+                            updateSettings(
+                              "lineGraphDisplayType",
+                              LineGraphDisplay.Budget.index,
+                              pagesNeedingRefresh: [],
+                              updateGlobalState: false,
+                            );
                           }
-                        }
-                        updateSettings(
-                          "lineGraphStartDate",
-                          (picked ?? appStateSettings["lineGraphDisplayType"])
-                              .toString(),
-                          pagesNeedingRefresh: [],
-                          updateGlobalState: false,
-                        );
-                        updateSettings(
-                          "lineGraphDisplayType",
-                          LineGraphDisplay.CustomStartDate.index,
-                          pagesNeedingRefresh: [],
-                          updateGlobalState: false,
-                        );
-                      } else {
-                        updateSettings(
-                          "lineGraphReferenceBudgetPk",
-                          value,
-                          pagesNeedingRefresh: [],
-                          updateGlobalState: false,
-                        );
-                        updateSettings(
-                          "lineGraphDisplayType",
-                          LineGraphDisplay.Budget.index,
-                          pagesNeedingRefresh: [],
-                          updateGlobalState: false,
-                        );
-                      }
-                      popRoute(context);
-                    },
+                          popRoute(context);
+                        },
+                      ),
+                    ],
                   ),
                 ),
               );

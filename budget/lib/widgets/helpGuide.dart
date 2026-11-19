@@ -275,7 +275,8 @@ class HelpGuides {
         action: action,
       );
 
-  static HelpGuide home() => _guide("home", 4, tip: true);
+  static HelpGuide home({HelpGuideAction? action}) =>
+      _guide("home", 4, tip: true, action: action);
   static HelpGuide addTransaction() => _guide("add-transaction", 4);
   static HelpGuide transactions() => _guide("transactions", 4);
   static HelpGuide budgets() => _guide("budgets", 4, tip: true);

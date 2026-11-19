@@ -112,6 +112,7 @@ class AddTransactionPage extends StatefulWidget {
     this.selectedDate,
     this.selectedNotes,
     this.selectedRecurrence,
+    this.selectedTagPks,
     this.startInitialAddTransactionSequence = true,
     this.transferBalancePopup = false,
     required this.routesToPopAfterDelete,
@@ -134,6 +135,8 @@ class AddTransactionPage extends StatefulWidget {
   final String? selectedNotes;
   // For a repeating one started from a preset, e.g. SOAT every year
   final BudgetReoccurence? selectedRecurrence;
+  // Tags already picked for a new entry, e.g. "Factura electrónica"
+  final List<String>? selectedTagPks;
   final bool startInitialAddTransactionSequence;
   final bool transferBalancePopup;
 
@@ -167,7 +170,7 @@ class _AddTransactionPageState extends State<AddTransactionPage>
   String selectedWalletPk = appStateSettings["selectedWalletPk"];
   bool notesInputFocused = false;
   bool showMoreOptions = false;
-  List<String> selectedTagPks = [];
+  late List<String> selectedTagPks = [...?widget.selectedTagPks];
   late bool pinned = widget.transaction?.pinned == true;
   List<String> selectedExcludedBudgetPks = [];
   late bool isAddedToLoanObjective =

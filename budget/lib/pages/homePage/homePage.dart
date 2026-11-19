@@ -18,6 +18,9 @@ import 'package:budget/pages/homePage/homePageAllSpendingSummary.dart';
 import 'package:budget/pages/editHomePage.dart';
 import 'package:budget/pages/settingsPage.dart';
 import 'package:budget/pages/homePage/homePageCreditDebts.dart';
+import 'package:budget/pages/homePage/homePageTools.dart';
+import 'package:budget/pages/tools/aiChatPage.dart';
+import 'package:budget/widgets/guidedTour.dart';
 import 'package:budget/struct/settings.dart';
 import 'package:budget/widgets/animatedExpanded.dart';
 import 'package:budget/widgets/button.dart';
@@ -85,6 +88,10 @@ class HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     _scrollController = ScrollController();
     _scrollController.addListener(_scrollListener);
+
+    if (appStateSettings[homeTourSeenSetting] != true) {
+      maybeStartHomeTour(context);
+    }
   }
 
   _scrollListener() {
@@ -178,7 +185,13 @@ class HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     Map<String, Widget?> homePageSections = {
       "wallets": isHomeScreenSectionEnabled(context, "showWalletSwitcher")
-          ? HomePageWalletSwitcher()
+          ? KeyedSubtree(
+              key: homeTourKeys.accounts,
+              child: HomePageWalletSwitcher(),
+            )
+          : null,
+      "tools": isHomeScreenSectionEnabled(context, "showHomeTools")
+          ? HomePageTools()
           : null,
       "walletsList": isHomeScreenSectionEnabled(context, "showWalletList")
           ? HomePageWalletList()
@@ -192,7 +205,10 @@ class HomePageState extends State<HomePage> with TickerProviderStateMixin {
               : null,
       "allSpendingSummary":
           isHomeScreenSectionEnabled(context, "showAllSpendingSummary")
-              ? HomePageAllSpendingSummary()
+              ? KeyedSubtree(
+                  key: homeTourKeys.summary,
+                  child: HomePageAllSpendingSummary(),
+                )
               : null,
       "netWorth": isHomeScreenSectionEnabled(context, "showNetWorth")
           ? HomePageNetWorth()
@@ -274,12 +290,38 @@ class HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                 ),
                               )
                             : SizedBox.shrink(),
-                        // Privacy eye next to the edit home button
+                        // Help, AI chat, Drive sync and privacy eye next to
+                        // the edit home button
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            HelpGuideButton(guide: HelpGuides.home()),
+                            KeyedSubtree(
+                              key: homeTourKeys.help,
+                              child: HelpGuideButton(
+                                guide: HelpGuides.home(
+                                  action: HelpGuideAction(
+                                    label: "tour-replay".tr(),
+                                    icon: Icons.play_circle_outline_rounded,
+                                    onTap: () async {
+                                      popRoute(null);
+                                      await Future.delayed(
+                                          Duration(milliseconds: 350));
+                                      if (mounted) startHomeTour(context);
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              key: homeTourKeys.aiChat,
+                              padding: EdgeInsetsDirectional.all(15),
+                              tooltip: "ai-chat".tr(),
+                              onPressed: () => pushRoute(context, AiChatPage()),
+                              icon: Icon(Icons.auto_awesome_rounded),
+                            ),
+                            DriveSyncHeaderButton(key: homeTourKeys.drive),
                             Tooltip(
+                              key: homeTourKeys.privacy,
                               message: "privacy-mode".tr(),
                               child: IconButton(
                                 padding: EdgeInsetsDirectional.all(15),

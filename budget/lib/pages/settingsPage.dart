@@ -137,6 +137,11 @@ class MorePages extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     bool hasSideNavigation = getIsFullScreen(context);
+    bool toolsInNavBar = [
+      appStateSettings["customNavBarShortcut0"],
+      appStateSettings["customNavBarShortcut1"],
+      appStateSettings["customNavBarShortcut2"],
+    ].contains("tools");
 
     return Padding(
       padding: const EdgeInsetsDirectional.symmetric(horizontal: 4),
@@ -180,24 +185,26 @@ class MorePages extends StatelessWidget {
                 ),
               ],
             ),
-          Row(
-            children: [
-              Expanded(
-                child: SettingsContainerOpenPage(
-                  openPage: ToolsPage(),
-                  title: "tools".tr(),
-                  icon: appStateSettings["outlinedIcons"]
-                      ? Icons.calculate_outlined
-                      : Icons.calculate_rounded,
-                  description: appStateSettings["showExtraInfoText"] == false
-                      ? null
-                      : "tools-description".tr(),
-                  isOutlined: true,
-                  isWideOutlined: true,
+          // Already a tab of the bottom bar by default
+          if (hasSideNavigation || toolsInNavBar == false)
+            Row(
+              children: [
+                Expanded(
+                  child: SettingsContainerOpenPage(
+                    openPage: ToolsPage(),
+                    title: "tools".tr(),
+                    icon: appStateSettings["outlinedIcons"]
+                        ? Icons.calculate_outlined
+                        : Icons.calculate_rounded,
+                    description: appStateSettings["showExtraInfoText"] == false
+                        ? null
+                        : "tools-description".tr(),
+                    isOutlined: true,
+                    isWideOutlined: true,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -332,6 +339,24 @@ class MorePages extends StatelessWidget {
                 )
               ],
             ),
+          Row(
+            children: [
+              Expanded(
+                child: SettingsContainer(
+                  onTap: () => openOnBoarding(context),
+                  title: "tour-replay-intro".tr(),
+                  description: appStateSettings["showExtraInfoText"] == false
+                      ? null
+                      : "tour-replay-intro-description".tr(),
+                  icon: appStateSettings["outlinedIcons"]
+                      ? Icons.door_front_door_outlined
+                      : Icons.door_front_door_rounded,
+                  isOutlined: true,
+                  isWideOutlined: true,
+                ),
+              ),
+            ],
+          ),
           if (hasSideNavigation) SettingsPageContent(),
         ],
       ),

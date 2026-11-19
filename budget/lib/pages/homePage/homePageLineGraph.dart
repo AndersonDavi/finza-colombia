@@ -44,6 +44,11 @@ class HomePageLineGraph extends StatelessWidget {
                       : null
               : null,
     );
+    // Two curves only when the list shows everything, not a single side
+    bool splitIncomeExpense =
+        appStateSettings["lineGraphIncomeAndExpense"] == true &&
+            selectedSlidingSelector != 2 &&
+            selectedSlidingSelector != 3;
     return KeepAliveClientMixin(
       child: Padding(
         padding: const EdgeInsetsDirectional.only(bottom: 13),
@@ -59,6 +64,7 @@ class HomePageLineGraph extends StatelessWidget {
               ? PastSpendingGraph(
                   isIncome: null,
                   searchFilters: searchFilters,
+                  splitIncomeExpense: splitIncomeExpense,
                 )
               : appStateSettings["lineGraphDisplayType"] ==
                       LineGraphDisplay.AllTime.index
@@ -66,12 +72,14 @@ class HomePageLineGraph extends StatelessWidget {
                       isIncome: null,
                       searchFilters: searchFilters,
                       allTimeUpToFirstTransaction: true,
+                      splitIncomeExpense: splitIncomeExpense,
                     )
                   : appStateSettings["lineGraphDisplayType"] ==
                           LineGraphDisplay.CustomStartDate.index
                       ? PastSpendingGraph(
                           isIncome: null,
                           searchFilters: searchFilters,
+                          splitIncomeExpense: splitIncomeExpense,
                           customStartDate: DateTime.parse(
                               appStateSettings["lineGraphStartDate"]),
                         )
@@ -118,6 +126,7 @@ class PastSpendingGraph extends StatelessWidget {
     this.hideIfOnlyOneEntry = false,
     this.builder,
     this.allTimeUpToFirstTransaction = false,
+    this.splitIncomeExpense = false,
   });
   final bool? isIncome;
   final int monthsToLoad;
@@ -132,6 +141,8 @@ class PastSpendingGraph extends StatelessWidget {
   final bool hideIfOnlyOneEntry;
   final Widget Function(Widget)? builder;
   final bool allTimeUpToFirstTransaction;
+  // Income and expenses of the range as two curves starting at zero
+  final bool splitIncomeExpense;
 
   Widget buildLineChart(BuildContext context,
       {DateTime? earliestTransactionDate, DateTime? latestTransactionDate}) {
@@ -195,6 +206,52 @@ class PastSpendingGraph extends StatelessWidget {
               forcedDateTimeRange: forcedDateTimeRange,
             ),
             builder: (context, snapshot) {
+              if (snapshot.hasData && splitIncomeExpense) {
+                return FutureBuilder<List<List<Pair>>>(
+                  future: compute(
+                    calculateIncomeExpensePoints,
+                    CalculatePointsParams(
+                      transactions: snapshot.data ?? [],
+                      customStartDate: customStartDateChecked,
+                      customEndDate: customEndDateChecked,
+                      totalSpentBefore: 0,
+                      isIncome: null,
+                      allWallets:
+                          Provider.of<AllWallets>(context, listen: false),
+                      showCumulativeSpending:
+                          appStateSettings["showCumulativeSpending"],
+                      appStateSettingsPassed: appStateSettings,
+                    ),
+                  ),
+                  builder: (context, snapshotPoints) {
+                    Widget lineChartWidget;
+                    if (snapshotPoints.hasData == false) {
+                      lineChartWidget = IndeterminateProgressBar();
+                    } else {
+                      List<List<Pair>> lines = snapshotPoints.data ?? [];
+                      if (hideIfOnlyOneEntry == true &&
+                          lines.every((points) => points.length <= 1)) {
+                        return SizedBox.shrink();
+                      }
+                      lineChartWidget = LineChartWrapper(
+                        points: lines,
+                        colors: [
+                          getColor(context, "incomeAmount"),
+                          getColor(context, "expenseAmount"),
+                        ],
+                        isCurved: true,
+                        extraLeftPaddingIfSmall: extraLeftPaddingIfSmall,
+                        endDate: customEndDateChecked,
+                      );
+                    }
+                    if (builder != null) {
+                      return builder!(lineChartWidget);
+                    } else {
+                      return lineChartWidget;
+                    }
+                  },
+                );
+              }
               if (snapshot.hasData) {
                 return FutureBuilder<List<Pair>>(
                   future: compute(
@@ -294,6 +351,26 @@ class CalculatePointsParams {
     this.cycleThroughAllDays = false,
     this.isPaidOnly = false,
   });
+}
+
+// Income line first, then expenses as positive amounts; balance corrections
+// are left out
+List<List<Pair>> calculateIncomeExpensePoints(CalculatePointsParams p) {
+  List<Pair> side(bool income) => calculatePoints(CalculatePointsParams(
+        transactions: p.transactions
+            .where((transaction) =>
+                transaction.income == income && transaction.categoryFk != "0")
+            .toList(),
+        customStartDate: p.customStartDate,
+        customEndDate: p.customEndDate,
+        totalSpentBefore: 0,
+        isIncome: null,
+        allWallets: p.allWallets,
+        showCumulativeSpending: p.showCumulativeSpending,
+        appStateSettingsPassed: p.appStateSettingsPassed,
+        invertPolarity: income == false,
+      ));
+  return [side(true), side(false)];
 }
 
 List<Pair> calculatePoints(CalculatePointsParams p) {

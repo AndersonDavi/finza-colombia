@@ -25,6 +25,7 @@ class FixedItemPreset {
   const FixedItemPreset({
     required this.id,
     required this.icon,
+    this.iconName,
     required this.color,
     required this.categoryPk,
     this.income = false,
@@ -36,6 +37,8 @@ class FixedItemPreset {
   // Title key is "onb-fixed-<id>", the optional hint "onb-fixed-<id>-hint"
   final String id;
   final IconData icon;
+  // The same pictures as the categories; icon is only used without one
+  final String? iconName;
   final Color color;
   // Default category it goes into; falls back to the first one that fits
   final String categoryPk;
@@ -54,6 +57,7 @@ const List<FixedItemPreset> fixedItemPresets = [
   FixedItemPreset(
     id: "salary",
     icon: Icons.payments_rounded,
+    iconName: "money.png",
     color: Color(0xFF2E7D32),
     categoryPk: "11",
     income: true,
@@ -63,12 +67,14 @@ const List<FixedItemPreset> fixedItemPresets = [
   FixedItemPreset(
     id: "rent",
     icon: Icons.home_rounded,
+    iconName: "rent.png",
     color: Color(0xFFEF6C00),
     categoryPk: "6",
   ),
   FixedItemPreset(
     id: "utilities",
     icon: Icons.lightbulb_rounded,
+    iconName: "lightning-bolt.png",
     color: Color(0xFFF9A825),
     categoryPk: "6",
     defaultDay: 10,
@@ -77,6 +83,7 @@ const List<FixedItemPreset> fixedItemPresets = [
   FixedItemPreset(
     id: "phone",
     icon: Icons.wifi_rounded,
+    iconName: "wifi.png",
     color: Color(0xFF1565C0),
     categoryPk: "6",
     defaultDay: 15,
@@ -84,6 +91,7 @@ const List<FixedItemPreset> fixedItemPresets = [
   FixedItemPreset(
     id: "loan",
     icon: Icons.account_balance_rounded,
+    iconName: "loan.png",
     color: Color(0xFF6A1B9A),
     categoryPk: "6",
     defaultDay: 5,
@@ -91,6 +99,7 @@ const List<FixedItemPreset> fixedItemPresets = [
   FixedItemPreset(
     id: "subscriptions",
     icon: Icons.subscriptions_rounded,
+    iconName: "subscription.png",
     color: Color(0xFFC62828),
     categoryPk: "5",
     hasHint: true,
@@ -98,12 +107,14 @@ const List<FixedItemPreset> fixedItemPresets = [
   FixedItemPreset(
     id: "transport",
     icon: Icons.directions_bus_rounded,
+    iconName: "tram.png",
     color: Color(0xFF00838F),
     categoryPk: "4",
   ),
   FixedItemPreset(
     id: "groceries",
     icon: Icons.shopping_basket_rounded,
+    iconName: "groceries.png",
     color: Color(0xFF558B2F),
     categoryPk: "2",
   ),
@@ -297,6 +308,7 @@ class _OnboardingFixedItemsStepState extends State<OnboardingFixedItemsStep> {
                     leading: OnboardingAvatar(
                       color: preset.color,
                       icon: preset.icon,
+                      iconName: preset.iconName,
                     ),
                     title: preset.title,
                     subtitle: preset.hint,
@@ -392,7 +404,10 @@ class _AddedItemRow extends StatelessWidget {
       child: Row(
         children: [
           OnboardingAvatar(
-              color: item.preset.color, icon: item.preset.icon, size: 38),
+              color: item.preset.color,
+              icon: item.preset.icon,
+              iconName: item.preset.iconName,
+              size: 38),
           SizedBox(width: 12),
           Expanded(
             child: Padding(
@@ -610,6 +625,8 @@ class _FixedItemSheetState extends State<FixedItemSheet> {
               if (amountError != null) setState(() => amountError = null);
             },
             keyboardType: TextInputType.numberWithOptions(decimal: true),
+            prefix: "\$ ",
+            amount: true,
           ),
           if (biweekly == false)
             OnboardingField(

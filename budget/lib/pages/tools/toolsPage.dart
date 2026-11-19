@@ -16,8 +16,21 @@ import 'package:flutter/material.dart';
 
 // Calculators and helpers around the user's money. The Colombian ones only
 // show for people living there
-class ToolsPage extends StatelessWidget {
-  const ToolsPage({super.key});
+// Also a tab of the main navigation, where it has no back button
+class ToolsPage extends StatefulWidget {
+  const ToolsPage({this.backButton = true, super.key});
+  final bool backButton;
+
+  @override
+  State<ToolsPage> createState() => ToolsPageState();
+}
+
+class ToolsPageState extends State<ToolsPage> {
+  GlobalKey<PageFrameworkState> pageState = GlobalKey();
+
+  void scrollToTop() {
+    pageState.currentState?.scrollToTop();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,8 +44,10 @@ class ToolsPage extends StatelessWidget {
     }
 
     return PageFramework(
+      key: pageState,
       title: "tools".tr(),
-      dragDownToDismiss: true,
+      backButton: widget.backButton,
+      dragDownToDismiss: widget.backButton,
       horizontalPaddingConstrained: true,
       actions: [HelpGuideButton(guide: HelpGuides.tools())],
       listWidgets: [

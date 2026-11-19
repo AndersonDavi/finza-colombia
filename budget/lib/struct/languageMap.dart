@@ -115,6 +115,9 @@ class InitializeLocalizations extends StatelessWidget {
       path: 'assets/translations/generated',
       useFallbackTranslations: true,
       fallbackLocale: supportedLocales.values.toList().first,
+      // A language chosen in the settings (Spanish on a fresh install) wins
+      // over the device language until a locale is saved by the picker
+      startLocale: supportedLocales[appStateSettings["locale"].toString()],
       child: child,
     );
   }
