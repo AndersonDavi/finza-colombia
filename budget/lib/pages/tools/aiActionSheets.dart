@@ -51,6 +51,9 @@ const Map<AiAction, AiActionInfo> aiActionInfo = {
       AiActionInfo("📊", "ai-action-summary", "ai-action-summary-help"),
 };
 
+// Actions that start with a photo
+const Set<AiAction> aiPhotoActions = {AiAction.receipt, AiAction.loanOffer};
+
 // Translation key (or the provider's own text) for an error
 String aiErrorMessage(Object e) {
   String message = e.toString();
@@ -75,10 +78,13 @@ class AiActionsGrid extends StatelessWidget {
   const AiActionsGrid({
     required this.onTap,
     required this.providerName,
+    this.readsImages = true,
     super.key,
   });
   final void Function(AiAction action) onTap;
   final String providerName;
+  // When false the photo actions look disabled; tapping them explains why
+  final bool readsImages;
 
   @override
   Widget build(BuildContext context) {
@@ -113,6 +119,10 @@ class AiActionsGrid extends StatelessWidget {
                                 ? AiActionTile(
                                     action: actions[i],
                                     onTap: () => onTap(actions[i]),
+                                    disabledNote: readsImages ||
+                                            !aiPhotoActions.contains(actions[i])
+                                        ? null
+                                        : "ai-model-no-photos-short".tr(),
                                   )
                                 : SizedBox.shrink(),
                           ),
@@ -134,46 +144,127 @@ class AiActionsGrid extends StatelessWidget {
 }
 
 class AiActionTile extends StatelessWidget {
-  const AiActionTile({required this.action, required this.onTap, super.key});
+  const AiActionTile({
+    required this.action,
+    required this.onTap,
+    this.disabledNote,
+    super.key,
+  });
   final AiAction action;
   final VoidCallback onTap;
+  // Shown instead of the help line when the action can't run
+  final String? disabledNote;
 
   @override
   Widget build(BuildContext context) {
     AiActionInfo info = aiActionInfo[action]!;
+    bool disabled = disabledNote != null;
     return Tappable(
       onTap: onTap,
       borderRadius: 18,
-      color: Theme.of(context).colorScheme.secondaryContainer,
-      child: Padding(
-        padding: const EdgeInsetsDirectional.all(13),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Fixed height: emoji fonts draw some glyphs shorter
-            SizedBox(
-              height: 36,
-              child: Text(info.emoji, style: TextStyle(fontSize: 28)),
-            ),
-            SizedBox(height: 6),
-            TextFont(
-              text: info.labelKey.tr(),
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              maxLines: 3,
-            ),
-            SizedBox(height: 3),
-            TextFont(
-              text: info.helpKey.tr(),
-              fontSize: 13,
-              maxLines: 5,
-              textColor: getColor(context, "black").withOpacity(0.65),
-            ),
-          ],
+      color: disabled
+          ? getColor(context, "lightDarkAccent")
+          : Theme.of(context).colorScheme.secondaryContainer,
+      child: Opacity(
+        opacity: disabled ? 0.55 : 1,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.all(13),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Fixed height: emoji fonts draw some glyphs shorter
+              SizedBox(
+                height: 36,
+                child: Text(info.emoji, style: TextStyle(fontSize: 28)),
+              ),
+              SizedBox(height: 6),
+              TextFont(
+                text: info.labelKey.tr(),
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                maxLines: 3,
+              ),
+              SizedBox(height: 3),
+              if (disabled)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsetsDirectional.only(top: 1, end: 4),
+                      child: Icon(Icons.no_photography_rounded, size: 15),
+                    ),
+                    Expanded(
+                      child: TextFont(
+                        text: disabledNote!,
+                        fontSize: 13,
+                        maxLines: 5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                )
+              else
+                TextFont(
+                  text: info.helpKey.tr(),
+                  fontSize: 13,
+                  maxLines: 5,
+                  textColor: getColor(context, "black").withOpacity(0.65),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+// Shown instead of the camera when the selected model can't read photos
+Future<void> openAiNoPhotosSheet(
+  BuildContext context,
+  AiAction action, {
+  VoidCallback? onChooseModel,
+}) {
+  return openBottomSheet(
+    context,
+    _AiSheet(
+      action: action,
+      child: Builder(
+        builder: (sheetContext) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _NoticeBox(
+              icon: Icons.no_photography_rounded,
+              text: "ai-model-no-photos".tr(),
+            ),
+            SizedBox(height: 14),
+            if (onChooseModel != null) ...[
+              Button(
+                label: "ai-choose-another-model".tr(),
+                icon: Icons.memory_rounded,
+                expandedLayout: true,
+                onTap: () {
+                  popRoute(sheetContext);
+                  onChooseModel();
+                },
+              ),
+              SizedBox(height: 10),
+            ],
+            Button(
+              label: "ai-action-text".tr(),
+              icon: Icons.edit_rounded,
+              expandedLayout: true,
+              color: getColor(context, "lightDarkAccentHeavy"),
+              textColor: getColor(context, "black"),
+              onTap: () {
+                popRoute(sheetContext);
+                openAiTextSheet(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 // Opens the sheet of an action. Without a provider ready it explains what

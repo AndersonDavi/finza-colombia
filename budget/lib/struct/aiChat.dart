@@ -21,6 +21,15 @@ import 'package:http/http.dart' as http;
 enum AiProvider { finza, gemini, chatgpt, openrouter, claude, openai, deepseek }
 
 const String finzaAiServer = "https://finza-ia.andesondavid17.workers.dev";
+// The shared free assistant stays off until its server has a key; while off
+// it is not offered
+const bool finzaAiEnabled = false;
+
+// The services offered in the chat page
+List<AiProvider> get offeredAiProviders => [
+      for (AiProvider p in AiProvider.values)
+        if (p != AiProvider.finza || finzaAiEnabled) p
+    ];
 
 // The request format a provider speaks. Every request switches on this, so a
 // new provider only has to be mapped here and in the helpers below
@@ -129,9 +138,11 @@ Uri geminiGenerateUri(AiProvider provider, String model) =>
 const FlutterSecureStorage secureStorage = FlutterSecureStorage();
 
 class ChatMessage {
-  ChatMessage(this.fromUser, this.text);
+  ChatMessage(this.fromUser, this.text, {this.attachment});
   final bool fromUser;
   String text;
+  // A file sent with this message
+  final AiAttachment? attachment;
 }
 
 class AiError implements Exception {
@@ -143,7 +154,7 @@ class AiError implements Exception {
   String toString() => message;
 }
 
-AiProvider selectedAiProvider() => AiProvider.values.firstWhere(
+AiProvider selectedAiProvider() => offeredAiProviders.firstWhere(
       (p) => p.name == appStateSettings["aiProvider"],
       orElse: () => AiProvider.gemini,
     );
@@ -154,6 +165,8 @@ Future<String?> readApiKey(AiProvider provider) =>
     secureStorage.read(key: apiKeyStorageKey(provider));
 
 Future<void> saveApiKey(AiProvider provider, String? key) async {
+  // Another key may see other models
+  clearModelCache(provider);
   if (key == null || key.trim() == "") {
     await secureStorage.delete(key: apiKeyStorageKey(provider));
   } else {
@@ -168,8 +181,215 @@ String? selectedModel(AiProvider provider) =>
 Future<void> setSelectedModel(AiProvider provider, String model) =>
     updateSettings("aiModel-" + provider.name, model, updateGlobalState: false);
 
+// What a model can take besides text, for the model picker and to grey out
+// what the selected model can't read
+class AiModelInfo {
+  const AiModelInfo({
+    required this.id,
+    required this.label,
+    this.readsImages = false,
+    this.readsPdf = false,
+    this.free = false,
+    this.fast = false,
+  });
+  // Sent in requests
+  final String id;
+  // Shown in the picker
+  final String label;
+  final bool readsImages;
+  final bool readsPdf;
+  final bool free;
+  final bool fast;
+}
+
+const Map<String, String> _modelWords = {
+  "gemini": "Gemini",
+  "gemma": "Gemma",
+  "claude": "Claude",
+  "deepseek": "DeepSeek",
+  "openai": "OpenAI",
+  "chatgpt": "ChatGPT",
+  "llama": "Llama",
+  "qwen": "Qwen",
+};
+
+// A readable name from a model id: "gemini-3.5-flash-lite" is
+// "Gemini 3.5 Flash-Lite", "claude-opus-5-5" is "Claude Opus 5.5" and
+// "gpt-5-mini-2025-08-07" is "GPT-5 Mini"
+String aiModelLabel(String id) {
+  String name = id.replaceFirst("models/", "");
+  name = name.substring(name.lastIndexOf("/") + 1);
+  name = name.replaceFirst(RegExp(r":free$"), "");
+  List<String> tokens =
+      name.split(RegExp(r"[-_:]")).where((t) => t.isNotEmpty).toList();
+  RegExp twoDigits = RegExp(r"^\d{2}$");
+  RegExp shortNumber = RegExp(r"^(0|[1-9]\d?)$");
+  List<String> words = [];
+  bool lastWasNumber = false;
+  for (int i = 0; i < tokens.length; i++) {
+    String token = tokens[i];
+    String lower = token.toLowerCase();
+    // Release dates: 20250929 or 2025-08-07
+    if (RegExp(r"^\d{8}$").hasMatch(token)) continue;
+    if (RegExp(r"^\d{4}$").hasMatch(token) &&
+        i + 2 < tokens.length &&
+        twoDigits.hasMatch(tokens[i + 1]) &&
+        twoDigits.hasMatch(tokens[i + 2])) {
+      i += 2;
+      continue;
+    }
+    bool isNumber = shortNumber.hasMatch(token);
+    if (lower == "gpt" && i + 1 < tokens.length) {
+      String next = tokens[++i];
+      words.add("GPT-" +
+          (RegExp(r"^[a-zA-Z]+$").hasMatch(next)
+              ? next.toUpperCase()
+              : next.toLowerCase()));
+      lastWasNumber = false;
+    } else if (lower == "lite" && words.isNotEmpty && words.last == "Flash") {
+      words.last = "Flash-Lite";
+      lastWasNumber = false;
+    } else if (isNumber && lastWasNumber) {
+      // Versions written with dashes: claude-opus-5-5
+      words.last += "." + token;
+      lastWasNumber = false;
+    } else if (RegExp(r"^o\d").hasMatch(lower)) {
+      words.add(lower);
+      lastWasNumber = false;
+    } else {
+      words.add(_modelWords[lower] ??
+          token.substring(0, 1).toUpperCase() + token.substring(1));
+      lastWasNumber = isNumber;
+    }
+  }
+  return words.isEmpty ? id : words.join(" ");
+}
+
+bool _fastModelName(String id) => RegExp(r"flash|haiku|mini|nano|lite")
+    .hasMatch(id.toLowerCase().replaceFirst("gemini", ""));
+
+// Capabilities of a model. displayName is the provider's own name when the
+// list has one; openRouter is the model's entry in OpenRouter's list
+AiModelInfo aiModelInfoFor(
+  AiProvider provider,
+  String id, {
+  String? displayName,
+  Map? openRouter,
+}) {
+  String lower = id.toLowerCase();
+  String label = displayName == null || displayName.trim().isEmpty
+      ? aiModelLabel(id)
+      : displayName.replaceFirst(RegExp(r"\s*\(free\)$"), "").trim();
+  bool fast = _fastModelName(id);
+  switch (aiApiOf(provider)) {
+    case AiApi.gemini:
+      bool gemini = lower.contains("gemini");
+      return AiModelInfo(
+        id: id,
+        label: label,
+        readsImages: true,
+        readsPdf: gemini,
+        // Finza's server is free; a Gemini key has a free tier for Flash
+        free:
+            provider == AiProvider.finza || (gemini && lower.contains("flash")),
+        fast: fast,
+      );
+    case AiApi.responses:
+      String name = lower.replaceFirst("models/", "");
+      bool vision = (name.startsWith("gpt-") && !name.startsWith("gpt-3.5")) ||
+          (RegExp(r"^o\d").hasMatch(name) &&
+              !["o1-mini", "o1-preview", "o3-mini"]
+                  .any((m) => name.startsWith(m)));
+      return AiModelInfo(
+        id: id,
+        label: label,
+        readsImages: vision,
+        readsPdf: vision,
+        fast: fast,
+      );
+    case AiApi.chatgptPlan:
+      return AiModelInfo(id: id, label: label, readsImages: true, fast: fast);
+    case AiApi.anthropic:
+      return AiModelInfo(
+        id: id,
+        label: label,
+        readsImages: true,
+        readsPdf: true,
+        fast: lower.contains("haiku"),
+      );
+    case AiApi.chatCompletions:
+      if (provider == AiProvider.deepseek) {
+        return AiModelInfo(id: id, label: label);
+      }
+      if (openRouter == null) {
+        // Not in the list (yet): let the request try, a rejection is
+        // explained by decodeOrThrow
+        return AiModelInfo(
+          id: id,
+          label: label,
+          readsImages: true,
+          readsPdf: true,
+          free: lower.endsWith(":free"),
+          fast: fast,
+        );
+      }
+      List inputs = openRouter["architecture"]?["input_modalities"] ?? [];
+      Map pricing = openRouter["pricing"] ?? {};
+      bool zero(dynamic price) => double.tryParse(price.toString()) == 0;
+      return AiModelInfo(
+        id: id,
+        label: label,
+        readsImages: inputs.contains("image"),
+        readsPdf: inputs.contains("file"),
+        free: lower.endsWith(":free") ||
+            (zero(pricing["prompt"] ?? "") &&
+                zero(pricing["completion"] ?? "0")),
+        fast: fast,
+      );
+  }
+}
+
+// Model lists of this session, so the picker and the capability checks don't
+// ask the provider again
+final Map<AiProvider, List<AiModelInfo>> _modelCache = {};
+
+void clearModelCache(AiProvider provider) => _modelCache.remove(provider);
+
+// The selected model's capabilities, from the list when it was loaded
+AiModelInfo selectedModelInfo(AiProvider provider) {
+  String? id = selectedModel(provider);
+  List<AiModelInfo>? models = _modelCache[provider];
+  if (models != null && models.isNotEmpty) {
+    return models.firstWhere((m) => m.id == id, orElse: () => models.first);
+  }
+  if (id == null) {
+    // Nothing chosen nor listed yet: what the provider usually takes
+    return AiModelInfo(
+      id: "",
+      label: "",
+      readsImages: aiReadsImages(provider),
+      readsPdf: aiReadsImages(provider) && provider != AiProvider.chatgpt,
+    );
+  }
+  return aiModelInfoFor(provider, id);
+}
+
+AiModelInfo modelInfo(AiProvider provider, String id) =>
+    _modelCache[provider]?.where((m) => m.id == id).firstOrNull ??
+    aiModelInfoFor(provider, id);
+
 // Models the provider offers for chatting, best guess first
-Future<List<String>> listModels(AiProvider provider) async {
+Future<List<AiModelInfo>> listModels(AiProvider provider,
+    {bool refresh = false}) async {
+  if (refresh == false && _modelCache[provider] != null) {
+    return _modelCache[provider]!;
+  }
+  List<AiModelInfo> models = await _fetchModels(provider);
+  _modelCache[provider] = models;
+  return models;
+}
+
+Future<List<AiModelInfo>> _fetchModels(AiProvider provider) async {
   switch (aiApiOf(provider)) {
     case AiApi.gemini:
       http.Response response = await http.get(
@@ -177,18 +397,19 @@ Future<List<String>> listModels(AiProvider provider) async {
         headers: await geminiHeaders(provider),
       );
       Map body = decodeOrThrow(response);
-      List<String> models = [
+      List<AiModelInfo> models = [
         for (Map model in body["models"] ?? [])
           if ((model["supportedGenerationMethods"] ?? [])
               .contains("generateContent"))
-            model["name"].toString()
+            aiModelInfoFor(provider, model["name"].toString(),
+                displayName: model["displayName"]?.toString())
       ];
       // Flash models are fast and cheap, enough for questions about money.
       // The shared free server prefers Flash-Lite, which has a larger daily
       // allowance
       String preferred = provider == AiProvider.finza ? "flash-lite" : "flash";
-      models.sort((a, b) => (b.contains(preferred) ? 1 : 0)
-          .compareTo(a.contains(preferred) ? 1 : 0));
+      models.sort((a, b) => (b.id.contains(preferred) ? 1 : 0)
+          .compareTo(a.id.contains(preferred) ? 1 : 0));
       return models;
     case AiApi.responses:
       String key = await requireKey(provider);
@@ -216,16 +437,16 @@ Future<List<String>> listModels(AiProvider provider) async {
         "codex",
         "computer-use",
       ];
-      List<String> models = [
+      List<String> ids = [
         for (Map model in body["data"] ?? [])
           if ((model["id"].toString().startsWith("gpt-") ||
                   RegExp(r"^o\d").hasMatch(model["id"].toString())) &&
               notChat.every((word) => !model["id"].toString().contains(word)))
             model["id"].toString()
       ]..sort((a, b) => b.compareTo(a));
-      models.sort((a, b) =>
+      ids.sort((a, b) =>
           (b.contains("mini") ? 1 : 0).compareTo(a.contains("mini") ? 1 : 0));
-      return models;
+      return [for (String id in ids) aiModelInfoFor(provider, id)];
     case AiApi.chatgptPlan:
       String token = await ChatGptSession.accessToken();
       http.Response response = await http.get(
@@ -236,7 +457,9 @@ Future<List<String>> listModels(AiProvider provider) async {
       // Keep the server's order, it puts the recommended model first
       return [
         for (Map model in body["models"] ?? [])
-          if (model["visibility"] == "list") model["slug"].toString()
+          if (model["visibility"] == "list")
+            aiModelInfoFor(provider, model["slug"].toString(),
+                displayName: model["display_name"]?.toString())
       ];
     case AiApi.anthropic:
       http.Response response = await http.get(
@@ -244,12 +467,14 @@ Future<List<String>> listModels(AiProvider provider) async {
         headers: await anthropicHeaders(provider),
       );
       Map body = decodeOrThrow(response);
-      List<String> models = [
-        for (Map model in body["data"] ?? []) model["id"].toString()
+      List<AiModelInfo> models = [
+        for (Map model in body["data"] ?? [])
+          aiModelInfoFor(provider, model["id"].toString(),
+              displayName: model["display_name"]?.toString())
       ];
       // The current Opus first; the person can pick another in the list
-      models.sort((a, b) => (b == "claude-opus-5-5" ? 1 : 0)
-          .compareTo(a == "claude-opus-5-5" ? 1 : 0));
+      models.sort((a, b) => (b.id == "claude-opus-5-5" ? 1 : 0)
+          .compareTo(a.id == "claude-opus-5-5" ? 1 : 0));
       return models;
     case AiApi.chatCompletions:
       http.Response response = await http.get(
@@ -257,16 +482,19 @@ Future<List<String>> listModels(AiProvider provider) async {
         headers: await chatCompletionsHeaders(provider),
       );
       Map body = decodeOrThrow(response);
-      List<String> models = [
-        for (Map model in body["data"] ?? []) model["id"].toString()
+      bool openRouter = provider == AiProvider.openrouter;
+      List<AiModelInfo> models = [
+        for (Map model in body["data"] ?? [])
+          aiModelInfoFor(provider, model["id"].toString(),
+              displayName: openRouter ? model["name"]?.toString() : null,
+              openRouter: openRouter ? model : null)
       ];
-      if (provider == AiProvider.openrouter) {
-        // Models ending in ":free" cost nothing with a free OpenRouter key
-        models.sort((a, b) => (b.endsWith(":free") ? 1 : 0)
-            .compareTo(a.endsWith(":free") ? 1 : 0));
+      if (openRouter) {
+        // Free models first; they cost nothing with a free OpenRouter key
+        models.sort((a, b) => (b.free ? 1 : 0).compareTo(a.free ? 1 : 0));
       } else {
-        models.sort((a, b) => (b == "deepseek-chat" ? 1 : 0)
-            .compareTo(a == "deepseek-chat" ? 1 : 0));
+        models.sort((a, b) => (b.id == "deepseek-chat" ? 1 : 0)
+            .compareTo(a.id == "deepseek-chat" ? 1 : 0));
       }
       return models;
   }
@@ -319,8 +547,31 @@ Map decodeOrThrow(http.Response response) {
       message.contains("API_KEY_INVALID")) {
     throw AiError("ai-invalid-key");
   }
+  if (response.statusCode == 413) throw AiError("ai-file-too-big");
+  if (rejectsContent(response.statusCode, message)) {
+    throw AiError("ai-content-not-supported");
+  }
   if (response.statusCode >= 500) throw AiError("ai-provider-down");
   throw AiError(message);
+}
+
+// A provider refusing an image or file the model can't take, e.g. "does not
+// support image input" or OpenRouter's "No endpoints found that support
+// image input"
+bool rejectsContent(int statusCode, String message) {
+  if (statusCode != 400 &&
+      statusCode != 404 &&
+      statusCode != 415 &&
+      statusCode != 422) {
+    return false;
+  }
+  String m = message.toLowerCase();
+  bool aboutContent =
+      RegExp(r"image|vision|pdf|document|file input|input_file|modalit|mime")
+          .hasMatch(m);
+  bool refused =
+      RegExp(r"support|not allowed|invalid|cannot|can't|unable").hasMatch(m);
+  return aboutContent && refused;
 }
 
 const String financeInstructions = """
@@ -334,6 +585,8 @@ financial or tax advice.""";
 
 // Sends the conversation and returns the answer. onDelta gets the text as it
 // arrives, for providers that stream it.
+// Only the latest attachment goes with its message; older ones are replaced
+// by a note with their name, which keeps requests small
 Future<String> sendChat(
   List<ChatMessage> conversation, {
   required String? financeContext,
@@ -343,8 +596,24 @@ Future<String> sendChat(
   String model = await ensureModel(provider);
   String instructions = financeInstructions +
       (financeContext == null ? "" : "\n\nUser data:\n" + financeContext);
+  AiApi api = aiApiOf(provider);
+  AiModelInfo info = modelInfo(provider, model);
+  int attached = conversation.lastIndexWhere((m) => m.attachment != null);
+  if (attached != -1) {
+    AiAttachment attachment = conversation[attached].attachment!;
+    String? refusal = attachmentRefusal(attachment, info, api);
+    if (refusal != null) {
+      // Asked now: explain. Sent earlier with another model: drop it to a note
+      if (attached == conversation.length - 1) throw AiError(refusal);
+      attached = -1;
+    }
+  }
+  List<AiChatTurn> turns = [
+    for (int i = 0; i < conversation.length; i++)
+      AiChatTurn.of(conversation[i], withAttachment: i == attached)
+  ];
 
-  switch (aiApiOf(provider)) {
+  switch (api) {
     case AiApi.gemini:
       http.Response response = await http.post(
         geminiGenerateUri(provider, model),
@@ -359,12 +628,10 @@ Future<String> sendChat(
             ]
           },
           "contents": [
-            for (ChatMessage message in conversation)
+            for (AiChatTurn turn in turns)
               {
-                "role": message.fromUser ? "user" : "model",
-                "parts": [
-                  {"text": message.text}
-                ]
+                "role": turn.fromUser ? "user" : "model",
+                "parts": geminiParts(turn.text, turn.file),
               }
           ],
         }),
@@ -381,7 +648,7 @@ Future<String> sendChat(
         body: jsonEncode({
           "model": model,
           "instructions": instructions,
-          "input": responsesInput(conversation),
+          "input": responsesInput(turns),
         }),
       );
       return responsesOutputText(decodeOrThrow(response));
@@ -389,7 +656,7 @@ Future<String> sendChat(
       return await streamChatGptResponse(
         model: model,
         instructions: instructions,
-        input: responsesInput(conversation),
+        input: responsesInput(turns),
         onDelta: onDelta,
       );
     case AiApi.anthropic:
@@ -397,10 +664,10 @@ Future<String> sendChat(
         Uri.parse("https://api.anthropic.com/v1/messages"),
         headers: await anthropicHeaders(provider, model: model),
         body: jsonEncode(anthropicBody(model, instructions, [
-          for (ChatMessage message in conversation)
+          for (AiChatTurn turn in turns)
             {
-              "role": message.fromUser ? "user" : "assistant",
-              "content": message.text
+              "role": turn.fromUser ? "user" : "assistant",
+              "content": anthropicContent(turn.text, turn.file),
             }
         ])),
       );
@@ -413,10 +680,10 @@ Future<String> sendChat(
           "model": model,
           "messages": [
             {"role": "system", "content": instructions},
-            for (ChatMessage message in conversation)
+            for (AiChatTurn turn in turns)
               {
-                "role": message.fromUser ? "user" : "assistant",
-                "content": message.text
+                "role": turn.fromUser ? "user" : "assistant",
+                "content": chatCompletionsContent(turn.text, turn.file),
               }
           ],
         }),
@@ -425,14 +692,117 @@ Future<String> sendChat(
   }
 }
 
+// Why the model can't take an attachment (a translation key), or null
+String? attachmentRefusal(
+    AiAttachment attachment, AiModelInfo info, AiApi api) {
+  switch (attachment.kind) {
+    case AiAttachmentKind.image:
+      return info.readsImages ? null : "ai-model-no-photos";
+    case AiAttachmentKind.pdf:
+      // The ChatGPT plan route takes images only
+      return info.readsPdf && api != AiApi.chatgptPlan
+          ? null
+          : "ai-model-no-pdf";
+    case AiAttachmentKind.text:
+      return null;
+  }
+}
+
+// A message as sent: the text, with a text file folded in, and the image or
+// PDF that goes as its own part
+class AiChatTurn {
+  AiChatTurn(this.fromUser, this.text, this.file);
+  final bool fromUser;
+  final String text;
+  final AiAttachment? file;
+
+  factory AiChatTurn.of(ChatMessage message, {required bool withAttachment}) {
+    AiAttachment? attachment = message.attachment;
+    if (attachment == null) {
+      return AiChatTurn(message.fromUser, message.text, null);
+    }
+    String text = message.text.trim();
+    String join(String extra) => text == "" ? extra : text + "\n\n" + extra;
+    if (withAttachment == false) {
+      return AiChatTurn(
+          message.fromUser,
+          join("[Attached earlier, not included now: ${attachment.name}]"),
+          null);
+    }
+    if (attachment.kind == AiAttachmentKind.text) {
+      return AiChatTurn(
+          message.fromUser,
+          join('Attached file "${attachment.name}":\n' + attachment.text!),
+          null);
+    }
+    return AiChatTurn(message.fromUser,
+        join("Attached file: " + attachment.name), attachment);
+  }
+}
+
+List<Map<String, dynamic>> geminiParts(String text, AiAttachment? file) => [
+      {"text": text},
+      if (file != null)
+        {
+          "inline_data": {
+            "mime_type": file.mimeType,
+            "data": file.base64Data,
+          }
+        },
+    ];
+
+dynamic anthropicContent(String text, AiAttachment? file) {
+  if (file == null) return text;
+  return [
+    // Files go before the question
+    {
+      "type": file.kind == AiAttachmentKind.pdf ? "document" : "image",
+      "source": {
+        "type": "base64",
+        "media_type": file.mimeType,
+        "data": file.base64Data,
+      }
+    },
+    {"type": "text", "text": text},
+  ];
+}
+
+dynamic chatCompletionsContent(String text, AiAttachment? file) {
+  if (file == null) return text;
+  return [
+    {"type": "text", "text": text},
+    if (file.kind == AiAttachmentKind.pdf)
+      {
+        "type": "file",
+        "file": {"filename": file.name, "file_data": file.dataUrl}
+      }
+    else
+      {
+        "type": "image_url",
+        "image_url": {"url": file.dataUrl}
+      },
+  ];
+}
+
+dynamic responsesContent(String text, AiAttachment? file) {
+  if (file == null) return text;
+  return [
+    {"type": "input_text", "text": text},
+    if (file.kind == AiAttachmentKind.pdf)
+      {"type": "input_file", "filename": file.name, "file_data": file.dataUrl}
+    else
+      {"type": "input_image", "image_url": file.dataUrl},
+  ];
+}
+
 // The model picked in the chat page, or the provider's first one
 Future<String> ensureModel(AiProvider provider) async {
   String? model = selectedModel(provider);
   if (model != null) return model;
-  List<String> models = await listModels(provider);
+  List<AiModelInfo> models = await listModels(provider);
   if (models.isEmpty) throw AiError("ai-no-models");
-  await setSelectedModel(provider, models.first);
-  return models.first;
+  await setSelectedModel(provider, models.first.id);
+  return models.first.id;
 }
 
 String geminiOutputText(Map body) {
@@ -450,6 +820,36 @@ class AiImage {
   String get dataUrl => "data:" + mimeType + ";base64," + base64Data;
 }
 
+enum AiAttachmentKind { image, pdf, text }
+
+// A file sent with a chat message. Images and PDFs go as they are; CSV,
+// Excel and text files are turned into text on the device first
+class AiAttachment {
+  AiAttachment.image(this.name, AiImage image)
+      : kind = AiAttachmentKind.image,
+        bytes = image.bytes,
+        mimeType = image.mimeType,
+        text = null;
+  AiAttachment.pdf(this.name, Uint8List this.bytes)
+      : kind = AiAttachmentKind.pdf,
+        mimeType = "application/pdf",
+        text = null;
+  AiAttachment.text(this.name, String this.text)
+      : kind = AiAttachmentKind.text,
+        bytes = null,
+        mimeType = "text/plain";
+
+  final String name;
+  final AiAttachmentKind kind;
+  final Uint8List? bytes;
+  final String mimeType;
+  final String? text;
+
+  // Plain base64, no line breaks
+  String get base64Data => base64Encode(bytes ?? []);
+  String get dataUrl => "data:" + mimeType + ";base64," + base64Data;
+}
+
 // One request with no history: instructions, a text and an optional image.
 // Returns the model's text. With json the providers that allow it are asked
 // for a JSON object; the prompt should ask for JSON too
@@ -462,6 +862,9 @@ Future<String> sendPrompt({
   AiProvider provider = selectedAiProvider();
   if (image != null && !aiReadsImages(provider)) throw AiError("ai-no-vision");
   String model = await ensureModel(provider);
+  if (image != null && !modelInfo(provider, model).readsImages) {
+    throw AiError("ai-model-no-photos");
+  }
   switch (aiApiOf(provider)) {
     case AiApi.gemini:
       http.Response response = await http.post(
@@ -588,11 +991,11 @@ List<Map<String, dynamic>> responsesPromptInput(String text, AiImage? image) =>
       }
     ];
 
-List<Map<String, String>> responsesInput(List<ChatMessage> conversation) => [
-      for (ChatMessage message in conversation)
+List<Map<String, dynamic>> responsesInput(List<AiChatTurn> turns) => [
+      for (AiChatTurn turn in turns)
         {
-          "role": message.fromUser ? "user" : "assistant",
-          "content": message.text
+          "role": turn.fromUser ? "user" : "assistant",
+          "content": responsesContent(turn.text, turn.file),
         }
     ];
 
