@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Finza en pantalla</title>
+  <link rel="icon" href="favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* Made to sit full screen on a monitor: open it and press F11 */
+    :root {
+      --bg: #0D0C17;
+      --surface: rgba(34, 31, 59, .72);
+      --line: rgba(139, 92, 246, .28);
+      --text: #F4F3FF;
+      --muted: #B4B1D6;
+      --indigo: #4F46E5;
+      --violet: #8B5CF6;
+      --mint: #34D399;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+      font-size: clamp(14px, 1.15vw, 24px);
+    }
+    .glow {
+      position: fixed; border-radius: 50%; filter: blur(90px); opacity: .55; z-index: 0;
+      animation: drift 18s ease-in-out infinite alternate;
+    }
+    .glow.a { width: 46vw; height: 46vw; background: var(--indigo); top: -14vw; left: -10vw; }
+    .glow.b { width: 38vw; height: 38vw; background: var(--violet); bottom: -16vw; right: 8vw; animation-delay: -6s; }
+    .glow.c { width: 22vw; height: 22vw; background: #10B981; bottom: 8vh; left: 30vw; opacity: .18; animation-delay: -12s; }
+    @keyframes drift { to { transform: translate(4vw, 3vh) scale(1.08); } }
+
+    main {
+      position: relative; z-index: 1;
+      height: 100%;
+      display: grid;
+      grid-template-columns: 1.25fr 1fr;
+      gap: 4vw;
+      align-items: center;
+      padding: 5vh 6vw;
+    }
+
+    .brand { display: flex; align-items: center; gap: 1.4vw; }
+    .brand img {
+      width: 7.5vw; height: 7.5vw; min-width: 64px; min-height: 64px;
+      border-radius: 24%;
+      box-shadow: 0 2vw 5vw rgba(79, 70, 229, .55);
+    }
+    .brand h1 { font-size: 6.2vw; margin: 0; letter-spacing: -.25vw; line-height: 1; }
+    .tagline {
+      font-size: 2.3vw; font-weight: 800; margin: 2.2vh 0 1.2vh; line-height: 1.15;
+      background: linear-gradient(90deg, #A5B4FC, var(--violet));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .lead { color: var(--muted); font-size: 1.35vw; margin: 0 0 4vh; max-width: 38vw; line-height: 1.5; }
+
+    /* Rotating feature card */
+    .stage { position: relative; height: 22vh; min-height: 150px; }
+    .feature {
+      position: absolute; inset: 0;
+      display: flex; gap: 1.6vw; align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 1.6vw;
+      padding: 2.6vh 2vw;
+      backdrop-filter: blur(8px);
+      opacity: 0; transform: translateY(2vh) scale(.98);
+      transition: opacity .7s ease, transform .7s ease;
+    }
+    .feature.on { opacity: 1; transform: none; }
+    .feature .icon {
+      flex: none; width: 5.4vw; height: 5.4vw; border-radius: 1.3vw;
+      display: grid; place-items: center;
+      background: linear-gradient(135deg, var(--indigo), var(--violet));
+      box-shadow: 0 1vw 3vw rgba(79, 70, 229, .45);
+    }
+    .feature .icon svg { width: 55%; height: 55%; color: #fff; }
+    .feature h2 { margin: 0 0 .6vh; font-size: 2vw; }
+    .feature p { margin: 0; color: var(--muted); font-size: 1.25vw; line-height: 1.45; }
+    .badge {
+      display: inline-block; margin-left: .6vw; vertical-align: middle;
+      font-size: .85vw; font-weight: 700; color: var(--mint);
+      background: rgba(52, 211, 153, .14); padding: .3vh .8vw; border-radius: 999px;
+    }
+    .dots { display: flex; gap: .7vw; margin-top: 2.4vh; }
+    .dots span {
+      width: .7vw; height: .7vw; min-width: 8px; min-height: 8px; border-radius: 999px;
+      background: rgba(180, 177, 214, .35); transition: width .5s ease, background .5s ease;
+    }
+    .dots span.on { width: 2.4vw; background: var(--violet); }
+
+    /* QR side */
+    .scan { display: flex; flex-direction: column; align-items: center; text-align: center; }
+    .qr-frame {
+      position: relative;
+      padding: 1.4vw;
+      border-radius: 2.4vw;
+      background: linear-gradient(135deg, var(--indigo), var(--violet));
+      box-shadow: 0 3vw 8vw rgba(79, 70, 229, .5);
+    }
+    .qr-frame::after {
+      content: ""; position: absolute; inset: -0.6vw; border-radius: 2.8vw;
+      border: 2px solid rgba(165, 180, 252, .55);
+      animation: pulse 2.6s ease-out infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: .9; transform: scale(1); }
+      100% { opacity: 0; transform: scale(1.08); }
+    }
+    .qr-frame img {
+      display: block;
+      width: min(30vw, 58vh); height: min(30vw, 58vh);
+      background: #fff; border-radius: 1.4vw;
+    }
+    .cta { font-size: 2.5vw; font-weight: 800; margin: 3.4vh 0 .6vh; }
+    .url {
+      font-size: 2vw; font-weight: 800; margin: 0;
+      background: linear-gradient(90deg, #A5B4FC, var(--violet));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .platforms { display: flex; gap: 1vw; margin-top: 2.4vh; flex-wrap: wrap; justify-content: center; }
+    .platforms span {
+      display: inline-flex; align-items: center; gap: .6vw;
+      font-weight: 700; font-size: 1.1vw;
+      padding: 1vh 1.3vw; border-radius: 999px;
+      background: var(--surface); border: 1px solid var(--line);
+    }
+    .platforms svg { width: 1.4vw; height: 1.4vw; }
+
+    footer {
+      position: fixed; z-index: 1; left: 0; right: 0; bottom: 2.2vh;
+      text-align: center; color: rgba(180, 177, 214, .7); font-size: .9vw;
+    }
+
+    /* Portrait monitors and phones: stack it */
+    @media (max-aspect-ratio: 1/1) {
+      body { overflow: auto; font-size: 16px; }
+      main { grid-template-columns: 1fr; height: auto; min-height: 100%; padding: 6vh 6vw 10vh; gap: 5vh; }
+      .brand img { width: 18vw; height: 18vw; }
+      .brand h1 { font-size: 14vw; }
+      .tagline { font-size: 6vw; }
+      .lead { font-size: 4vw; max-width: none; }
+      .stage { height: 26vh; }
+      .feature { border-radius: 4vw; padding: 2.4vh 4vw; gap: 4vw; }
+      .feature .icon { width: 14vw; height: 14vw; border-radius: 3.5vw; }
+      .feature h2 { font-size: 5vw; }
+      .feature p { font-size: 3.6vw; }
+      .badge { font-size: 2.6vw; }
+      .dots span { width: 2vw; height: 2vw; }
+      .dots span.on { width: 6vw; }
+      .qr-frame { padding: 3vw; border-radius: 6vw; }
+      .qr-frame img { width: 70vw; height: 70vw; border-radius: 3.5vw; }
+      .cta { font-size: 7vw; }
+      .url { font-size: 6vw; }
+      .platforms span { font-size: 3.6vw; padding: 1vh 3vw; }
+      .platforms svg { width: 4vw; height: 4vw; }
+      footer { position: static; font-size: 3vw; padding-bottom: 3vh; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .glow, .qr-frame::after { animation: none; }
+      .feature { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="glow a"></div>
+  <div class="glow b"></div>
+  <div class="glow c"></div>
+
+  <main>
+    <section>
+      <div class="brand">
+        <img src="icon.png" alt="Logo de Finza">
+        <h1>Finza</h1>
+      </div>
+      <p class="tagline">Controla tu dinero,<br>alcanza tus metas.</p>
+      <p class="lead">La app de finanzas personales hecha para Colombia. Gratis, fácil y con tus datos en tu celular.</p>
+
+      <div class="stage" id="stage">
+        <article class="feature on">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h18"/><path d="M5 10V20M19 10v10M9 10v10M15 10v10"/><path d="M3 20h18"/><path d="m12 3 9 5H3z"/></svg></div>
+          <div><h2>Cuentas y bolsillos</h2><p>Bancolombia, Nequi, Daviplata y el efectivo, con bolsillos para el arriendo, el ahorro y lo que puedes gastar.</p></div>
+        </article>
+        <article class="feature">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M8 10h2M14 10h2M8 14h2M14 14h2M8 18h2M14 18h2"/></svg></div>
+          <div><h2>¿Me alcanza para el crédito?</h2><p>Simula la moto o el celular: cuota, intereses, abonos y si la cuota te cabe en lo que ganas.</p></div>
+        </article>
+        <article class="feature">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></div>
+          <div><h2>Nunca se te pasa un pago</h2><p>Sueldo, arriendo, servicios, SOAT y suscripciones con aviso antes de la fecha. Tú confirmas cada pago.</p></div>
+        </article>
+        <article class="feature">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div>
+          <div><h2>El 4x1000, solo <span class="badge">Colombia</span></h2><p>Lo calcula en cada retiro o transferencia, con la cuenta exenta y las billeteras de bajo monto.</p></div>
+        </article>
+        <article class="feature">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></div>
+          <div><h2>¿Debo declarar renta? <span class="badge">Colombia</span></h2><p>Un estimado con las reglas de la DIAN y la UVT del año: si debes declarar y cuánto pagarías.</p></div>
+        </article>
+        <article class="feature">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 17l.8 2.2L22 20l-2.2.8L19 23l-.8-2.2L16 20l2.2-.8z"/></svg></div>
+          <div><h2>Pregúntale a la IA</h2><p>“¿En qué se me fue la plata este mes?” Respuestas con tus propios datos.</p></div>
+        </article>
+      </div>
+      <div class="dots" id="dots"></div>
+    </section>
+
+    <section class="scan">
+      <div class="qr-frame"><img src="qr-finza.png" alt="Código QR a finza.pages.dev"></div>
+      <p class="cta">Escanea y descárgala</p>
+      <p class="url">finza.pages.dev</p>
+      <div class="platforms">
+        <span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85a.64.64 0 0 0-.83.22l-1.88 3.24a11.43 11.43 0 0 0-8.94 0L5.65 5.67a.643.643 0 0 0-.87-.2c-.28.18-.37.54-.22.83L6.4 9.48A10.78 10.78 0 0 0 1 18h22a10.78 10.78 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/></svg>Android</span>
+        <span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.37 1.43c0 1.14-.42 2.2-1.25 3.08-.92.98-2.04 1.55-3.25 1.45-.15-1.1.4-2.26 1.18-3.1.86-.92 2.32-1.6 3.32-1.43zM20.5 17.1c-.55 1.27-.82 1.84-1.53 2.96-1 1.56-2.4 3.5-4.14 3.52-1.55.01-1.95-1.01-4.05-1-2.1.01-2.54 1.02-4.09 1-1.74-.02-3.07-1.77-4.07-3.33C-.17 15.9-.46 10.8 1.27 8.1c1.23-1.92 3.17-3.04 5-3.04 1.86 0 3.03 1.02 4.57 1.02 1.5 0 2.41-1.02 4.57-1.02 1.63 0 3.36.89 4.59 2.42-4.03 2.21-3.38 7.97.5 9.62z"/></svg>iPhone</span>
+        <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8"/></svg>Web</span>
+      </div>
+    </section>
+  </main>
+
+  <footer>Proyecto académico de finanzas · Basada en Cashew (GPL-3.0) · Las simulaciones y estimados son educativos</footer>
+
+  <script>
+    // Shows one feature at a time, changing every few seconds
+    var features = document.querySelectorAll("#stage .feature");
+    var dots = document.getElementById("dots");
+    features.forEach(function (_, i) {
+      var dot = document.createElement("span");
+      if (i === 0) dot.className = "on";
+      dots.appendChild(dot);
+    });
+    var current = 0;
+    setInterval(function () {
+      features[current].classList.remove("on");
+      dots.children[current].classList.remove("on");
+      current = (current + 1) % features.length;
+      features[current].classList.add("on");
+      dots.children[current].classList.add("on");
+    }, 5000);
+  </script>
+</body>
+</html>
