@@ -39,7 +39,7 @@
   </queries>
     <application
         android:requestLegacyExternalStorage="true"
-        android:label="Finza"
+        android:label="${appLabel}"
         android:icon="@mipmap/ic_launcher">
         <!-- Use the new rendering engine Impeller (experimental) -->
         <!-- <meta-data

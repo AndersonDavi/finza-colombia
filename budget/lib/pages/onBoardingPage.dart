@@ -99,6 +99,11 @@ class OnBoardingPageBodyState extends State<OnBoardingPageBody> {
 
   nextNavigation({bool generatePreview = false}) async {
     if (generatePreview) {
+      // The demo is made of Colombian accounts in pesos
+      if (appStateSettings["country"] != countryColombia) {
+        await pickCountry(countryColombia);
+      }
+      if (!mounted) return;
       openLoadingPopup(context);
       await generatePreviewData();
       popRoute(context);

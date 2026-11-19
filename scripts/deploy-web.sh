@@ -25,7 +25,11 @@ site="$app/build/site"
 rm -rf "$site"
 cp -r "$root/landing" "$site"
 cp -r "$app/build/web" "$site/app"
+# Version and publish time, shown on the monitor page (/feria)
+version="$(sed -n 's/^version: //p' "$app/pubspec.yaml" | tr -d '[:space:]')"
+published="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+echo "{\"version\": \"$version\", \"published\": \"$published\"}" > "$site/info.json"
 # From the build folder so wrangler's cache stays out of the repo
 (cd "$app/build" && npx -y wrangler@4.45.0 pages deploy "$site" \
   --project-name "$project" --branch main --commit-dirty=true)
-echo "Web published: $(sed -n 's/^version: //p' "$app/pubspec.yaml")"
+echo "Web published: $version"

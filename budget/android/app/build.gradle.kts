@@ -34,6 +34,7 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         multiDexEnabled = true
+        manifestPlaceholders["appLabel"] = "Finza"
     }
 
     lint {
@@ -54,6 +55,12 @@ android {
     }
 
     buildTypes {
+        // Test build with the debugging tools (demo data): its own app next to
+        // the real Finza, so installing it never touches real data
+        debug {
+            applicationIdSuffix = ".debug"
+            manifestPlaceholders["appLabel"] = "Finza Debug"
+        }
         release {
             // Without key.properties the release build is signed with the debug key
             signingConfig =

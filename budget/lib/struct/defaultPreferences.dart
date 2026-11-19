@@ -205,6 +205,7 @@ Future<Map<String, dynamic>> getDefaultPreferences() async {
     "loanIncomeFrequency": null,
     "loanIncomeAmount": 0,
     "loanIncomePayday": 30,
+    "loanIncomePayday2": 30,
     "loanMonthlyExpenses": 0,
     "loanOtherDebtPayments": 0,
     "loanPaydayRemindersDate": null,

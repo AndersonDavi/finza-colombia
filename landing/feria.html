@@ -136,6 +136,10 @@
     }
     .platforms svg { width: 1.4vw; height: 1.4vw; }
 
+    .version {
+      margin-top: 1.2vh; font-size: .95vw; color: rgba(180, 177, 214, .75);
+      min-height: 1.4em;
+    }
     footer {
       position: fixed; z-index: 1; left: 0; right: 0; bottom: 2.2vh;
       text-align: center; color: rgba(180, 177, 214, .7); font-size: .9vw;
@@ -164,6 +168,7 @@
       .platforms span { font-size: 3.6vw; padding: 1vh 3vw; }
       .platforms svg { width: 4vw; height: 4vw; }
       footer { position: static; font-size: 3vw; padding-bottom: 3vh; }
+      .version { font-size: 3.2vw; }
     }
     @media (prefers-reduced-motion: reduce) {
       .glow, .qr-frame::after { animation: none; }
@@ -218,6 +223,7 @@
       <div class="qr-frame"><img src="qr-finza.png" alt="Código QR a finza.pages.dev"></div>
       <p class="cta">Escanea y descárgala</p>
       <p class="url">finza.pages.dev</p>
+      <p class="version" id="version"></p>
       <div class="platforms">
         <span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85a.64.64 0 0 0-.83.22l-1.88 3.24a11.43 11.43 0 0 0-8.94 0L5.65 5.67a.643.643 0 0 0-.87-.2c-.28.18-.37.54-.22.83L6.4 9.48A10.78 10.78 0 0 0 1 18h22a10.78 10.78 0 0 0-5.4-8.52zM7 15.25a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5zm10 0a1.25 1.25 0 1 1 0-2.5 1.25 1.25 0 0 1 0 2.5z"/></svg>Android</span>
         <span><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.37 1.43c0 1.14-.42 2.2-1.25 3.08-.92.98-2.04 1.55-3.25 1.45-.15-1.1.4-2.26 1.18-3.1.86-.92 2.32-1.6 3.32-1.43zM20.5 17.1c-.55 1.27-.82 1.84-1.53 2.96-1 1.56-2.4 3.5-4.14 3.52-1.55.01-1.95-1.01-4.05-1-2.1.01-2.54 1.02-4.09 1-1.74-.02-3.07-1.77-4.07-3.33C-.17 15.9-.46 10.8 1.27 8.1c1.23-1.92 3.17-3.04 5-3.04 1.86 0 3.03 1.02 4.57 1.02 1.5 0 2.41-1.02 4.57-1.02 1.63 0 3.36.89 4.59 2.42-4.03 2.21-3.38 7.97.5 9.62z"/></svg>iPhone</span>
@@ -245,6 +251,37 @@
       features[current].classList.add("on");
       dots.children[current].classList.add("on");
     }, 5000);
+
+    // Latest version and when it was published: info.json is written by the
+    // publish script; GitHub's latest release is the fallback. Checked again
+    // every 10 minutes, since this page stays open on the monitor
+    var versionLine = document.getElementById("version");
+    function showVersion(version, date) {
+      if (!version) return;
+      var text = "Versión " + version.replace(/^v/, "").replace(/\+.*/, "");
+      var when = date ? new Date(date) : null;
+      if (when && !isNaN(when)) {
+        text += " · actualizada el " + when.toLocaleDateString("es-CO", {
+          day: "numeric", month: "long", year: "numeric"
+        }) + ", " + when.toLocaleTimeString("es-CO", {
+          hour: "numeric", minute: "2-digit"
+        });
+      }
+      versionLine.textContent = text;
+    }
+    function loadVersion() {
+      fetch("info.json", { cache: "no-store" })
+        .then(function (r) { if (!r.ok) throw r; return r.json(); })
+        .then(function (info) { showVersion(info.version, info.published); })
+        .catch(function () {
+          fetch("https://api.github.com/repos/AndersonDavi/finza-colombia/releases/latest")
+            .then(function (r) { return r.json(); })
+            .then(function (release) { showVersion(release.tag_name, release.published_at); })
+            .catch(function () {});
+        });
+    }
+    loadVersion();
+    setInterval(loadVersion, 10 * 60 * 1000);
   </script>
 </body>
 </html>

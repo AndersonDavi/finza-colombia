@@ -40,6 +40,8 @@ class _AiChatPageState extends State<AiChatPage> {
   // Answers of the month summary action, shown as a card
   final Set<ChatMessage> summaries = {};
   bool sending = false;
+  // Waiting for the browser to come back from the ChatGPT sign-in
+  bool signingIn = false;
   bool shareData = appStateSettings["aiShareData"] ?? true;
   String? error;
   bool errorManagesUsage = false;
@@ -133,7 +135,7 @@ class _AiChatPageState extends State<AiChatPage> {
       await openBottomSheet(
         context,
         PopupFramework(
-          title: "📊 " + "ai-action-summary".tr(),
+          title: "ai-action-summary".tr(),
           child: Builder(
             builder: (sheetContext) => Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -190,10 +192,10 @@ class _AiChatPageState extends State<AiChatPage> {
 
   String modelTags(AiModelInfo info) => [
         if (info.free) "ai-tag-free".tr(),
-        if (info.readsImages) "📷 " + "ai-tag-reads-photos".tr(),
+        if (info.readsImages) "ai-tag-reads-photos".tr(),
         if (info.readsPdf && provider != AiProvider.chatgpt)
-          "📄 " + "ai-tag-reads-pdf".tr(),
-        if (info.fast) "⚡ " + "ai-tag-fast".tr(),
+          "ai-tag-reads-pdf".tr(),
+        if (info.fast) "ai-tag-fast".tr(),
       ].join("  ·  ");
 
   Future<void> chooseModel() async {
@@ -225,7 +227,7 @@ class _AiChatPageState extends State<AiChatPage> {
     await openBottomSheet(
       context,
       PopupFramework(
-        title: "📎 " + "ai-attach-title".tr(),
+        title: "ai-attach-title".tr(),
         subtitle: "ai-attach-subtitle".tr(),
         child: Builder(builder: (sheetContext) {
           Future<void> pick(Future<AiAttachment?> Function() picker) async {
@@ -309,11 +311,20 @@ class _AiChatPageState extends State<AiChatPage> {
   }
 
   Future<void> signInWithChatGpt() async {
+    if (signingIn) return;
+    setState(() {
+      signingIn = true;
+      error = null;
+    });
     try {
       await ChatGptSession.signIn();
     } catch (e) {
-      showError(e);
+      print("ChatGPT sign-in failed: " + e.toString());
+      // Stays on the page, so it is seen when coming back from the browser
+      if (mounted) showError(e);
     }
+    if (!mounted) return;
+    setState(() => signingIn = false);
     await loadProvider();
   }
 
@@ -399,11 +410,33 @@ class _AiChatPageState extends State<AiChatPage> {
         child: Column(children: [
           note("ai-plan-description".tr()),
           SizedBox(height: 10),
-          Button(
-            label: "ai-continue-with-chatgpt".tr(),
-            onTap: signInWithChatGpt,
-            expandedLayout: true,
-          ),
+          if (signingIn)
+            Padding(
+              padding: const EdgeInsetsDirectional.symmetric(vertical: 12),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  ),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: TextFont(
+                      text: "ai-plan-waiting".tr(),
+                      fontSize: 15,
+                      maxLines: 4,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Button(
+              label: "ai-continue-with-chatgpt".tr(),
+              onTap: signInWithChatGpt,
+              expandedLayout: true,
+            ),
         ]),
       );
     }
@@ -489,7 +522,7 @@ class _AiChatPageState extends State<AiChatPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Text("📊", style: TextStyle(fontSize: 22)),
+            AiActionIcon(aiActionInfo[AiAction.summary]!, size: 32),
             SizedBox(width: 8),
             Expanded(
               child: TextFont(

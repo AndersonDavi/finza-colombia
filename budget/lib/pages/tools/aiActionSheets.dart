@@ -31,25 +31,49 @@ import 'package:speech_to_text/speech_to_text.dart';
 
 enum AiAction { receipt, text, voice, bankMessage, loanOffer, summary }
 
+// Vector icons, never emoji: emoji fonts look different on every phone
 class AiActionInfo {
-  const AiActionInfo(this.emoji, this.labelKey, this.helpKey);
-  final String emoji;
+  const AiActionInfo(this.icon, this.color, this.labelKey, this.helpKey);
+  final IconData icon;
+  final Color color;
   final String labelKey;
   final String helpKey;
 }
 
 const Map<AiAction, AiActionInfo> aiActionInfo = {
-  AiAction.receipt:
-      AiActionInfo("📷", "ai-action-receipt", "ai-action-receipt-help"),
-  AiAction.text: AiActionInfo("✍️", "ai-action-text", "ai-action-text-help"),
-  AiAction.voice: AiActionInfo("🎤", "ai-action-voice", "ai-action-voice-help"),
-  AiAction.bankMessage: AiActionInfo(
-      "📋", "ai-action-bank-message", "ai-action-bank-message-help"),
-  AiAction.loanOffer:
-      AiActionInfo("📄", "ai-action-loan", "ai-action-loan-help"),
-  AiAction.summary:
-      AiActionInfo("📊", "ai-action-summary", "ai-action-summary-help"),
+  AiAction.receipt: AiActionInfo(Icons.photo_camera_rounded,
+      Color(0xFFEF6C00), "ai-action-receipt", "ai-action-receipt-help"),
+  AiAction.text: AiActionInfo(Icons.edit_note_rounded, Color(0xFF1E88E5),
+      "ai-action-text", "ai-action-text-help"),
+  AiAction.voice: AiActionInfo(Icons.mic_rounded, Color(0xFFE53935),
+      "ai-action-voice", "ai-action-voice-help"),
+  AiAction.bankMessage: AiActionInfo(Icons.sms_rounded, Color(0xFF43A047),
+      "ai-action-bank-message", "ai-action-bank-message-help"),
+  AiAction.loanOffer: AiActionInfo(Icons.request_quote_rounded,
+      Color(0xFF8E24AA), "ai-action-loan", "ai-action-loan-help"),
+  AiAction.summary: AiActionInfo(Icons.insights_rounded, Color(0xFF00897B),
+      "ai-action-summary", "ai-action-summary-help"),
 };
+
+// The action's icon on a soft square of its color
+class AiActionIcon extends StatelessWidget {
+  const AiActionIcon(this.info, {this.size = 40, super.key});
+  final AiActionInfo info;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: info.color.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(size * 0.3),
+      ),
+      child: Icon(info.icon, color: info.color, size: size * 0.6),
+    );
+  }
+}
 
 // Actions that start with a photo
 const Set<AiAction> aiPhotoActions = {AiAction.receipt, AiAction.loanOffer};
@@ -172,12 +196,8 @@ class AiActionTile extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Fixed height: emoji fonts draw some glyphs shorter
-              SizedBox(
-                height: 36,
-                child: Text(info.emoji, style: TextStyle(fontSize: 28)),
-              ),
-              SizedBox(height: 6),
+              AiActionIcon(info),
+              SizedBox(height: 8),
               TextFont(
                 text: info.labelKey.tr(),
                 fontSize: 16,
@@ -507,7 +527,7 @@ class _AiSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     AiActionInfo info = aiActionInfo[action]!;
     return PopupFramework(
-      title: info.emoji + " " + info.labelKey.tr(),
+      title: info.labelKey.tr(),
       subtitle: info.helpKey.tr(),
       child: child,
     );

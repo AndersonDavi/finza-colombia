@@ -690,6 +690,15 @@ class DebugPage extends StatelessWidget {
               SizedBox(height: 10),
               DangerousDebugFlag(
                 child: Button(
+                  label: "Delete preview data",
+                  onTap: () async {
+                    deletePreviewData();
+                  },
+                ),
+              ),
+              SizedBox(height: 10),
+              DangerousDebugFlag(
+                child: Button(
                   label: "Create random transactions",
                   onTap: () async {
                     List<TransactionCategory> categories =

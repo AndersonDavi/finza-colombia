@@ -8,10 +8,12 @@ import 'package:budget/pages/tools/toolWidgets.dart';
 import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/initializeNotifications.dart';
 import 'package:budget/struct/settings.dart';
+import 'package:budget/widgets/amountInputFormatter.dart';
 import 'package:budget/widgets/button.dart';
 import 'package:budget/widgets/framework/popupFramework.dart';
 import 'package:budget/widgets/onboardingWidgets.dart';
 import 'package:budget/widgets/openBottomSheet.dart';
+import 'package:budget/widgets/selectChips.dart';
 import 'package:budget/widgets/textWidgets.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -33,6 +35,10 @@ class FixedItemPreset {
     this.allowsBiweekly = false,
     this.custom = false,
     this.hasHint = false,
+    this.multiple = false,
+    this.nameSuggestions = const [],
+    this.varies = false,
+    this.hasNote = false,
   });
   // Title key is "onb-fixed-<id>", the optional hint "onb-fixed-<id>-hint"
   final String id;
@@ -48,6 +54,17 @@ class FixedItemPreset {
   // "Other": the name and the direction are typed in the sheet
   final bool custom;
   final bool hasHint;
+  // Several can be added (Netflix and Spotify, two loans), each with its own
+  // name; the name hint key is "onb-fixed-<id>-name-hint"
+  final bool multiple;
+  // Quick picks that fill the name
+  final List<String> nameSuggestions;
+  // The amount changes month to month: an average is asked
+  final bool varies;
+  // A line under the fields, key "onb-fixed-<id>-note"
+  final bool hasNote;
+
+  bool get asksName => custom || multiple;
 
   String get title => "onb-fixed-$id".tr();
   String? get hint => hasHint ? "onb-fixed-$id-hint".tr() : null;
@@ -79,6 +96,9 @@ const List<FixedItemPreset> fixedItemPresets = [
     categoryPk: "6",
     defaultDay: 10,
     hasHint: true,
+    multiple: true,
+    varies: true,
+    nameSuggestions: ["Luz", "Agua", "Gas", "Aseo"],
   ),
   FixedItemPreset(
     id: "phone",
@@ -95,6 +115,8 @@ const List<FixedItemPreset> fixedItemPresets = [
     color: Color(0xFF6A1B9A),
     categoryPk: "6",
     defaultDay: 5,
+    multiple: true,
+    hasNote: true,
   ),
   FixedItemPreset(
     id: "subscriptions",
@@ -103,6 +125,18 @@ const List<FixedItemPreset> fixedItemPresets = [
     color: Color(0xFFC62828),
     categoryPk: "5",
     hasHint: true,
+    multiple: true,
+    nameSuggestions: [
+      "Netflix",
+      "Spotify",
+      "YouTube Premium",
+      "Disney+",
+      "Prime Video",
+      "Max",
+      "iCloud",
+      "Google One",
+      "ChatGPT",
+    ],
   ),
   FixedItemPreset(
     id: "transport",
@@ -110,6 +144,9 @@ const List<FixedItemPreset> fixedItemPresets = [
     iconName: "tram.png",
     color: Color(0xFF00838F),
     categoryPk: "4",
+    multiple: true,
+    varies: true,
+    nameSuggestions: ["Pasajes", "Gasolina", "Parqueadero", "Peajes"],
   ),
   FixedItemPreset(
     id: "groceries",
@@ -117,6 +154,7 @@ const List<FixedItemPreset> fixedItemPresets = [
     iconName: "groceries.png",
     color: Color(0xFF558B2F),
     categoryPk: "2",
+    varies: true,
   ),
   FixedItemPreset(
     id: "other",
@@ -124,6 +162,7 @@ const List<FixedItemPreset> fixedItemPresets = [
     color: Color(0xFF607D8B),
     categoryPk: "6",
     custom: true,
+    hasHint: true,
   ),
 ];
 
@@ -152,14 +191,18 @@ class OnboardingFixedItem {
   final String walletPk;
   final List<String> transactionPks;
 
-  double get perMonth => amount * days.length;
+  // Without dates (a salary that is not fixed) the amount is already monthly
+  double get perMonth => days.isEmpty ? amount : amount * days.length;
 }
 
-Future<TransactionCategory?> _categoryFor(String categoryPk, bool income) async {
+Future<TransactionCategory?> _categoryFor(
+    String categoryPk, bool income) async {
   List<TransactionCategory> categories = await database.getAllCategories();
   bool fits(TransactionCategory c) =>
       c.archived == false && c.income == income && c.mainCategoryPk == null;
-  return categories.where((c) => c.categoryPk == categoryPk && fits(c)).firstOrNull ??
+  return categories
+          .where((c) => c.categoryPk == categoryPk && fits(c))
+          .firstOrNull ??
       categories.where(fits).firstOrNull;
 }
 
@@ -174,6 +217,7 @@ Future<OnboardingFixedItem?> createFixedItem(
   required bool income,
   required List<int> days,
   required String walletPk,
+  PayFrequency? frequency,
 }) async {
   TransactionCategory? category = await _categoryFor(preset.categoryPk, income);
   if (category == null) return null;
@@ -210,11 +254,13 @@ Future<OnboardingFixedItem?> createFixedItem(
   // The salary also fills the income profile the tools read
   if (preset.allowsBiweekly) {
     IncomeProfile profile = IncomeProfile.load();
-    profile.frequency =
-        days.length > 1 ? PayFrequency.biweekly : PayFrequency.monthly;
+    profile.frequency = frequency ??
+        (days.length > 1 ? PayFrequency.biweekly : PayFrequency.monthly);
     profile.amount = amount;
-    profile.payday = days.first;
-    profile.remindersDate = now;
+    if (days.isNotEmpty) profile.payday = days.first;
+    profile.payday2 = days.length > 1 ? days[1] : profile.payday;
+    // No payday reminders for a salary that is not fixed
+    profile.remindersDate = days.isEmpty ? null : now;
     await profile.save();
   }
   if (context.mounted) await setUpcomingNotifications(context);
@@ -300,25 +346,76 @@ class _OnboardingFixedItemsStepState extends State<OnboardingFixedItemsStep> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            OnboardingTileGrid(
-              children: [
-                for (FixedItemPreset preset in fixedItemPresets)
-                  OnboardingTile(
-                    vertical: true,
-                    leading: OnboardingAvatar(
-                      color: preset.color,
-                      icon: preset.icon,
-                      iconName: preset.iconName,
+            for (MapEntry<String, List<FixedItemPreset>> section in {
+              "onb-fixed-section-income":
+                  fixedItemPresets.where((p) => p.income && !p.custom).toList(),
+              "onb-fixed-section-expense": fixedItemPresets
+                  .where((p) => !p.income && !p.custom)
+                  .toList(),
+              "onb-fixed-section-other":
+                  fixedItemPresets.where((p) => p.custom).toList(),
+            }.entries) ...[
+              Padding(
+                padding: const EdgeInsetsDirectional.only(
+                    start: 4, top: 6, bottom: 8),
+                child: Row(
+                  children: [
+                    if (section.key != "onb-fixed-section-other")
+                      Padding(
+                        padding: const EdgeInsetsDirectional.only(end: 6),
+                        child: Icon(
+                          section.key == "onb-fixed-section-income"
+                              ? Icons.arrow_downward_rounded
+                              : Icons.arrow_upward_rounded,
+                          size: 20,
+                          color: section.key == "onb-fixed-section-income"
+                              ? getColor(context, "incomeAmount")
+                              : getColor(context, "expenseAmount"),
+                        ),
+                      ),
+                    Expanded(
+                      child: TextFont(
+                        text: section.key.tr(),
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        maxLines: 2,
+                      ),
                     ),
-                    title: preset.title,
-                    subtitle: preset.hint,
-                    showCheck: preset.custom == false,
-                    selected: preset.custom == false &&
-                        added.any((item) => item.preset.id == preset.id),
-                    onTap: () => add(context, preset),
-                  ),
-              ],
-            ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsetsDirectional.only(bottom: 12),
+                child: OnboardingTileGrid(
+                  children: [
+                    for (FixedItemPreset preset in section.value)
+                      Builder(builder: (context) {
+                        int count = added
+                            .where((item) => item.preset.id == preset.id)
+                            .length;
+                        return OnboardingTile(
+                          vertical: true,
+                          leading: OnboardingAvatar(
+                            color: preset.color,
+                            icon: preset.icon,
+                            iconName: preset.iconName,
+                          ),
+                          title: preset.title,
+                          // The ones that take several say how many there are
+                          // and that one more can be added
+                          subtitle: preset.multiple && count > 0
+                              ? "onb-fixed-added-count"
+                                  .tr(namedArgs: {"count": count.toString()})
+                              : preset.hint,
+                          showCheck: preset.custom == false,
+                          selected: preset.custom == false && count > 0,
+                          onTap: () => add(context, preset),
+                        );
+                      }),
+                  ],
+                ),
+              ),
+            ],
             AnimatedSize(
               duration: Duration(milliseconds: 250),
               curve: Curves.easeInOutCubic,
@@ -339,8 +436,8 @@ class _OnboardingFixedItemsStepState extends State<OnboardingFixedItemsStep> {
                           Container(
                             decoration: BoxDecoration(
                               color: getColor(context, "canvasContainer"),
-                              borderRadius: BorderRadius.circular(
-                                  onboardingTileRadius),
+                              borderRadius:
+                                  BorderRadius.circular(onboardingTileRadius),
                             ),
                             padding: const EdgeInsetsDirectional.symmetric(
                                 vertical: 6),
@@ -353,8 +450,7 @@ class _OnboardingFixedItemsStepState extends State<OnboardingFixedItemsStep> {
                                       allWallets,
                                       item.amount,
                                       currencyKey: allWallets
-                                          .indexedByPk[item.walletPk]
-                                          ?.currency,
+                                          .indexedByPk[item.walletPk]?.currency,
                                     ),
                                     onDelete: () => remove(context, item),
                                   ),
@@ -365,8 +461,7 @@ class _OnboardingFixedItemsStepState extends State<OnboardingFixedItemsStep> {
                           TextFont(
                             key: summaryKey,
                             text: "onb-fixed-summary".tr(namedArgs: {
-                              "income":
-                                  convertToMoney(allWallets, incomeTotal),
+                              "income": convertToMoney(allWallets, incomeTotal),
                               "expenses":
                                   convertToMoney(allWallets, expenseTotal),
                             }),
@@ -395,10 +490,15 @@ class _AddedItemRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String when = item.days.length > 1
-        ? "onb-fixed-biweekly-hint".tr()
-        : "onb-fixed-every-month-on"
-            .tr(namedArgs: {"day": item.days.first.toString()});
+    String when = item.days.isEmpty
+        ? "onb-fixed-no-dates".tr()
+        : item.days.length > 1
+            ? "onb-fixed-twice-on".tr(namedArgs: {
+                "first": item.days[0].toString(),
+                "second": item.days[1].toString(),
+              })
+            : "onb-fixed-every-month-on"
+                .tr(namedArgs: {"day": item.days.first.toString()});
     return Padding(
       padding: const EdgeInsetsDirectional.only(start: 14, end: 4),
       child: Row(
@@ -422,7 +522,9 @@ class _AddedItemRow extends StatelessWidget {
                     maxLines: 2,
                   ),
                   TextFont(
-                    text: (item.income ? "+ " : "- ") + amount + " · " + when,
+                    text: item.amount <= 0
+                        ? when
+                        : (item.income ? "+ " : "- ") + amount + " · " + when,
                     fontSize: 14,
                     maxLines: 2,
                     textColor: item.income
@@ -464,12 +566,23 @@ class _FixedItemSheetState extends State<FixedItemSheet> {
   late final TextEditingController amountController = TextEditingController();
   late final TextEditingController dayController =
       TextEditingController(text: widget.preset.defaultDay.toString());
+  // The two days of a biweekly salary
+  final TextEditingController firstPaydayController =
+      TextEditingController(text: biweeklyPaydays[0].toString());
+  final TextEditingController secondPaydayController =
+      TextEditingController(text: biweeklyPaydays[1].toString());
+  final FocusNode secondPaydayFocus = FocusNode();
+  String? secondPaydayError;
   final FocusNode nameFocus = FocusNode();
   final FocusNode amountFocus = FocusNode();
   final FocusNode dayFocus = FocusNode();
 
   late bool income = widget.preset.income;
-  bool biweekly = false;
+  PayFrequency frequency = PayFrequency.monthly;
+  bool get biweekly => frequency == PayFrequency.biweekly;
+  // A salary that is not fixed: no dates, the amount is optional
+  bool get noFixedPay =>
+      widget.preset.allowsBiweekly && frequency == PayFrequency.variable;
   String walletPk = appStateSettings["selectedWalletPk"]?.toString() ?? "0";
   String? nameError;
   String? amountError;
@@ -482,6 +595,9 @@ class _FixedItemSheetState extends State<FixedItemSheet> {
     nameController.dispose();
     amountController.dispose();
     dayController.dispose();
+    firstPaydayController.dispose();
+    secondPaydayController.dispose();
+    secondPaydayFocus.dispose();
     nameFocus.dispose();
     amountFocus.dispose();
     dayFocus.dispose();
@@ -490,35 +606,53 @@ class _FixedItemSheetState extends State<FixedItemSheet> {
 
   Future<void> submit() async {
     if (saving) return;
+    String typed = nameController.text.trim();
+    // Without a name, one of several still gets the title of its tile
     String name = widget.preset.custom
-        ? nameController.text.trim()
-        : widget.preset.title;
+        ? typed
+        : widget.preset.multiple && typed.isNotEmpty
+            ? typed
+            : widget.preset.title;
     double? amount = parseToolNumber(amountController.text);
-    int? day = int.tryParse(dayController.text.trim());
+    int? day = int.tryParse(
+        (biweekly ? firstPaydayController : dayController).text.trim());
+    int? secondDay = int.tryParse(secondPaydayController.text.trim());
+    bool validDay(int? d) => d != null && d >= 1 && d <= 31;
     setState(() {
       nameError = widget.preset.custom && name.isEmpty
           ? "onb-fixed-name-required".tr()
           : null;
-      amountError = amount == null || amount <= 0
+      amountError = noFixedPay == false && (amount == null || amount <= 0)
           ? "onb-fixed-amount-required".tr()
           : null;
-      dayError = biweekly == false && (day == null || day < 1 || day > 31)
+      dayError = noFixedPay == false && !validDay(day)
           ? "onb-fixed-day-invalid".tr()
           : null;
+      secondPaydayError = biweekly && !validDay(secondDay)
+          ? "onb-fixed-day-invalid".tr()
+          : biweekly && secondDay == day
+              ? "onb-fixed-days-different".tr()
+              : null;
       saveFailed = false;
     });
     if (nameError != null) return nameFocus.requestFocus();
     if (amountError != null) return amountFocus.requestFocus();
     if (dayError != null) return dayFocus.requestFocus();
+    if (secondPaydayError != null) return secondPaydayFocus.requestFocus();
     saving = true;
     OnboardingFixedItem? item = await createFixedItem(
       context,
       preset: widget.preset,
       name: name,
-      amount: amount!.abs(),
+      amount: (amount ?? 0).abs(),
       income: income,
-      days: biweekly ? biweeklyPaydays : [day!],
+      days: noFixedPay
+          ? []
+          : biweekly
+              ? ([day!, secondDay!]..sort())
+              : [day!],
       walletPk: walletPk,
+      frequency: widget.preset.allowsBiweekly ? frequency : null,
     );
     saving = false;
     if (!mounted) return;
@@ -527,6 +661,21 @@ class _FixedItemSheetState extends State<FixedItemSheet> {
       return;
     }
     popRoute(context, item);
+  }
+
+  // What was typed keeps meaning the same money a month: 2.000.000 monthly
+  // become 1.000.000 each fortnight, and back
+  void changeFrequency(PayFrequency next) {
+    double? typed = parseToolNumber(amountController.text);
+    if (typed != null && typed > 0 && next != frequency) {
+      double monthly = frequency == PayFrequency.biweekly ? typed * 2 : typed;
+      double converted = next == PayFrequency.biweekly ? monthly / 2 : monthly;
+      amountController.text = groupThousands(converted.round().toString());
+    }
+    frequency = next;
+    amountError = null;
+    dayError = null;
+    secondPaydayError = null;
   }
 
   Widget sectionLabel(String text) {
@@ -582,18 +731,39 @@ class _FixedItemSheetState extends State<FixedItemSheet> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (preset.custom) ...[
+          if (preset.asksName)
             OnboardingField(
-              label: "onb-fixed-name".tr(),
-              hint: "onb-fixed-name-hint".tr(),
+              label: preset.custom
+                  ? "onb-fixed-name".tr()
+                  : "onb-fixed-which".tr(),
+              hint: preset.custom
+                  ? "onb-fixed-name-hint".tr()
+                  : "onb-fixed-${preset.id}-name-hint".tr(),
               controller: nameController,
               focusNode: nameFocus,
-              required: true,
+              required: preset.custom,
               error: nameError,
               onChanged: (_) {
-                if (nameError != null) setState(() => nameError = null);
+                setState(() => nameError = null);
               },
             ),
+          if (preset.nameSuggestions.isNotEmpty)
+            Padding(
+              padding: const EdgeInsetsDirectional.only(bottom: 14),
+              child: SelectChips<String>(
+                items: preset.nameSuggestions,
+                wrapped: true,
+                allowMultipleSelected: false,
+                padding: EdgeInsetsDirectional.zero,
+                getLabel: (name) => name,
+                getSelected: (name) => nameController.text.trim() == name,
+                onSelected: (name) => setState(() {
+                  nameController.text = name;
+                  nameError = null;
+                }),
+              ),
+            ),
+          if (preset.custom) ...[
             twoChoices(
               firstTitle: "onb-fixed-type-expense".tr(),
               secondTitle: "onb-fixed-type-income".tr(),
@@ -603,23 +773,48 @@ class _FixedItemSheetState extends State<FixedItemSheet> {
           ],
           if (preset.allowsBiweekly) ...[
             sectionLabel("onb-fixed-frequency".tr()),
-            twoChoices(
-              firstTitle: "monthly".tr(),
-              firstSubtitle: "onb-fixed-monthly-hint".tr(),
-              secondTitle: "onb-fixed-biweekly".tr(),
-              secondSubtitle: "onb-fixed-biweekly-hint".tr(),
-              firstSelected: biweekly == false,
-              onFirst: (monthly) => setState(() => biweekly = !monthly),
+            Padding(
+              padding: const EdgeInsetsDirectional.only(bottom: 16),
+              child: OnboardingTileGrid(
+                minTileWidth: 150,
+                maxColumns: 2,
+                children: [
+                  for (MapEntry<PayFrequency, List<String>> option in {
+                    PayFrequency.monthly: [
+                      "monthly".tr(),
+                      "onb-fixed-monthly-hint".tr()
+                    ],
+                    PayFrequency.biweekly: [
+                      "onb-fixed-biweekly".tr(),
+                      "onb-fixed-biweekly-hint".tr()
+                    ],
+                    PayFrequency.variable: [
+                      "onb-fixed-no-fixed-pay".tr(),
+                      "onb-fixed-no-fixed-pay-hint".tr()
+                    ],
+                  }.entries)
+                    OnboardingTile(
+                      title: option.value[0],
+                      subtitle: option.value[1],
+                      selected: frequency == option.key,
+                      onTap: () => setState(() => changeFrequency(option.key)),
+                    ),
+                ],
+              ),
             ),
           ],
           OnboardingField(
-            label: biweekly
-                ? "onb-fixed-amount-each".tr()
-                : "onb-fixed-amount".tr(),
+            label: noFixedPay
+                ? "onb-fixed-amount-no-fixed-pay".tr()
+                : biweekly
+                    ? "onb-fixed-amount-each".tr()
+                    : preset.varies
+                        ? "onb-fixed-amount-approx".tr()
+                        : "onb-fixed-amount".tr(),
             hint: "0",
             controller: amountController,
             focusNode: amountFocus,
-            required: true,
+            required: noFixedPay == false,
             error: amountError,
             onChanged: (_) {
               if (amountError != null) setState(() => amountError = null);
@@ -628,7 +823,44 @@ class _FixedItemSheetState extends State<FixedItemSheet> {
             prefix: "\$ ",
             amount: true,
           ),
-          if (biweekly == false)
+          if (biweekly)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: OnboardingField(
+                    label: "onb-fixed-first-payday".tr(),
+                    hint: "15",
+                    controller: firstPaydayController,
+                    focusNode: dayFocus,
+                    required: true,
+                    error: dayError,
+                    onChanged: (_) {
+                      if (dayError != null) setState(() => dayError = null);
+                    },
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: OnboardingField(
+                    label: "onb-fixed-second-payday".tr(),
+                    hint: "30",
+                    controller: secondPaydayController,
+                    focusNode: secondPaydayFocus,
+                    required: true,
+                    error: secondPaydayError,
+                    onChanged: (_) {
+                      if (secondPaydayError != null) {
+                        setState(() => secondPaydayError = null);
+                      }
+                    },
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+              ],
+            ),
+          if (biweekly == false && noFixedPay == false)
             OnboardingField(
               label: "onb-fixed-day".tr(),
               hint: "onb-fixed-day-hint".tr(),
@@ -641,11 +873,17 @@ class _FixedItemSheetState extends State<FixedItemSheet> {
               },
               keyboardType: TextInputType.number,
             ),
-          if (preset.allowsBiweekly == false)
+          if (preset.allowsBiweekly == false || noFixedPay)
             Padding(
               padding: const EdgeInsetsDirectional.only(start: 4, bottom: 14),
               child: TextFont(
-                text: "onb-fixed-repeats-monthly".tr(),
+                text: noFixedPay
+                    ? "onb-fixed-no-fixed-pay-note".tr()
+                    : preset.hasNote
+                        ? "onb-fixed-${preset.id}-note".tr()
+                        : preset.varies
+                            ? "onb-fixed-varies-note".tr()
+                            : "onb-fixed-repeats-monthly".tr(),
                 fontSize: 14,
                 maxLines: 3,
                 textColor: getColor(context, "black").withOpacity(0.6),
@@ -673,8 +911,7 @@ class _FixedItemSheetState extends State<FixedItemSheet> {
                             OnboardingTile(
                               title: groupNames[wallet.walletGroupFk] ??
                                   wallet.name,
-                              subtitle: groupNames[wallet.walletGroupFk] ==
-                                      null
+                              subtitle: groupNames[wallet.walletGroupFk] == null
                                   ? null
                                   : wallet.name,
                               selected: walletPk == wallet.walletPk,

@@ -2,7 +2,11 @@ import 'dart:math';
 import 'package:budget/colors.dart';
 import 'package:budget/database/initializeDefaultDatabase.dart';
 import 'package:budget/database/tables.dart';
+import 'package:budget/database/walletGroups.dart';
 import 'package:budget/functions.dart';
+import 'package:budget/main.dart';
+import 'package:budget/pages/addWalletPage.dart';
+import 'package:budget/pages/tools/rateMath.dart';
 import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/settings.dart';
 import 'package:budget/widgets/navigationFramework.dart';
@@ -15,9 +19,21 @@ import 'package:budget/widgets/walletEntry.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 
+// Demo with made up data: three accounts with their pockets, about three
+// months of movements in pesos and the fixed payments coming up. Everything it
+// makes is marked as preview (transactions) or uses the ids below (accounts
+// and pockets), so leaving the demo removes exactly that
+
+const List<String> _demoGroupPks = ["10", "11", "12"];
+// Pocket "0" is the one every install starts with, it becomes the free pocket
+// of the first account and goes back to normal when the demo ends
+const List<String> _demoWalletPks = ["10", "11", "12", "13", "14"];
+
 Future deletePreviewData({bool resetOnboard = false}) async {
   if (resetOnboard) {
     updateSettings("hasOnboarded", false, updateGlobalState: true);
+    // The next person going through the onboarding sees the tour again
+    updateSettings("homeTourSeen", false, updateGlobalState: false);
   }
 
   loadingIndeterminateKey.currentState?.setVisibility(true);
@@ -38,25 +54,22 @@ Future deletePreviewData({bool resetOnboard = false}) async {
     print(e.toString());
   }
 
-  try {
-    await database.deleteWallet("10", 1);
-  } catch (e) {
-    print(e.toString());
+  // Highest order first, so the order of the pockets that stay is kept
+  for (String walletPk in _demoWalletPks.reversed) {
+    try {
+      TransactionWallet? wallet =
+          await database.getWalletInstanceOrNull(walletPk);
+      if (wallet != null) await database.deleteWallet(walletPk, wallet.order);
+    } catch (e) {
+      print(e.toString());
+    }
   }
-  try {
-    await database.deleteWallet("11", 2);
-  } catch (e) {
-    print(e.toString());
-  }
-  try {
-    await database.forceDeleteBudgets(["10", "11"]);
-  } catch (e) {
-    print(e.toString());
-  }
-  try {
-    await database.forceDeleteObjectives(["10", "11"]);
-  } catch (e) {
-    print(e.toString());
+  for (String walletGroupPk in _demoGroupPks) {
+    try {
+      await database.deleteWalletGroup(walletGroupPk);
+    } catch (e) {
+      print(e.toString());
+    }
   }
 
   await database.createOrUpdateWallet(
@@ -74,761 +87,304 @@ Future deletePreviewData({bool resetOnboard = false}) async {
   updateSettings("previewDemo", false, updateGlobalState: false);
 }
 
+class _DemoPocket {
+  const _DemoPocket(this.pk, this.name, this.groupPk, this.colour,
+      {this.goalAmount, this.goalMonths});
+  final String pk;
+  final String name;
+  final String groupPk;
+  final String colour;
+  final double? goalAmount;
+  // The goal date, in months from today
+  final int? goalMonths;
+}
+
 Future generatePreviewData() async {
   updateSettings("previewDemo", true, updateGlobalState: false);
   loadingIndeterminateKey.currentState?.setVisibility(true);
   await createDefaultCategories();
-  await database.createOrUpdateWallet(
-    TransactionWallet(
-      archived: false,
-      walletPk: "0",
-      name: "Bank",
-      colour: null,
-      iconName: null,
-      dateCreated: DateTime.now(),
-      dateTimeModified: null,
+  await initializeBalanceCorrectionCategory();
+
+  DateTime now = DateTime.now();
+  int decimals = 0;
+  String currency = "cop";
+
+  // Accounts: where the money is
+  List<WalletGroup> groups = [
+    WalletGroup(
+      walletGroupPk: "10",
+      name: "Bancolombia",
+      colour: "0xfffdda24",
+      kind: WalletGroupKind.digital,
       order: 0,
-      currency: "usd",
-      decimals: 2,
-      homePageWidgetDisplay: defaultWalletHomePageWidgetDisplay,
-    ),
-  );
-  await database.createOrUpdateWallet(
-    TransactionWallet(
-      archived: false,
-      walletPk: "10",
-      name: "Euros",
-      colour: "0xff66bb6a",
-      iconName: null,
-      dateCreated: DateTime.now(),
+      dateCreated: now,
       dateTimeModified: null,
+      freeWalletFk: "0",
+      gmfExempt: true,
+    ),
+    WalletGroup(
+      walletGroupPk: "11",
+      name: "Nequi",
+      colour: "0xffda0081",
+      kind: WalletGroupKind.digitalWallet,
       order: 1,
-      currency: "eur",
-      decimals: 2,
-      homePageWidgetDisplay: defaultWalletHomePageWidgetDisplay,
-    ),
-  );
-  await database.createOrUpdateWallet(
-    TransactionWallet(
-      archived: false,
-      walletPk: "11",
-      name: "Bitcoin",
-      colour: "0xffef5350",
-      iconName: null,
-      dateCreated: DateTime.now(),
+      dateCreated: now,
       dateTimeModified: null,
+      freeWalletFk: "12",
+      gmfExempt: false,
+    ),
+    WalletGroup(
+      walletGroupPk: "12",
+      name: "cash".tr(),
+      colour: "0xff2e7d32",
+      kind: WalletGroupKind.cash,
       order: 2,
-      currency: "btc",
-      decimals: 7,
-      homePageWidgetDisplay: defaultWalletHomePageWidgetDisplay,
-    ),
-  );
-  DateTime tripStart = DateTime.now().subtract(Duration(days: 7));
-  DateTime tripEnd = DateTime.now().add(Duration(days: 14));
-  await database.createOrUpdateBudget(
-    updateSharedEntry: false,
-    Budget(
-      budgetPk: "10",
-      name: "Vacation",
-      amount: 2500.0,
-      colour: "0xffef5350",
-      startDate: tripStart.subtract(Duration(minutes: 24)),
-      endDate: tripEnd,
-      categoryFks: [],
-      addedTransactionsOnly: true,
-      periodLength: 1,
-      reoccurrence: BudgetReoccurence.custom,
-      dateCreated: DateTime.now(),
+      dateCreated: now,
       dateTimeModified: null,
-      pinned: true,
-      order: 1,
-      walletFk: "0",
-      isAbsoluteSpendingLimit: true,
-      income: false,
-      archived: false,
+      freeWalletFk: "14",
+      gmfExempt: false,
     ),
-  );
-  await database.createOrUpdateObjective(
-    Objective(
-      objectivePk: "10",
-      name: "Trip Savings Jar",
-      amount: 500.0,
-      order: 0,
-      colour: "0xff66bb6a",
-      dateCreated: DateTime.now().subtract(Duration(days: 5)),
-      dateTimeModified: DateTime.now(),
-      iconName: "coconut-tree.png",
-      emojiIconName: null,
-      income: true,
-      pinned: true,
-      walletFk: "0",
-      archived: false,
-      type: ObjectiveType.goal,
-    ),
-  );
-  await database.createOrUpdateObjective(
-    Objective(
-      objectivePk: "11",
-      name: "Car Payment Loan",
-      amount: 1000.0,
-      order: 1,
-      colour: "0xffff7043",
-      dateCreated: DateTime.now().subtract(Duration(days: 25)),
-      dateTimeModified: DateTime.now(),
-      iconName: "car.png",
-      emojiIconName: null,
-      income: false,
-      pinned: true,
-      walletFk: "0",
-      archived: false,
-      type: ObjectiveType.goal,
-    ),
-  );
-  await database.createOrUpdateTransaction(
-    updateSharedEntry: false,
-    insert: true,
-    Transaction(
-      objectiveFk: "10",
-      methodAdded: MethodAdded.preview,
-      transactionPk: "-1",
-      name: "Vacation savings",
-      amount: 520.0,
-      note: "Some extra money to put towards a trip!",
-      categoryFk: "11",
-      walletFk: "0",
-      dateCreated: DateTime.now().subtract(Duration(days: 4)),
-      dateTimeModified: null,
-      income: true,
-      periodLength: 1,
-      reoccurrence: BudgetReoccurence.monthly,
-      upcomingTransactionNotification: true,
-      type: null,
-      paid: true,
-      createdAnotherFutureTransaction: false,
-      skipPaid: true,
-    ),
-  );
-  await database.createOrUpdateTransaction(
-    updateSharedEntry: false,
-    insert: true,
-    Transaction(
-      objectiveFk: "11",
-      methodAdded: MethodAdded.preview,
-      transactionPk: "-1",
-      name: "Car Payment",
-      amount: -500.0,
-      note: "",
-      categoryFk: "6",
-      walletFk: "0",
-      dateCreated: tripStart.subtract(Duration(days: 4)),
-      dateTimeModified: null,
-      income: false,
-      periodLength: 1,
-      reoccurrence: BudgetReoccurence.monthly,
-      upcomingTransactionNotification: true,
-      type: null,
-      paid: true,
-      createdAnotherFutureTransaction: false,
-      skipPaid: true,
-    ),
-  );
-  await database.createOrUpdateTransaction(
-    updateSharedEntry: false,
-    insert: true,
-    Transaction(
-      objectiveFk: "11",
-      methodAdded: MethodAdded.preview,
-      transactionPk: "-1",
-      name: "Car Payment",
-      amount: -200.0,
-      note: "",
-      categoryFk: "6",
-      walletFk: "0",
-      dateCreated: DateTime.now().subtract(Duration(days: 10)),
-      dateTimeModified: null,
-      income: false,
-      periodLength: 1,
-      reoccurrence: BudgetReoccurence.monthly,
-      upcomingTransactionNotification: true,
-      type: null,
-      paid: true,
-      createdAnotherFutureTransaction: false,
-      skipPaid: true,
-    ),
-  );
-  await database.createOrUpdateTransaction(
-    updateSharedEntry: false,
-    insert: true,
-    Transaction(
-      methodAdded: MethodAdded.preview,
-      transactionPk: "-1",
-      name: "Plane Ticket",
-      amount: -1000.0,
-      note: "",
-      categoryFk: "10",
-      walletFk: "0",
-      dateCreated: tripStart.subtract(Duration(minutes: 41)),
-      dateTimeModified: null,
-      income: false,
-      periodLength: 1,
-      reoccurrence: BudgetReoccurence.monthly,
-      upcomingTransactionNotification: true,
-      type: null,
-      paid: true,
-      createdAnotherFutureTransaction: false,
-      skipPaid: true,
-      sharedReferenceBudgetPk: "10",
-    ),
-  );
-  await database.createOrUpdateTransaction(
-    updateSharedEntry: false,
-    insert: true,
-    Transaction(
-        methodAdded: MethodAdded.preview,
-        transactionPk: "-1",
-        name: "Phone Bill",
-        amount: -25.6,
-        note: "Extra fees",
-        categoryFk: "6",
-        walletFk: "0",
-        dateCreated:
-            tripStart.add(Duration(days: 2)).subtract(Duration(minutes: 41)),
+  ];
+  for (WalletGroup group in groups) {
+    await database.createOrUpdateWalletGroup(group);
+  }
+
+  // Pockets: money set apart inside each account
+  List<_DemoPocket> pockets = [
+    _DemoPocket("0", "free-money".tr(), "10", "0xfffdda24"),
+    _DemoPocket("10", "Arriendo", "10", "0xffef6c00"),
+    _DemoPocket("11", "Fondo de emergencia", "10", "0xff1565c0",
+        goalAmount: 3000000),
+    _DemoPocket("12", "free-money".tr(), "11", "0xffda0081"),
+    _DemoPocket("13", "Viaje a Cartagena", "11", "0xff00838f",
+        goalAmount: 1500000, goalMonths: 4),
+    _DemoPocket("14", "free-money".tr(), "12", "0xff2e7d32"),
+  ];
+  for (int i = 0; i < pockets.length; i++) {
+    _DemoPocket pocket = pockets[i];
+    await database.createOrUpdateWallet(
+      TransactionWallet(
+        archived: false,
+        walletPk: pocket.pk,
+        name: pocket.name,
+        colour: pocket.colour,
+        iconName: null,
+        dateCreated: now.subtract(Duration(days: 95)),
         dateTimeModified: null,
-        income: false,
-        periodLength: 1,
-        reoccurrence: BudgetReoccurence.monthly,
-        upcomingTransactionNotification: true,
-        type: null,
-        paid: true,
-        createdAnotherFutureTransaction: false,
-        skipPaid: true,
-        sharedReferenceBudgetPk: "10"),
-  );
-  await database.createOrUpdateTransaction(
-    updateSharedEntry: false,
-    insert: true,
-    Transaction(
+        order: i,
+        currency: currency,
+        decimals: decimals,
+        homePageWidgetDisplay: defaultWalletHomePageWidgetDisplay,
+        walletGroupFk: pocket.groupPk,
+        goalAmount: pocket.goalAmount,
+        goalDate: pocket.goalMonths == null
+            ? null
+            : DateTime(now.year, now.month + pocket.goalMonths!, 1),
+      ),
+    );
+  }
+  await setPrimaryWallet("0");
+
+  String label(String walletPk) {
+    _DemoPocket pocket = pockets.firstWhere((p) => p.pk == walletPk);
+    String group =
+        groups.firstWhere((g) => g.walletGroupPk == pocket.groupPk).name;
+    return group + " · " + pocket.name;
+  }
+
+  // Same seed every time: the demo always looks the same
+  Random random = Random(1907);
+  double between(double low, double high, {double step = 100}) =>
+      ((low + random.nextDouble() * (high - low)) / step).round() * step;
+
+  List<TransactionsCompanion> rows = [];
+
+  void add(String name, double amount, String categoryFk, String walletFk,
+      DateTime date,
+      {String note = ""}) {
+    rows.add(Transaction(
       methodAdded: MethodAdded.preview,
-      transactionPk: "-1",
-      name: "Coffee",
-      amount: -6,
-      note: "",
-      categoryFk: "1",
-      walletFk: "10",
-      dateCreated:
-          tripStart.add(Duration(days: 2)).subtract(Duration(minutes: 39)),
-      dateTimeModified: null,
-      income: false,
-      periodLength: 1,
-      reoccurrence: BudgetReoccurence.monthly,
-      upcomingTransactionNotification: true,
-      type: null,
+      transactionPk: uuid.v4(),
+      name: name,
+      amount: amount,
+      note: note,
+      categoryFk: categoryFk,
+      walletFk: walletFk,
+      dateCreated: date,
+      income: amount > 0,
       paid: true,
-      createdAnotherFutureTransaction: false,
       skipPaid: true,
-      sharedReferenceBudgetPk: "10",
-    ),
-  );
-  await database.createOrUpdateTransaction(
-    updateSharedEntry: false,
-    insert: true,
-    Transaction(
+    ).toCompanion(true));
+  }
+
+  // Like a transfer made in the app: two paired balance corrections, the
+  // incoming one a second later
+  void transfer(String title, double amount, String fromPk, String toPk,
+      DateTime date) {
+    String note = "transferred-balance".tr() +
+        "\n" +
+        label(fromPk) +
+        " → " +
+        label(toPk);
+    String toTransactionPk = uuid.v4();
+    rows.add(Transaction(
       methodAdded: MethodAdded.preview,
-      transactionPk: "-1",
-      name: "Coffee",
-      amount: -10.0,
-      note: "",
-      categoryFk: "1",
-      walletFk: "10",
-      dateCreated:
-          tripStart.add(Duration(days: 4)).subtract(Duration(minutes: 34)),
-      dateTimeModified: null,
-      income: false,
-      periodLength: 1,
-      reoccurrence: BudgetReoccurence.monthly,
-      upcomingTransactionNotification: true,
-      type: null,
-      paid: true,
-      createdAnotherFutureTransaction: false,
-      skipPaid: true,
-      sharedReferenceBudgetPk: "10",
-    ),
-  );
-  await database.createOrUpdateTransaction(
-    updateSharedEntry: false,
-    insert: true,
-    Transaction(
-      methodAdded: MethodAdded.preview,
-      transactionPk: "-1",
-      name: "Restaurant",
-      amount: -50.0,
-      note: "",
-      categoryFk: "1",
-      walletFk: "10",
-      dateCreated:
-          tripStart.add(Duration(days: 1)).subtract(Duration(minutes: 27)),
-      dateTimeModified: null,
-      income: false,
-      periodLength: 1,
-      reoccurrence: BudgetReoccurence.monthly,
-      upcomingTransactionNotification: true,
-      type: null,
-      paid: true,
-      createdAnotherFutureTransaction: false,
-      skipPaid: true,
-      sharedReferenceBudgetPk: "10",
-    ),
-  );
-  await database.createOrUpdateTransaction(
-    updateSharedEntry: false,
-    insert: true,
-    Transaction(
-      methodAdded: MethodAdded.preview,
-      transactionPk: "-1",
-      name: "",
-      amount: -22.0,
-      note: "",
-      categoryFk: "2",
-      walletFk: "10",
-      dateCreated:
-          tripStart.add(Duration(days: 4)).subtract(Duration(minutes: 23)),
-      dateTimeModified: null,
-      income: false,
-      periodLength: 1,
-      reoccurrence: BudgetReoccurence.monthly,
-      upcomingTransactionNotification: true,
-      type: null,
-      paid: true,
-      createdAnotherFutureTransaction: false,
-      skipPaid: true,
-      sharedReferenceBudgetPk: "10",
-    ),
-  );
-  await database.createOrUpdateTransaction(
-    updateSharedEntry: false,
-    insert: true,
-    Transaction(
-      methodAdded: MethodAdded.preview,
-      transactionPk: "-1",
-      name: "",
-      amount: -15,
-      note: "",
-      categoryFk: "4",
-      walletFk: "10",
-      dateCreated:
-          tripStart.add(Duration(days: 3)).subtract(Duration(minutes: 8)),
-      dateTimeModified: null,
-      income: false,
-      periodLength: 1,
-      reoccurrence: BudgetReoccurence.monthly,
-      upcomingTransactionNotification: true,
-      type: null,
-      paid: true,
-      createdAnotherFutureTransaction: false,
-      skipPaid: true,
-      sharedReferenceBudgetPk: "10",
-    ),
-  );
-  int monthlySpendingDayStart = DateTime.now().day <= 10 ? 15 : 2;
-  await database.createOrUpdateBudget(
-    updateSharedEntry: false,
-    Budget(
-        budgetPk: "11",
-        name: "Monthly Spending",
-        amount: 500.0,
-        colour: null,
-        startDate: DateTime(DateTime.now().year, DateTime.now().month,
-                monthlySpendingDayStart)
-            .subtract(Duration(minutes: 19)),
-        endDate: DateTime.now(),
-        categoryFks: null,
-        addedTransactionsOnly: false,
-        periodLength: 1,
-        reoccurrence: BudgetReoccurence.monthly,
-        dateCreated: DateTime.now(),
-        dateTimeModified: null,
-        pinned: true,
-        order: 0,
-        walletFk: "0",
-        budgetTransactionFilters: [],
-        memberTransactionFilters: null,
-        sharedKey: null,
-        sharedOwnerMember: null,
-        sharedDateUpdated: null,
-        sharedMembers: null,
-        sharedAllMembersEver: null,
-        isAbsoluteSpendingLimit: false,
-        income: false,
-        archived: false),
-  );
-  await database.createOrUpdateTransaction(
-    updateSharedEntry: false,
-    insert: true,
-    Transaction(
-      methodAdded: MethodAdded.preview,
-      transactionPk: "-1",
-      name: "Payroll",
-      amount: 580.89,
-      note: "",
-      categoryFk: "11",
-      walletFk: "0",
-      dateCreated: DateTime(DateTime.now().year, DateTime.now().month - 2, 1)
-          .subtract(Duration(minutes: 17)),
-      dateTimeModified: null,
+      transactionPk: toTransactionPk,
+      name: title,
+      amount: amount,
+      note: note,
+      categoryFk: "0",
+      walletFk: toPk,
+      dateCreated: date.add(Duration(seconds: 1)),
       income: true,
-      periodLength: 1,
-      reoccurrence: BudgetReoccurence.monthly,
-      upcomingTransactionNotification: true,
-      type: null,
       paid: true,
-      createdAnotherFutureTransaction: false,
-      skipPaid: true,
-    ),
-  );
-  await database.createOrUpdateTransaction(
-    updateSharedEntry: false,
-    insert: true,
-    Transaction(
-      methodAdded: MethodAdded.preview,
-      transactionPk: "-1",
-      name: "Payroll",
-      amount: 780.55,
-      note: "",
-      categoryFk: "11",
-      walletFk: "0",
-      dateCreated: DateTime(DateTime.now().year, DateTime.now().month - 1, 1)
-          .subtract(Duration(minutes: 13)),
-      dateTimeModified: null,
-      income: true,
-      periodLength: 1,
-      reoccurrence: BudgetReoccurence.monthly,
-      upcomingTransactionNotification: true,
-      type: null,
-      paid: true,
-      createdAnotherFutureTransaction: false,
-      skipPaid: true,
-    ),
-  );
-  await database.createOrUpdateTransaction(
-    updateSharedEntry: false,
-    insert: true,
-    Transaction(
-      methodAdded: MethodAdded.preview,
-      transactionPk: "-1",
-      name: "Payroll",
-      amount: 650.45,
-      note: "",
-      categoryFk: "11",
-      walletFk: "0",
-      dateCreated:
-          DateTime.now().firstDayOfMonth().subtract(Duration(minutes: 35)),
-      dateTimeModified: null,
-      income: true,
-      periodLength: 1,
-      reoccurrence: BudgetReoccurence.monthly,
-      upcomingTransactionNotification: true,
-      type: null,
-      paid: true,
-      createdAnotherFutureTransaction: false,
-      skipPaid: true,
-    ),
-  );
-  await database.createOrUpdateTransaction(
-    updateSharedEntry: false,
-    insert: true,
-    Transaction(
-      methodAdded: MethodAdded.preview,
-      transactionPk: "-1",
-      name: "Extra income",
-      amount: 0.005,
-      note: "",
-      categoryFk: "11",
-      walletFk: "11",
-      dateCreated: DateTime.now()
-          .justDay(dayOffset: -20)
-          .subtract(Duration(minutes: 40)),
-      dateTimeModified: null,
-      income: true,
-      periodLength: 1,
-      reoccurrence: BudgetReoccurence.monthly,
-      upcomingTransactionNotification: true,
-      type: null,
-      paid: true,
-      createdAnotherFutureTransaction: false,
-      skipPaid: true,
-    ),
-  );
-  await database.createOrUpdateTransaction(
-    updateSharedEntry: false,
-    insert: true,
-    Transaction(
-      methodAdded: MethodAdded.preview,
-      transactionPk: "-1",
-      name: "Clothes",
-      amount: -95.0,
-      note: "Department store",
-      categoryFk: "3",
-      walletFk: "0",
-      dateCreated: DateTime.now()
-          .subtract(Duration(days: 5))
-          .subtract(Duration(minutes: 30)),
-      dateTimeModified: null,
-      income: false,
-      periodLength: 1,
-      reoccurrence: BudgetReoccurence.monthly,
-      upcomingTransactionNotification: true,
-      type: null,
-      paid: true,
-      createdAnotherFutureTransaction: false,
-      skipPaid: true,
-    ),
-  );
-  await database.createOrUpdateTransaction(
-    updateSharedEntry: false,
-    insert: true,
-    Transaction(
-      methodAdded: MethodAdded.preview,
-      transactionPk: "-1",
-      name: "",
-      amount: -32.0,
-      note: "",
-      categoryFk: "1",
-      walletFk: "0",
-      dateCreated: DateTime.now()
-          .subtract(Duration(days: 9))
-          .subtract(Duration(minutes: 5)),
-      dateTimeModified: null,
-      income: false,
-      periodLength: 1,
-      reoccurrence: BudgetReoccurence.monthly,
-      upcomingTransactionNotification: true,
-      type: null,
-      paid: true,
-      createdAnotherFutureTransaction: false,
-      skipPaid: true,
-    ),
-  );
-  await database.createOrUpdateTransaction(
-    updateSharedEntry: false,
-    insert: true,
-    Transaction(
-      methodAdded: MethodAdded.preview,
-      transactionPk: "-1",
-      name: "",
-      amount: -8.53,
-      note: "",
-      categoryFk: "1",
-      walletFk: "0",
-      dateCreated: DateTime.now()
-          .subtract(Duration(days: 11))
-          .subtract(Duration(minutes: 10)),
-      dateTimeModified: null,
-      income: false,
-      periodLength: 1,
-      reoccurrence: BudgetReoccurence.monthly,
-      upcomingTransactionNotification: true,
-      type: null,
-      paid: true,
-      createdAnotherFutureTransaction: false,
-      skipPaid: true,
-    ),
-  );
-  await database.createOrUpdateTransaction(
-    updateSharedEntry: false,
-    insert: true,
-    Transaction(
-      methodAdded: MethodAdded.preview,
-      transactionPk: "-1",
-      name: "Movie streaming service",
-      amount: -15.0,
-      note: "",
-      categoryFk: "5",
-      walletFk: "0",
-      dateCreated:
-          DateTime.now().add(Duration(days: 2)).subtract(Duration(minutes: 20)),
-      dateTimeModified: null,
-      income: false,
-      periodLength: 1,
-      reoccurrence: BudgetReoccurence.monthly,
-      upcomingTransactionNotification: true,
-      type: TransactionSpecialType.subscription,
-      paid: false,
-      createdAnotherFutureTransaction: false,
       skipPaid: false,
-    ),
-  );
-  await database.createOrUpdateCategoryLimit(
-    insert: true,
-    CategoryBudgetLimit(
-      categoryLimitPk: "-1",
-      categoryFk: "1",
-      budgetFk: "11",
-      amount: 20.0,
-      dateTimeModified: DateTime.now(),
-      walletFk: "0",
-    ),
-  );
-  await database.createOrUpdateCategoryLimit(
-    insert: true,
-    CategoryBudgetLimit(
-      categoryLimitPk: "-1",
-      categoryFk: "2",
-      budgetFk: "11",
-      amount: 35.0,
-      dateTimeModified: DateTime.now(),
-      walletFk: "0",
-    ),
-  );
-  await database.createOrUpdateCategoryLimit(
-    insert: true,
-    CategoryBudgetLimit(
-      categoryLimitPk: "-1",
-      categoryFk: "3",
-      budgetFk: "11",
-      amount: 25.0,
-      dateTimeModified: DateTime.now(),
-      walletFk: "0",
-    ),
-  );
-  await database.createOrUpdateCategoryLimit(
-    insert: true,
-    CategoryBudgetLimit(
-      categoryLimitPk: "-1",
-      categoryFk: "10",
-      budgetFk: "10",
-      amount: 1100,
-      dateTimeModified: DateTime.now(),
-      walletFk: "0",
-    ),
-  );
-  loadingIndeterminateKey.currentState?.setVisibility(false);
-  for (int i = 0; i < 20; i++) {
-    List<int> moreCommonCategories = [1, 2, 3, 4, 5];
-    List<int> moreCommonCommonCategories = [1, 2, 4];
-    await database.createOrUpdateTransaction(
-      updateSharedEntry: false,
-      insert: true,
-      Transaction(
-        methodAdded: MethodAdded.preview,
-        transactionPk: "-1",
-        name: "",
-        amount: (5 + Random().nextDouble() * 10) * -1,
-        note: "",
-        categoryFk: (Random().nextInt(2) == 0
-                ? Random().nextInt(2) == 0
-                    ? moreCommonCategories[
-                        Random().nextInt(moreCommonCommonCategories.length)]
-                    : moreCommonCategories[
-                        Random().nextInt(moreCommonCategories.length)]
-                : Random().nextInt(11) + 1)
-            .toString(),
-        walletFk: "0",
-        dateCreated: DateTime.now()
-            .subtract(Duration(days: i))
-            .subtract(Duration(minutes: i * 13)),
-        income: false,
-        paid: true,
-        skipPaid: true,
-      ),
-    );
-  }
-  for (int i = 5; i < 300; i = i + Random().nextInt(4)) {
-    List<int> moreCommonCategories = [1, 2, 3, 4, 5];
-    List<int> moreCommonCommonCategories = [1, 2, 4];
-    loadingProgressKey.currentState?.setProgressPercentage(i / 300);
-    await database.createOrUpdateTransaction(
-      updateSharedEntry: false,
-      insert: true,
-      Transaction(
-        methodAdded: MethodAdded.preview,
-        transactionPk: "-1",
-        name: "",
-        amount: (1 + Random().nextDouble() * 45) * -1,
-        note: "",
-        categoryFk: (Random().nextInt(2) == 0
-                ? Random().nextInt(2) == 0
-                    ? moreCommonCategories[
-                        Random().nextInt(moreCommonCommonCategories.length)]
-                    : moreCommonCategories[
-                        Random().nextInt(moreCommonCategories.length)]
-                : Random().nextInt(11) + 1)
-            .toString(),
-        walletFk: "0",
-        dateCreated: DateTime.now()
-            .subtract(Duration(days: i))
-            .subtract(Duration(minutes: i * 2)),
-        income: false,
-        paid: true,
-        skipPaid: true,
-      ),
-    );
-  }
-  loadingProgressKey.currentState?.setProgressPercentage(0);
-
-  for (int i = 90; i < 320; i = i + 25 + Random().nextInt(10)) {
-    loadingIndeterminateKey.currentState?.setVisibility(true);
-    await database.createOrUpdateTransaction(
-      updateSharedEntry: false,
-      insert: true,
-      Transaction(
-        methodAdded: MethodAdded.preview,
-        transactionPk: "-1",
-        name: "",
-        amount: 300 + Random().nextDouble() * 200,
-        note: "",
-        categoryFk: (Random().nextInt(2) == 0 ? 6 : 10).toString(),
-        walletFk: "0",
-        dateCreated: DateTime.now()
-            .subtract(Duration(days: i))
-            .subtract(Duration(minutes: i * 2)),
-        income: true,
-        paid: true,
-        skipPaid: true,
-      ),
-    );
+    ).toCompanion(true));
+    rows.add(Transaction(
+      methodAdded: MethodAdded.preview,
+      transactionPk: uuid.v4(),
+      pairedTransactionFk: toTransactionPk,
+      name: title,
+      amount: -amount,
+      note: note,
+      categoryFk: "0",
+      walletFk: fromPk,
+      dateCreated: date,
+      income: false,
+      paid: true,
+      skipPaid: false,
+    ).toCompanion(true));
   }
 
-  // if (allowDangerousDebugFlags) {
-  //   // Large database test
+  DateTime today = DateTime(now.year, now.month, now.day);
+  DateTime start = today.subtract(Duration(days: 89));
 
-  //   List<TransactionsCompanion> insert = [];
+  // What each pocket had when the demo starts
+  DateTime opening = start.add(Duration(hours: 8));
+  String openingName = "Saldo inicial";
+  add(openingName, 1200000, "0", "0", opening);
+  add(openingName, 1100000, "0", "10", opening.add(Duration(minutes: 1)));
+  add(openingName, 1200000, "0", "11", opening.add(Duration(minutes: 2)));
+  add(openingName, 150000, "0", "12", opening.add(Duration(minutes: 3)));
+  add(openingName, 300000, "0", "13", opening.add(Duration(minutes: 4)));
+  add(openingName, 80000, "0", "14", opening.add(Duration(minutes: 5)));
 
-  //   for (int i = 0; i < 35000; i++) {
-  //     insert.add(
-  //       Transaction(
-  //         methodAdded: MethodAdded.preview,
-  //         transactionPk: uuid.v4(),
-  //         name: "",
-  //         amount: -(10 + Random().nextDouble() * 200),
-  //         note: "",
-  //         categoryFk: (Random().nextInt(2) == 0 ? 6 : 10).toString(),
-  //         walletFk: "0",
-  //         dateCreated: DateTime.now().subtract(Duration(days: i)),
-  //         income: false,
-  //         paid: true,
-  //         skipPaid: true,
-  //       ).toCompanion(true),
-  //     );
-  //   }
-  //   for (int i = 0; i < 35000; i++) {
-  //     insert.add(
-  //       Transaction(
-  //         methodAdded: MethodAdded.preview,
-  //         transactionPk: uuid.v4(),
-  //         name: "",
-  //         amount: -(10 + Random().nextDouble() * 200),
-  //         note: "",
-  //         categoryFk: (Random().nextInt(2) == 0 ? 6 : 10).toString(),
-  //         walletFk: "0",
-  //         dateCreated: DateTime.now().subtract(Duration(days: i)),
-  //         income: false,
-  //         paid: true,
-  //         skipPaid: true,
-  //       ).toCompanion(true),
-  //     );
-  //   }
-  //   await database.createBatchTransactionsOnly(insert);
-  // }
+  const List<String> groceries = [
+    "Mercado D1",
+    "Mercado Éxito",
+    "Mercado Ara",
+    "Plaza de mercado",
+  ];
+  int groceryIndex = 0;
+
+  for (DateTime day = start.add(Duration(days: 1));
+      !day.isAfter(today);
+      day = DateTime(day.year, day.month, day.day + 1)) {
+    DateTime at(int hour, int minute) =>
+        DateTime(day.year, day.month, day.day, hour, minute);
+    bool isToday = day == today;
+    int lastDay = daysInMonth(day.year, day.month);
+    int salaryEnd = min(30, lastDay);
+    bool weekday = day.weekday <= DateTime.friday;
+
+    // Biweekly salary, and where it goes
+    if (day.day == 15 || day.day == salaryEnd) {
+      add("Salario", 1800000, "11", "0", at(7, 30));
+      if (day.day == 15) {
+        transfer("Pasar a Nequi", 250000, "0", "12", at(8, 10));
+        transfer("Ahorro del viaje", 150000, "0", "13", at(8, 12));
+        transfer("Retiro en cajero", 120000, "0", "14", at(12, 40));
+      } else {
+        transfer("Apartar el arriendo", 1100000, "0", "10", at(8, 5));
+        transfer("Ahorro del mes", 200000, "0", "11", at(8, 7));
+        transfer("Pasar a Nequi", 150000, "0", "12", at(8, 9));
+      }
+    }
+
+    // Fixed payments
+    if (day.day == 1) add("Arriendo", -1100000, "6", "10", at(9, 15));
+    if (day.day == 10) {
+      add("Luz, agua y gas", -between(130000, 170000), "6", "0", at(18, 20));
+    }
+    if (day.day == 15) add("Internet y celular", -89900, "6", "0", at(19, 2));
+    if (day.day == 20) add("Streaming", -26900, "5", "0", at(6, 0));
+
+    // Day to day spending; today only gets the morning
+    if (day.weekday == DateTime.saturday) {
+      add(groceries[groceryIndex++ % groceries.length],
+          -between(110000, 240000), "2", "0", at(10, 25));
+    }
+    if (weekday) {
+      if (random.nextDouble() < 0.6) {
+        add("Tinto", -between(2500, 3500, step: 500), "1", "14", at(7, 50));
+      }
+      add("Pasaje", -2950, "4", "12", at(6, 45));
+      if (!isToday) {
+        add("Pasaje", -2950, "4", "12", at(17, 55));
+        if (random.nextDouble() < 0.7) {
+          add("Almuerzo", -between(14000, 26000, step: 500), "1", "0",
+              at(12, 35));
+        }
+      }
+    }
+    if (!isToday) {
+      if (random.nextDouble() < 0.2) {
+        add("Uber", -between(12000, 28000), "4", "12", at(21, 10));
+      }
+      if (day.weekday >= DateTime.friday && random.nextDouble() < 0.3) {
+        add("Rappi", -between(32000, 65000), "1", "0", at(20, 30));
+      }
+      if (day.weekday >= DateTime.friday && random.nextDouble() < 0.15) {
+        add("Cine", -between(18000, 26000), "5", "0", at(19, 40));
+      }
+      if (random.nextDouble() < 0.04) {
+        add("Ropa", -between(70000, 160000, step: 1000), "3", "0",
+            at(16, 15));
+      }
+    }
+  }
+  // A side job some weeks ago
+  DateTime freelance = today.subtract(Duration(days: 38));
+  add("Trabajo freelance", 350000, "11", "12",
+      DateTime(freelance.year, freelance.month, freelance.day, 15, 0),
+      note: "Diseño de un logo");
+
+  // Coming up: the same fixed items the onboarding creates, waiting to be
+  // confirmed when the money actually moves
+  void upcoming(String name, double amount, String categoryFk,
+      String walletFk, int dayOfMonth) {
+    bool income = amount > 0;
+    rows.add(Transaction(
+      methodAdded: MethodAdded.preview,
+      transactionPk: uuid.v4(),
+      name: name,
+      note: "onb-fixed-note".tr(),
+      amount: amount,
+      categoryFk: categoryFk,
+      walletFk: walletFk,
+      dateCreated: nextDayOfMonth(today.add(Duration(days: 1)), dayOfMonth)
+          .add(Duration(hours: 9)),
+      income: income,
+      paid: false,
+      skipPaid: false,
+      type: income
+          ? TransactionSpecialType.repetitive
+          : TransactionSpecialType.subscription,
+      reoccurrence: BudgetReoccurence.monthly,
+      periodLength: 1,
+      upcomingTransactionNotification: true,
+      createdAnotherFutureTransaction: false,
+    ).toCompanion(true));
+  }
+
+  upcoming("Salario", 1800000, "11", "0", 15);
+  upcoming("Salario", 1800000, "11", "0", 30);
+  upcoming("Arriendo", -1100000, "6", "10", 1);
+  upcoming("Luz, agua y gas", -150000, "6", "0", 10);
+  upcoming("Internet y celular", -89900, "6", "0", 15);
+  upcoming("Streaming", -26900, "5", "0", 20);
+
+  await database.createBatchTransactionsOnly(rows);
 
   loadingIndeterminateKey.currentState?.setVisibility(false);
 }
@@ -838,69 +394,91 @@ class PreviewDemoWarning extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return appStateSettings["previewDemo"] == true
-        ? Padding(
-            padding: EdgeInsetsDirectional.only(
-                bottom: MediaQuery.viewPaddingOf(context).top),
-            child: Tappable(
-              onTap: () async {
-                deletePreviewData(resetOnboard: true);
-              },
-              child: Padding(
-                padding: const EdgeInsetsDirectional.symmetric(
-                    horizontal: 20, vertical: 10),
+    if (appStateSettings["previewDemo"] != true) return SizedBox.shrink();
+    ColorScheme colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: EdgeInsetsDirectional.only(
+          bottom: MediaQuery.viewPaddingOf(context).top),
+      child: Tappable(
+        onTap: () => confirmExitPreviewDemo(context),
+        color: colors.tertiaryContainer,
+        child: Padding(
+          padding:
+              const EdgeInsetsDirectional.symmetric(horizontal: 20, vertical: 12),
+          child: Row(
+            children: [
+              Icon(Icons.science_rounded, color: colors.onTertiaryContainer),
+              SizedBox(width: 12),
+              Expanded(
                 child: TextFont(
                   text: "preview-demo-warning".tr(),
-                  textColor: Theme.of(context).colorScheme.onError,
+                  textColor: colors.onTertiaryContainer,
                   fontSize: 15,
                   maxLines: 10,
                 ),
               ),
-              color: Theme.of(context).colorScheme.error,
-            ),
-          )
-        : SizedBox.shrink();
+            ],
+          ),
+        ),
+      ),
+    );
   }
+}
+
+Future<void> confirmExitPreviewDemo(BuildContext context) async {
+  await openPopup(
+    context,
+    icon: Icons.science_rounded,
+    title: "exit-demo".tr(),
+    description: "exit-demo-description".tr(),
+    onCancel: () {
+      popRoute(context);
+    },
+    onCancelLabel: "cancel".tr(),
+    onSubmit: () {
+      popAllRoutes(context);
+      deletePreviewData(resetOnboard: true);
+    },
+    onSubmitLabel: "exit-demo".tr(),
+  );
 }
 
 class PreviewDemoButton extends StatelessWidget {
   const PreviewDemoButton({required this.nextNavigation, super.key});
   final Function nextNavigation;
 
+  // A tool for debugging, not for users: only debug builds offer it
   @override
   Widget build(BuildContext context) {
-    // Only allow preview demo if the language is English
-    if (context.locale.toString() == "en") {
-      return LowKeyButton(
-        onTap: () {
-          openPopup(
-            context,
-            title: "preview-demo".tr(),
-            description: "preview-demo-description".tr(),
-            onCancel: () {
-              popRoute(context);
-            },
-            onCancelLabel: "cancel".tr(),
-            onSubmit: () {
-              popRoute(context);
-              nextNavigation(generatePreview: true);
-            },
-            onSubmitLabel: "activate".tr(),
-          );
-        },
-        text: "preview-demo".tr(),
-        extraWidget: Padding(
-          padding: const EdgeInsetsDirectional.only(start: 5),
-          child: Icon(
-            Icons.help,
-            size: 17,
-            color: getColor(context, "black").withOpacity(0.5),
-          ),
+    if (!allowDangerousDebugFlags) return SizedBox.shrink();
+    return LowKeyButton(
+      onTap: () {
+        openPopup(
+          context,
+          icon: Icons.science_rounded,
+          title: "preview-demo".tr(),
+          description: "preview-demo-description".tr(),
+          onCancel: () {
+            popRoute(context);
+          },
+          onCancelLabel: "cancel".tr(),
+          onSubmit: () {
+            popRoute(context);
+            nextNavigation(generatePreview: true);
+          },
+          onSubmitLabel: "activate".tr(),
+        );
+      },
+      text: "preview-demo".tr(),
+      extraWidget: Padding(
+        padding: const EdgeInsetsDirectional.only(start: 5),
+        child: Icon(
+          Icons.science_rounded,
+          size: 17,
+          color: getColor(context, "black").withOpacity(0.5),
         ),
-      );
-    } else {
-      return SizedBox.shrink();
-    }
+      ),
+    );
   }
 }
 

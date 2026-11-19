@@ -34,6 +34,7 @@ class IncomeProfile {
     this.frequency,
     this.amount = 0,
     this.payday = 30,
+    this.payday2 = 30,
     this.expenses = 0,
     this.otherDebts = 0,
     this.remindersDate,
@@ -42,6 +43,8 @@ class IncomeProfile {
   PayFrequency? frequency;
   double amount;
   int payday;
+  // Second payday of a biweekly salary; payday is the first one
+  int payday2;
   double expenses;
   double otherDebts;
   DateTime? remindersDate;
@@ -52,12 +55,14 @@ class IncomeProfile {
   factory IncomeProfile.load() {
     String? frequency = appStateSettings["loanIncomeFrequency"]?.toString();
     int payday = _number(appStateSettings["loanIncomePayday"] ?? 30).round();
+    int payday2 = _number(appStateSettings["loanIncomePayday2"] ?? 30).round();
     return IncomeProfile(
       frequency: PayFrequency.values
           .where((value) => value.name == frequency)
           .firstOrNull,
       amount: _number(appStateSettings["loanIncomeAmount"]),
       payday: payday < 1 || payday > 31 ? 30 : payday,
+      payday2: payday2 < 1 || payday2 > 31 ? 30 : payday2,
       expenses: _number(appStateSettings["loanMonthlyExpenses"]),
       otherDebts: _number(appStateSettings["loanOtherDebtPayments"]),
       remindersDate: DateTime.tryParse(
@@ -70,6 +75,7 @@ class IncomeProfile {
       "loanIncomeFrequency": frequency?.name,
       "loanIncomeAmount": amount,
       "loanIncomePayday": payday,
+      "loanIncomePayday2": payday2,
       "loanMonthlyExpenses": expenses,
       "loanOtherDebtPayments": otherDebts,
       "loanPaydayRemindersDate": remindersDate?.toIso8601String(),
@@ -88,9 +94,13 @@ class IncomeProfile {
   bool get hasFixedPay =>
       frequency == PayFrequency.monthly || frequency == PayFrequency.biweekly;
 
-  // Days of the month the salary arrives: the 15th and 30th when biweekly
-  List<int> get paydays =>
-      frequency == PayFrequency.biweekly ? [15, 30] : [payday];
+  // Days of the month the salary arrives: two when biweekly (the 15th and
+  // 30th unless other days were set)
+  List<int> get paydays {
+    if (frequency != PayFrequency.biweekly) return [payday];
+    if (payday == payday2) return [15, 30];
+    return payday < payday2 ? [payday, payday2] : [payday2, payday];
+  }
 }
 
 class AppMonthlyAverages {
