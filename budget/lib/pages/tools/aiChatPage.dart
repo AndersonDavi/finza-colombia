@@ -263,8 +263,49 @@ class _AiChatPageState extends State<AiChatPage> {
         askWithData(action);
       }
     } else {
-      openAiAction(context, action, ready: ready);
+      openAiAction(context, action, ready: ready, onSaved: addSavedNote);
     }
+  }
+
+  // A line in the chat once a transaction is saved from the add screen, so
+  // it is clear it was done (the model also sees it in the history)
+  Future<void> addSavedNote(Transaction saved) async {
+    AllWallets allWallets = Provider.of<AllWallets>(context, listen: false);
+    TransactionCategory? category =
+        await database.getCategoryInstanceOrNull(saved.categoryFk);
+    TransactionWallet? wallet = allWallets.indexedByPk[saved.walletFk];
+    String? account = wallet?.walletGroupFk == null
+        ? null
+        : walletGroupNamesCache[wallet!.walletGroupFk];
+    String what = [
+      if (saved.name.trim().isNotEmpty) "**" + saved.name.trim() + "**",
+      (saved.income ? "+ " : "- ") +
+          convertToMoney(allWallets, saved.amount.abs(),
+              currencyKey: wallet?.currency),
+      if (category != null) category.name,
+      if (wallet != null)
+        account == null ? wallet.name : account + " / " + wallet.name,
+    ].join(" · ");
+    if (!mounted) return;
+    setState(() => conversation.add(ChatMessage(
+        false, "ai-saved-transaction".tr(namedArgs: {"what": what}))));
+    scrollToBottom();
+    await persist();
+  }
+
+  // The words go to the input and are sent like a typed question
+  void askByVoice() {
+    openAiVoiceSheet(
+      context,
+      title: "ai-voice-chat-title".tr(),
+      subtitle: "ai-voice-chat-help".tr(),
+      submitLabel: "ai-send".tr(),
+      submitIcon: Icons.send_rounded,
+      onText: (text) {
+        messageController.text = text;
+        send();
+      },
+    );
   }
 
   // Asks to share the data first when it is off; true when it can go on
@@ -1263,10 +1304,30 @@ class _AiChatPageState extends State<AiChatPage> {
                 ),
               ),
               SizedBox(width: 8),
-              IconButton.filled(
-                onPressed: sending ? null : send,
-                tooltip: "ai-send".tr(),
-                icon: Icon(Icons.send_rounded),
+              // Microphone while there is nothing to send, like in chat apps
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: messageController,
+                builder: (context, value, _) {
+                  bool empty = value.text.trim().isEmpty && attachment == null;
+                  return AnimatedSwitcher(
+                    duration: Duration(milliseconds: 180),
+                    transitionBuilder: (child, animation) =>
+                        ScaleTransition(scale: animation, child: child),
+                    child: empty
+                        ? IconButton.filled(
+                            key: ValueKey("mic"),
+                            onPressed: sending ? null : askByVoice,
+                            tooltip: "ai-voice-chat".tr(),
+                            icon: Icon(Icons.mic_rounded),
+                          )
+                        : IconButton.filled(
+                            key: ValueKey("send"),
+                            onPressed: sending ? null : send,
+                            tooltip: "ai-send".tr(),
+                            icon: Icon(Icons.send_rounded),
+                          ),
+                  );
+                },
               ),
             ]),
           ]),

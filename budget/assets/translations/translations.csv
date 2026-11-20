@@ -2156,3 +2156,8 @@ Redigeer rekeninge","ගිණුම් සංස්කරණය කරන්න
 "ai-change-createFixedPayment","Create fixed payment","","Crear pago fijo"
 "ai-change-bad-day","The day must be from 1 to 31.","","El día tiene que ser del 1 al 31."
 "onb-account-required","Pick at least one account to keep going. Each one comes with its Free pocket.","","Elige al menos una cuenta para seguir. Cada una trae su bolsillo Libre."
+"ai-saved-transaction","Done, I saved it: {what}","","Listo, quedó guardado: {what}"
+"ai-voice-chat-title","Ask by voice","","Pregunta hablando"
+"ai-voice-chat-help","Say your question; you can fix the words before sending it.","","Di tu pregunta; puedes corregir las palabras antes de enviarla."
+"ai-voice-type-instead","Type it instead","","Mejor lo escribo"
+"ai-voice-chat","Talk","","Hablar"

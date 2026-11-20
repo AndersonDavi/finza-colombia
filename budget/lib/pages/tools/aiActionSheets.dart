@@ -310,10 +310,13 @@ Future<void> openAiNoPhotosSheet(
 
 // Opens the sheet of an action. Without a provider ready it explains what
 // to set up first. The summary is run by the chat page itself
+// onSaved gets the transaction when the user saves it from the add screen,
+// so the chat can say so
 Future<void> openAiAction(
   BuildContext context,
   AiAction action, {
   required bool ready,
+  void Function(Transaction saved)? onSaved,
 }) async {
   if (ready == false) return openAiNotReadySheet(context, action);
   switch (action) {
@@ -329,10 +332,14 @@ Future<void> openAiAction(
                 if (c.income == false) c.name
             ],
           ),
-          retry: () => openAiAction(context, action, ready: true),
+          retry: () =>
+              openAiAction(context, action, ready: true, onSaved: onSaved),
           byHand: true,
         );
-        if (draft != null) await openAiDraft(context, draft, receipt: true);
+        if (draft == null) return;
+        Transaction? saved =
+            await openAiDraft(context, draft, receipt: true);
+        if (saved != null) onSaved?.call(saved);
       });
     case AiAction.loanOffer:
       return _openPhotoSheet(context, action, (image) async {
@@ -346,17 +353,15 @@ Future<void> openAiAction(
     case AiAction.text:
     case AiAction.bankMessage:
       return openAiTextSheet(context,
-          bankMessage: action == AiAction.bankMessage);
+          bankMessage: action == AiAction.bankMessage, onSaved: onSaved);
     case AiAction.voice:
-      return openBottomSheet(
+      AiActionInfo info = aiActionInfo[action]!;
+      return openAiVoiceSheet(
         context,
-        _AiSheet(
-          action: action,
-          child: _VoiceInput(
-            onText: (text) => readAiText(context, text),
-            onUseTyping: () => openAiTextSheet(context),
-          ),
-        ),
+        title: info.labelKey.tr(),
+        subtitle: info.helpKey.tr(),
+        onText: (text) => readAiText(context, text, onSaved: onSaved),
+        onUseTyping: () => openAiTextSheet(context, onSaved: onSaved),
       );
     // Run by the chat page itself
     case AiAction.summary:
@@ -392,7 +397,8 @@ Future<void> openAiNotReadySheet(BuildContext context, AiAction action) {
   );
 }
 
-Future<void> openAiTextSheet(BuildContext context, {bool bankMessage = false}) {
+Future<void> openAiTextSheet(BuildContext context,
+    {bool bankMessage = false, void Function(Transaction saved)? onSaved}) {
   return openBottomSheet(
     context,
     popupWithKeyboard: true,
@@ -400,7 +406,35 @@ Future<void> openAiTextSheet(BuildContext context, {bool bankMessage = false}) {
       action: bankMessage ? AiAction.bankMessage : AiAction.text,
       child: _TextInputSheet(
         bankMessage: bankMessage,
-        onText: (text) => readAiText(context, text, bankMessage: bankMessage),
+        onText: (text) => readAiText(context, text,
+            bankMessage: bankMessage, onSaved: onSaved),
+      ),
+    ),
+  );
+}
+
+// Speech to text in a sheet; the words can be fixed before going on. Opened
+// tall: at the usual 60% the button under the text was cut off
+Future<void> openAiVoiceSheet(
+  BuildContext context, {
+  required String title,
+  String? subtitle,
+  required void Function(String text) onText,
+  VoidCallback? onUseTyping,
+  String? submitLabel,
+  IconData? submitIcon,
+}) {
+  return openBottomSheet(
+    context,
+    fullSnap: true,
+    PopupFramework(
+      title: title,
+      subtitle: subtitle,
+      child: _VoiceInput(
+        onText: onText,
+        onUseTyping: onUseTyping,
+        submitLabel: submitLabel,
+        submitIcon: submitIcon,
       ),
     ),
   );
@@ -408,7 +442,8 @@ Future<void> openAiTextSheet(BuildContext context, {bool bankMessage = false}) {
 
 // Reads a sentence, a voice note or a bank message into a transaction
 Future<void> readAiText(BuildContext context, String text,
-    {bool bankMessage = false}) async {
+    {bool bankMessage = false,
+    void Function(Transaction saved)? onSaved}) async {
   AllWallets allWallets = Provider.of<AllWallets>(context, listen: false);
   List<TransactionCategory> categories = await _categories();
   List<AiPocketOption> pockets = await aiPocketOptions(allWallets);
@@ -420,10 +455,13 @@ Future<void> readAiText(BuildContext context, String text,
       pockets: pockets.map((p) => p.label).toList(),
       bankMessage: bankMessage,
     ),
-    retry: () => openAiTextSheet(context, bankMessage: bankMessage),
+    retry: () => openAiTextSheet(context,
+        bankMessage: bankMessage, onSaved: onSaved),
     byHand: true,
   );
-  if (draft != null) await openAiDraft(context, draft);
+  if (draft == null) return;
+  Transaction? saved = await openAiDraft(context, draft);
+  if (saved != null) onSaved?.call(saved);
 }
 
 Future<List<TransactionCategory>> _categories() async {
@@ -437,8 +475,9 @@ Future<List<TransactionCategory>> _categories() async {
 }
 
 // Opens the add transaction screen filled with what was read; nothing is
-// saved until the user taps save there
-Future<void> openAiDraft(BuildContext context, AiTransactionDraft draft,
+// saved until the user taps save there. Returns the saved transaction, or
+// null when the user went back without saving
+Future<Transaction?> openAiDraft(BuildContext context, AiTransactionDraft draft,
     {bool receipt = false}) async {
   AllWallets allWallets = Provider.of<AllWallets>(context, listen: false);
   TransactionCategory? category =
@@ -457,6 +496,9 @@ Future<void> openAiDraft(BuildContext context, AiTransactionDraft draft,
           .join("\n");
     }
   }
+  // Saving stamps the modified time, so whatever changed after this moment
+  // is what the user saved there
+  DateTime opened = DateTime.now().subtract(Duration(seconds: 1));
   await pushRoute(
     context,
     AddTransactionPage(
@@ -472,6 +514,20 @@ Future<void> openAiDraft(BuildContext context, AiTransactionDraft draft,
       selectedTagPks: tagPks,
     ),
   );
+  return savedSince(opened);
+}
+
+Future<Transaction?> savedSince(DateTime moment) async {
+  try {
+    List<Transaction> changed = (await database.getAllNewTransactions(moment))
+        .where((t) => t.dateTimeModified != null)
+        .toList();
+    if (changed.isEmpty) return null;
+    changed.sort((a, b) => a.dateTimeModified!.compareTo(b.dateTimeModified!));
+    return changed.last;
+  } catch (e) {
+    return null;
+  }
 }
 
 // Runs a request behind the loading popup. On failure shows a friendly
@@ -743,9 +799,17 @@ class _TextInputSheetState extends State<_TextInputSheet> {
 // Speech to text on the device (Android, Chrome and Edge on the web). Where
 // it is missing, points to typing instead
 class _VoiceInput extends StatefulWidget {
-  const _VoiceInput({required this.onText, required this.onUseTyping});
+  const _VoiceInput({
+    required this.onText,
+    this.onUseTyping,
+    this.submitLabel,
+    this.submitIcon,
+  });
   final void Function(String text) onText;
-  final VoidCallback onUseTyping;
+  // Null when there is nothing else to open: the sheet just closes
+  final VoidCallback? onUseTyping;
+  final String? submitLabel;
+  final IconData? submitIcon;
 
   @override
   State<_VoiceInput> createState() => _VoiceInputState();
@@ -862,12 +926,14 @@ class _VoiceInputState extends State<_VoiceInput> {
           ),
           SizedBox(height: 14),
           Button(
-            label: "ai-action-text".tr(),
+            label: widget.onUseTyping == null
+                ? "ai-voice-type-instead".tr()
+                : "ai-action-text".tr(),
             icon: Icons.edit_rounded,
             expandedLayout: true,
             onTap: () {
               popRoute(context);
-              widget.onUseTyping();
+              widget.onUseTyping?.call();
             },
           ),
         ],
@@ -922,8 +988,8 @@ class _VoiceInputState extends State<_VoiceInput> {
             ),
           ),
         Button(
-          label: "ai-voice-use-text".tr(),
-          icon: Icons.arrow_forward_rounded,
+          label: widget.submitLabel ?? "ai-voice-use-text".tr(),
+          icon: widget.submitIcon ?? Icons.arrow_forward_rounded,
           expandedLayout: true,
           onTap: submit,
         ),

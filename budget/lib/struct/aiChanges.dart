@@ -393,8 +393,8 @@ Future<AiChangePlan> planAiChange(
         ],
         // Same review screen as the other AI actions: saved from there
         apply: (context) async {
-          await openAiDraft(context, draft);
-          return "opened";
+          Transaction? saved = await openAiDraft(context, draft);
+          return saved != null ? "done" : "cancelled";
         },
       );
 
