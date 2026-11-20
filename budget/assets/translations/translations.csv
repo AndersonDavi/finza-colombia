@@ -2155,3 +2155,4 @@ Redigeer rekeninge","ගිණුම් සංස්කරණය කරන්න
 "ai-duplicates-request","Look for duplicated movements in the last months and propose deleting the ones that are really repeated.","","Busca movimientos duplicados de los últimos meses y propón borrar los que de verdad estén repetidos."
 "ai-change-createFixedPayment","Create fixed payment","","Crear pago fijo"
 "ai-change-bad-day","The day must be from 1 to 31.","","El día tiene que ser del 1 al 31."
+"onb-account-required","Pick at least one account to keep going. Each one comes with its Free pocket.","","Elige al menos una cuenta para seguir. Cada una trae su bolsillo Libre."

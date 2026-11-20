@@ -51,12 +51,6 @@
   <meta property="twitter:description" content="A budget and financial tracking application designed for you" />
   <meta property="twitter:image" content="https://cashewapp.web.app/assets/preview.png" />
 
-  <script>
-    // The value below is injected by flutter build, do not touch.
-    var serviceWorkerVersion = null;
-  </script>
-  <!-- This script adds the flutter initialization JS code -->
-  <script src="flutter.js" defer></script>
 </head>
 <body oncontextmenu="return false;">
   <style>
@@ -136,51 +130,52 @@
       <div class="loading-spinner"></div>
     </div>
   </div>
-  <script>
-    window.addEventListener('load', function(ev) {
-      var loading = document.querySelector('#loading');
-      // No offline service worker: it kept serving the previous build after an
-      // update. Remove the one an older build may have installed.
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function (registrations) {
-          registrations.forEach(function (registration) { registration.unregister(); });
-        });
+  <!-- Shown by flutter_bootstrap.js only if loading fails or takes too long -->
+  <div id="load-problem">
+    <style>
+      #load-problem {
+        display: none;
+        position: fixed;
+        left: 16px;
+        right: 16px;
+        bottom: 16px;
+        max-height: 60vh;
+        overflow: auto;
+        padding: 16px;
+        border-radius: 16px;
+        background: #ECEAF6;
+        color: #1C1B22;
+        font-family: -apple-system, system-ui, sans-serif;
       }
-      if (window.caches) {
-        caches.keys().then(function (keys) {
-          keys.forEach(function (key) { caches.delete(key); });
-        });
+      @media (prefers-color-scheme: dark) {
+        #load-problem { background: #23212F; color: #EDEBF5; }
       }
-      // Download main.dart.js. The domain lets browsers keep scripts for hours,
-      // so the build hash in the URL makes each new build a fresh download
-      _flutter.loader.loadEntrypoint({
-        entrypointUrl: 'main.dart.js?v=' + serviceWorkerVersion,
-      }).then(function(engineInitializer) {
-        loading.classList.add('main_done');
-        return engineInitializer.initializeEngine({
-          useColorEmoji: true,
-        });
-      }).then(function(appRunner) {
-        loading.classList.add('init_done');
-        return appRunner.runApp();
-      }).then(function (_) {
-        // Wait a few milliseconds so users can see the "zoom" animation
-        // before getting rid of the "loading" div.
-        window.setTimeout(function () {
-          loading.remove();
-        }, 200);
-
-        // https://github.com/flutter/flutter/issues/55913#issuecomment-1248816491
-        
-        const flutterRoot = document.getElementsByTagName('flt-glass-pane').item(0);
-        flutterRoot.addEventListener('touchstart', (e) => {
-          // is not near edge of view, exit
-          if (e.pageX > 24 && e.pageX < window.innerWidth - 24) return;
-          // prevent swipe to navigate gesture
-          e.preventDefault();
-        });
-      });
-    });
-  </script>
+      #load-problem .title { font-weight: 700; font-size: 17px; margin-bottom: 6px; }
+      #load-problem .hint { font-size: 14px; margin-bottom: 10px; opacity: .8; }
+      #load-problem .details {
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 11px;
+        opacity: .75;
+        margin: 10px 0 0;
+      }
+      #load-problem button {
+        border: 0;
+        border-radius: 999px;
+        padding: 10px 18px;
+        font-size: 15px;
+        font-weight: 600;
+        font-family: inherit;
+        background: #5A5791;
+        color: #FFFFFF;
+      }
+    </style>
+    <div class="title"></div>
+    <div class="hint">Toma una captura de este mensaje y vuelve a intentar.</div>
+    <button onclick="location.reload()">Recargar</button>
+    <pre class="details"></pre>
+  </div>
+  <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

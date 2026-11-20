@@ -1,6 +1,7 @@
 import 'package:budget/colors.dart';
 import 'package:budget/database/generatePreviewData.dart';
 import 'package:budget/database/tables.dart';
+import 'package:budget/database/walletGroups.dart';
 import 'package:budget/struct/country.dart';
 import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/languageMap.dart';
@@ -63,9 +64,9 @@ class OnBoardingPageBody extends StatefulWidget {
 // Steps of the onboarding, in order
 enum OnboardingStep { welcome, accounts, explain, fixedItems, finish }
 
-// Steps that can be skipped without picking anything
+// Steps that can be skipped without picking anything. The accounts step is
+// not one of them: without an account there is no pocket to put money in
 const Set<OnboardingStep> optionalOnboardingSteps = {
-  OnboardingStep.accounts,
   OnboardingStep.fixedItems,
 };
 
@@ -78,6 +79,8 @@ class OnBoardingPageBodyState extends State<OnBoardingPageBody> {
 
   // Shown when Next is pressed before picking a country
   bool countryMissing = false;
+  // Shown when Next is pressed before picking an account
+  bool accountMissing = false;
   // The language moved to Spanish when Colombia was picked
   bool switchedToSpanish = false;
   // Kept here: the pages of the PageView are rebuilt when swiped back to
@@ -164,11 +167,23 @@ class OnBoardingPageBodyState extends State<OnBoardingPageBody> {
     );
   }
 
-  void nextOnBoardPage() {
+  // Whether the step has what it needs to go on; if not, its warning shows
+  Future<bool> canLeave(OnboardingStep step) async {
     if (step == OnboardingStep.welcome && appStateSettings["country"] == null) {
       setState(() => countryMissing = true);
-      return;
+      return false;
     }
+    if (step == OnboardingStep.accounts &&
+        (await database.getAllWalletGroups()).isEmpty) {
+      if (mounted) setState(() => accountMissing = true);
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> nextOnBoardPage() async {
+    if (!await canLeave(step)) return;
+    if (!mounted) return;
     if (currentPage + 1 >= numPages) {
       nextNavigation();
     } else {
@@ -363,7 +378,12 @@ class OnBoardingPageBodyState extends State<OnBoardingPageBody> {
             onboardingTitle("onboarding-accounts-title".tr()),
             onboardingText("onboarding-accounts-description".tr()),
             SizedBox(height: 16),
-            OnboardingAccountsStep(),
+            OnboardingAccountsStep(
+              missing: accountMissing,
+              onPicked: () {
+                if (accountMissing) setState(() => accountMissing = false);
+              },
+            ),
           ],
         );
       case OnboardingStep.explain:
@@ -580,7 +600,15 @@ class OnBoardingPageBodyState extends State<OnBoardingPageBody> {
               Expanded(
                 child: PageView(
                   controller: controller,
-                  onPageChanged: (page) => setState(() => currentPage = page),
+                  onPageChanged: (page) async {
+                    // Swiping forward checks the step like Next does
+                    OnboardingStep leaving = step;
+                    if (page > currentPage && !await canLeave(leaving)) {
+                      goToPage(currentPage);
+                      return;
+                    }
+                    if (mounted) setState(() => currentPage = page);
+                  },
                   children: children,
                 ),
               ),

@@ -43,6 +43,7 @@
   "all-spending": "All Spending",
   "edit-data": "Edit Data",
   "edit-order": "Edit Order",
+  "onb-account-required": "Pick at least one account to keep going. Each one comes with its Free pocket.",
   "ai-action-debts": "Review my debts",
   "ai-action-debts-help": "Which loan to pay first and how much you save paying extra.",
   "ai-action-duplicates": "Find duplicates",

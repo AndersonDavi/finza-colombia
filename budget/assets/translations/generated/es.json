@@ -43,6 +43,7 @@
   "all-spending": "Todos los movimientos",
   "edit-data": "Editar datos",
   "edit-order": "Editar orden",
+  "onb-account-required": "Elige al menos una cuenta para seguir. Cada una trae su bolsillo Libre.",
   "ai-action-debts": "Revisar mis deudas",
   "ai-action-debts-help": "Qué crédito pagar primero y cuánto te ahorras abonando.",
   "ai-action-duplicates": "Buscar duplicados",
