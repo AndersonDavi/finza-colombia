@@ -63,9 +63,10 @@ class OnBoardingPageBody extends StatefulWidget {
 // Steps of the onboarding, in order
 enum OnboardingStep { welcome, accounts, explain, fixedItems, finish }
 
-// Steps that can be skipped without picking anything
+// Steps that can be skipped without picking anything. The accounts step is
+// not here: a transaction needs an account and a pocket to live in, so at
+// least one account must be picked
 const Set<OnboardingStep> optionalOnboardingSteps = {
-  OnboardingStep.accounts,
   OnboardingStep.fixedItems,
 };
 
@@ -78,6 +79,8 @@ class OnBoardingPageBodyState extends State<OnBoardingPageBody> {
 
   // Shown when Next is pressed before picking a country
   bool countryMissing = false;
+  // Shown when Next is pressed before picking at least one account
+  bool accountsMissing = false;
   // The language moved to Spanish when Colombia was picked
   bool switchedToSpanish = false;
   // Kept here: the pages of the PageView are rebuilt when swiped back to
@@ -164,10 +167,19 @@ class OnBoardingPageBodyState extends State<OnBoardingPageBody> {
     );
   }
 
-  void nextOnBoardPage() {
+  Future<void> nextOnBoardPage() async {
     if (step == OnboardingStep.welcome && appStateSettings["country"] == null) {
       setState(() => countryMissing = true);
       return;
+    }
+    if (step == OnboardingStep.accounts) {
+      bool hasAccount = (await database.getAllWalletGroups()).isNotEmpty;
+      if (!mounted) return;
+      if (hasAccount == false) {
+        setState(() => accountsMissing = true);
+        return;
+      }
+      if (accountsMissing) setState(() => accountsMissing = false);
     }
     if (currentPage + 1 >= numPages) {
       nextNavigation();
@@ -363,7 +375,13 @@ class OnBoardingPageBodyState extends State<OnBoardingPageBody> {
             onboardingTitle("onboarding-accounts-title".tr()),
             onboardingText("onboarding-accounts-description".tr()),
             SizedBox(height: 16),
-            OnboardingAccountsStep(),
+            OnboardingAccountsStep(
+              onChanged: () {
+                if (accountsMissing) setState(() => accountsMissing = false);
+              },
+            ),
+            if (accountsMissing)
+              OnboardingErrorText(text: "onb-accounts-required".tr()),
           ],
         );
       case OnboardingStep.explain:
@@ -580,6 +598,9 @@ class OnBoardingPageBodyState extends State<OnBoardingPageBody> {
               Expanded(
                 child: PageView(
                   controller: controller,
+                  // Only the buttons move between steps, so a required step
+                  // can't be swiped past
+                  physics: NeverScrollableScrollPhysics(),
                   onPageChanged: (page) => setState(() => currentPage = page),
                   children: children,
                 ),

@@ -116,7 +116,8 @@ Future<void> removeOnboardingAccount(WalletGroup group) async {
 }
 
 class OnboardingAccountsStep extends StatelessWidget {
-  const OnboardingAccountsStep({super.key});
+  const OnboardingAccountsStep({this.onChanged, super.key});
+  final VoidCallback? onChanged;
 
   Future<void> addOther(BuildContext context) async {
     String? walletGroupPk = await openEditWalletGroupPopup(context);
@@ -125,6 +126,7 @@ class OnboardingAccountsStep extends StatelessWidget {
         .where((g) => g.walletGroupPk == walletGroupPk)
         .firstOrNull;
     await adoptStarterPocket(walletGroupPk, group?.colour);
+    onChanged?.call();
   }
 
   @override
@@ -164,6 +166,7 @@ class OnboardingAccountsStep extends StatelessWidget {
                           await removeOnboardingAccount(existing);
                         } else {
                           await createAccountFromPreset(preset);
+                          onChanged?.call();
                         }
                       },
                     );

@@ -244,6 +244,7 @@
   "onb-next": "Next",
   "onb-back": "Back",
   "onb-country-required": "Choose where you live to continue",
+  "onb-accounts-required": "Pick at least one account to continue",
   "onb-explain-title": "Two ideas and you're set",
   "onb-explain-pockets": "Pockets: split your money by purpose, like rent or savings. \"Free\" is what you can spend.",
   "onb-explain-categories": "Categories: each expense goes in one, like Food or Transport, so you see where your money goes.",
