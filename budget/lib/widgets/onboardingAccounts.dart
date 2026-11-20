@@ -115,18 +115,24 @@ Future<void> removeOnboardingAccount(WalletGroup group) async {
   await database.deleteWalletGroup(group.walletGroupPk);
 }
 
+// Opens the new account popup; the first account takes the starter pocket.
+// Returns true if an account was created
+Future<bool> addAccountWithStarterPocket(BuildContext context) async {
+  String? walletGroupPk = await openEditWalletGroupPopup(context);
+  if (walletGroupPk == null) return false;
+  WalletGroup? group = (await database.getAllWalletGroups())
+      .where((g) => g.walletGroupPk == walletGroupPk)
+      .firstOrNull;
+  await adoptStarterPocket(walletGroupPk, group?.colour);
+  return true;
+}
+
 class OnboardingAccountsStep extends StatelessWidget {
   const OnboardingAccountsStep({this.onChanged, super.key});
   final VoidCallback? onChanged;
 
   Future<void> addOther(BuildContext context) async {
-    String? walletGroupPk = await openEditWalletGroupPopup(context);
-    if (walletGroupPk == null) return;
-    WalletGroup? group = (await database.getAllWalletGroups())
-        .where((g) => g.walletGroupPk == walletGroupPk)
-        .firstOrNull;
-    await adoptStarterPocket(walletGroupPk, group?.colour);
-    onChanged?.call();
+    if (await addAccountWithStarterPocket(context)) onChanged?.call();
   }
 
   @override

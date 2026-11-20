@@ -36,6 +36,7 @@ import 'package:budget/widgets/timeDigits.dart';
 import 'package:budget/struct/initializeNotifications.dart';
 import 'package:budget/widgets/openBottomSheet.dart';
 import 'package:budget/widgets/openPopup.dart';
+import 'package:budget/widgets/onboardingAccounts.dart';
 import 'package:budget/widgets/openSnackbar.dart';
 import 'package:budget/widgets/radioItems.dart';
 import 'package:budget/widgets/selectAmount.dart';
@@ -814,6 +815,27 @@ class _AddTransactionPageState extends State<AddTransactionPage>
       _noteInputController = new LinkHighlighter();
 
       Future.delayed(Duration(milliseconds: 0), () async {
+        // A transaction needs an account and a pocket to live in
+        if (await database.getAllWalletGroups().then((g) => g.isEmpty)) {
+          if (!mounted) return;
+          popRoute(context);
+          openPopup(
+            navigatorKey.currentContext,
+            icon: appStateSettings["outlinedIcons"]
+                ? Icons.account_balance_wallet_outlined
+                : Icons.account_balance_wallet_rounded,
+            title: "no-account-title".tr(),
+            description: "no-account-description".tr(),
+            onSubmitLabel: "create-account".tr(),
+            onSubmit: () async {
+              popRoute(navigatorKey.currentContext!);
+              await addAccountWithStarterPocket(navigatorKey.currentContext!);
+            },
+            onCancelLabel: "cancel".tr(),
+            onCancel: () => popRoute(navigatorKey.currentContext!),
+          );
+          return;
+        }
         if (widget.transferBalancePopup) {
           openTransferBalancePopup();
           return;
