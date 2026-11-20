@@ -6,6 +6,8 @@ import 'package:budget/functions.dart';
 import 'package:budget/pages/addWalletPage.dart';
 import 'package:budget/pages/tools/aiActionSheets.dart';
 import 'package:budget/struct/aiActions.dart';
+import 'package:budget/pages/tools/rateMath.dart';
+import 'package:budget/struct/initializeNotifications.dart';
 import 'package:budget/struct/country.dart';
 import 'package:budget/struct/databaseGlobal.dart';
 import 'package:budget/struct/settings.dart';
@@ -47,6 +49,7 @@ Actions and their fields:
 - edit_transaction: id, plus only the fields that change: title, amount, income, category, pocket, date
 - delete_transaction: id
 - transfer: from (pocket), to (pocket), amount
+- create_fixed_payment: title, amount, income (true or false), day (1 to 31), category, pocket, second_day (optional, for a salary paid twice a month). It is a monthly reminder the user confirms each time; use it for "remind me", rent, bills, salary
 If a name or #id is not in the data, ask instead of guessing.""";
 
 enum AiChangeKind {
@@ -59,6 +62,7 @@ enum AiChangeKind {
   editTransaction,
   deleteTransaction,
   transfer,
+  createFixedPayment,
 }
 
 const Map<String, AiChangeKind> _actionNames = {
@@ -71,6 +75,7 @@ const Map<String, AiChangeKind> _actionNames = {
   "edit_transaction": AiChangeKind.editTransaction,
   "delete_transaction": AiChangeKind.deleteTransaction,
   "transfer": AiChangeKind.transfer,
+  "create_fixed_payment": AiChangeKind.createFixedPayment,
 };
 
 AiChangeKind? aiChangeKindOf(dynamic action) =>
@@ -157,6 +162,7 @@ IconData aiChangeIcon(AiChangeKind kind) => switch (kind) {
       AiChangeKind.editTransaction => Icons.edit_rounded,
       AiChangeKind.deleteTransaction => Icons.delete_rounded,
       AiChangeKind.transfer => Icons.compare_arrows_rounded,
+      AiChangeKind.createFixedPayment => Icons.event_repeat_rounded,
     };
 
 String _text(dynamic value) => value?.toString().trim() ?? "";
@@ -489,6 +495,9 @@ Future<AiChangePlan> planAiChange(
         },
       );
 
+    case AiChangeKind.createFixedPayment:
+      return _planFixedPayment(kind, title, json, allWallets, pockets);
+
     case AiChangeKind.transfer:
       AiPocketOption? from = exactPocket(_text(json["from"]), pockets);
       AiPocketOption? to = exactPocket(_text(json["to"]), pockets);
@@ -525,6 +534,100 @@ Future<AiChangePlan> planAiChange(
         },
       );
   }
+}
+
+// A monthly reminder like the fixed items of the onboarding: it starts
+// unpaid on its next date and repeats until removed
+Future<AiChangePlan> _planFixedPayment(
+    AiChangeKind kind,
+    String title,
+    Map<String, dynamic> json,
+    AllWallets allWallets,
+    List<AiPocketOption> pockets) async {
+  AiChangePlan failed(String key, [Map<String, String>? args]) =>
+      AiChangePlan(kind: kind, title: title, error: key.tr(namedArgs: args));
+  String name = _text(json["title"]);
+  if (name.isEmpty) return failed("ai-change-missing-name");
+  double? amount = parseColombianAmount(json["amount"]);
+  if (amount == null || amount == 0) return failed("ai-change-missing-amount");
+  bool income = parseAiBool(json["income"]);
+  List<int> days = [
+    for (dynamic d in [json["day"], json["second_day"]])
+      if (int.tryParse(_text(d)) != null) int.parse(_text(d))
+  ].toSet().toList()
+    ..sort();
+  if (days.isEmpty || days.any((d) => d < 1 || d > 31)) {
+    return failed("ai-change-bad-day");
+  }
+  List<TransactionCategory> categories =
+      (await database.getAllCategories()).where((c) => !c.archived).toList();
+  TransactionCategory? category =
+      exactCategory(_text(json["category"]), categories) ??
+          categories
+              .where((c) =>
+                  c.income == income &&
+                  c.mainCategoryPk == null &&
+                  c.categoryPk != "0")
+              .firstOrNull;
+  if (category == null) {
+    return failed("ai-change-no-category", {"name": _text(json["category"])});
+  }
+  AiPocketOption? pocket = _text(json["pocket"]).isEmpty
+      ? null
+      : exactPocket(_text(json["pocket"]), pockets);
+  if (_text(json["pocket"]).isNotEmpty && pocket == null) {
+    return failed("ai-change-no-pocket", {"name": _text(json["pocket"])});
+  }
+  String walletPk = pocket?.wallet.walletPk ??
+      appStateSettings["selectedWalletPk"]?.toString() ??
+      "0";
+  return AiChangePlan(
+    kind: kind,
+    title: title,
+    details: [
+      name,
+      (income ? "+ " : "- ") + convertToMoney(allWallets, amount.abs()),
+      days.length > 1
+          ? "onb-fixed-twice-on".tr(namedArgs: {
+              "first": days[0].toString(),
+              "second": days[1].toString()
+            })
+          : "onb-fixed-every-month-on"
+              .tr(namedArgs: {"day": days.first.toString()}),
+      "ai-change-detail-category".tr(namedArgs: {"name": category.name}),
+      if (pocket != null)
+        "ai-change-detail-pocket".tr(namedArgs: {"name": pocket.label}),
+    ],
+    apply: (context) async {
+      DateTime now = DateTime.now();
+      for (int day in days) {
+        await database.createOrUpdateTransaction(
+          insert: true,
+          Transaction(
+            transactionPk: "-1",
+            name: name,
+            note: "onb-fixed-note".tr(),
+            amount: income ? amount.abs() : -amount.abs(),
+            categoryFk: category.categoryPk,
+            walletFk: walletPk,
+            dateCreated: nextDayOfMonth(now, day),
+            income: income,
+            paid: false,
+            skipPaid: false,
+            type: income
+                ? TransactionSpecialType.repetitive
+                : TransactionSpecialType.subscription,
+            reoccurrence: BudgetReoccurence.monthly,
+            periodLength: 1,
+            upcomingTransactionNotification: true,
+            createdAnotherFutureTransaction: false,
+          ),
+        );
+      }
+      if (context.mounted) await setUpcomingNotifications(context);
+      return "done";
+    },
+  );
 }
 
 TransactionCategory? exactCategory(

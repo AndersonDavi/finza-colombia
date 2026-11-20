@@ -1164,8 +1164,7 @@ Future<String> buildFinanceContext(AllWallets allWallets) async {
           .map((c) => c.name + (c.income ? " (income)" : ""))
           .join(", "));
 
-  out.writeln(
-      "\nLast movements (#id, date, title, category, pocket, amount):");
+  out.writeln("\nLast movements (#id, date, title, category, pocket, amount):");
   for (Transaction t in recent.take(150)) {
     out.writeln([
       "#" + shortTransactionId(t.transactionPk),
@@ -1176,6 +1175,57 @@ Future<String> buildFinanceContext(AllWallets allWallets) async {
       convertToMoney(allWallets, t.amount,
           currencyKey: allWallets.indexedByPk[t.walletFk]?.currency),
     ].join(" | "));
+  }
+
+  // Loans being paid (the loan objectives), for questions about debts. The
+  // rate is only known when it was written in the note
+  List<Objective> loans = await database.getAllObjectives(
+      objectiveType: ObjectiveType.loan, isArchived: false);
+  List<Objective> borrowed = loans.where((o) => o.income == false).toList();
+  if (borrowed.isNotEmpty) {
+    List<Transaction> installments =
+        await (database.select(database.transactions)
+              ..where((t) =>
+                  t.objectiveLoanFk.isNotNull() &
+                  t.paid.equals(false) &
+                  t.income.equals(false))
+              ..orderBy([(t) => OrderingTerm.asc(t.dateCreated)]))
+            .get();
+    out.writeln("\nLoans being paid (name, next installment, installments "
+        "left, about left to pay, note):");
+    for (Objective loan in borrowed) {
+      Transaction? next = installments
+          .where((t) => t.objectiveLoanFk == loan.objectivePk)
+          .firstOrNull;
+      int? left;
+      if (next != null && next.endDate != null) {
+        left = (next.endDate!.year - next.dateCreated.year) * 12 +
+            next.endDate!.month -
+            next.dateCreated.month +
+            (next.endDate!.day >= next.dateCreated.day ? 1 : 0);
+        if (left < 0) left = 0;
+      }
+      double? paidSoFar = await database.getTotalTowardsObjective(
+          allWallets, loan.objectivePk, ObjectiveType.loan);
+      out.writeln("- " +
+          [
+            loan.name,
+            next == null
+                ? "no pending installment"
+                : convertToMoney(allWallets, next.amount.abs(),
+                        currencyKey:
+                            allWallets.indexedByPk[next.walletFk]?.currency) +
+                    " on " +
+                    next.dateCreated.toIso8601String().substring(0, 10),
+            left == null ? "?" : left.toString(),
+            left == null || next == null
+                ? "?"
+                : convertToMoney(allWallets, next.amount.abs() * left),
+            if (paidSoFar != null)
+              "recorded so far " + convertToMoney(allWallets, paidSoFar),
+            if (next != null && next.note.trim().isNotEmpty) next.note.trim(),
+          ].join(" | "));
+    }
   }
 
   List<Transaction> upcoming = await database.getAllUpcomingTransactions(

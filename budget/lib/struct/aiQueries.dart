@@ -30,6 +30,12 @@ back, filter or add things up, ask the app with a block; it runs at once
 ```finza-query
 {"query": "totals", "from": "2025-01-01", "to": "2025-12-31", "group_by": "category", "income": false}
 ```
+```finza-query
+{"query": "duplicates", "from": "2025-01-01", "to": "2025-12-31"}
+```
+duplicates lists movements with the same amount and direction a few days
+apart (the last 90 days unless from/to are given); judge from the titles
+which ones really repeat before proposing to delete any.
 group_by is category, month, pocket or category_month. Every field but
 "query" is optional. When you need data, answer with only the query blocks
 (no other text), then answer the user once the result arrives. Prefer totals
@@ -153,7 +159,30 @@ Future<String> runAiQueries(
     }
     String money(double amount) => convertToMoney(allWallets, amount);
 
-    if (json["query"] == "totals") {
+    if (json["query"] == "duplicates") {
+      DateTime since =
+          filter.from ?? DateTime.now().subtract(const Duration(days: 90));
+      List<Transaction> pool = rows
+          .where((t) => t.categoryFk != "0" && !t.dateCreated.isBefore(since))
+          .toList();
+      List<List<Transaction>> groups = findPossibleDuplicates(pool);
+      out.writeln("${groups.length} groups of possible duplicates.");
+      out.writeln("#id | date | title | category | pocket | amount");
+      for (int g = 0; g < groups.length && g < 40; g++) {
+        out.writeln("Group ${g + 1}:");
+        for (Transaction t in groups[g]) {
+          out.writeln([
+            "#" + shortTransactionId(t.transactionPk),
+            t.dateCreated.toIso8601String().substring(0, 10),
+            t.name,
+            byPk[t.categoryFk]?.name ?? "",
+            pocketLabel[t.walletFk] ?? "",
+            convertToMoney(allWallets, t.amount,
+                currencyKey: allWallets.indexedByPk[t.walletFk]?.currency),
+          ].join(" | "));
+        }
+      }
+    } else if (json["query"] == "totals") {
       // Transfers between pockets are not income nor spending
       List<Transaction> counted =
           rows.where((t) => t.categoryFk != "0").toList();
@@ -210,4 +239,33 @@ Future<String> runAiQueries(
     }
   }
   return out.toString();
+}
+
+// Movements with the same amount and direction at most [days] apart, in
+// groups of two or more, newest first
+List<List<Transaction>> findPossibleDuplicates(List<Transaction> movements,
+    {int days = 3}) {
+  List<Transaction> sorted = [...movements]
+    ..sort((a, b) => a.dateCreated.compareTo(b.dateCreated));
+  Map<String, List<Transaction>> byAmount = {};
+  for (Transaction t in sorted) {
+    String key = (t.income ? "+" : "-") + t.amount.abs().toStringAsFixed(2);
+    byAmount.putIfAbsent(key, () => []).add(t);
+  }
+  List<List<Transaction>> groups = [];
+  for (List<Transaction> same in byAmount.values) {
+    List<Transaction> current = [];
+    for (Transaction t in same) {
+      if (current.isNotEmpty &&
+          t.dateCreated.difference(current.last.dateCreated).inHours >
+              days * 24) {
+        if (current.length > 1) groups.add(current);
+        current = [];
+      }
+      current.add(t);
+    }
+    if (current.length > 1) groups.add(current);
+  }
+  groups.sort((a, b) => b.last.dateCreated.compareTo(a.last.dateCreated));
+  return groups;
 }

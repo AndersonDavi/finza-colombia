@@ -29,7 +29,23 @@ import 'package:speech_to_text/speech_to_text.dart';
 // The assistant actions shown above the AI chat: big buttons that open a
 // short sheet, ask the model and land on a screen to review before saving.
 
-enum AiAction { receipt, text, voice, bankMessage, loanOffer, summary }
+enum AiAction {
+  receipt,
+  text,
+  voice,
+  bankMessage,
+  loanOffer,
+  summary,
+  debts,
+  duplicates,
+}
+
+// Actions that are a question to the chat with the person's data
+const Set<AiAction> aiChatActions = {
+  AiAction.summary,
+  AiAction.debts,
+  AiAction.duplicates,
+};
 
 // Vector icons, never emoji: emoji fonts look different on every phone
 class AiActionInfo {
@@ -52,6 +68,10 @@ const Map<AiAction, AiActionInfo> aiActionInfo = {
       Icons.request_quote_rounded, "ai-action-loan", "ai-action-loan-help"),
   AiAction.summary: AiActionInfo(
       Icons.insights_rounded, "ai-action-summary", "ai-action-summary-help"),
+  AiAction.debts: AiActionInfo(
+      Icons.account_balance_rounded, "ai-action-debts", "ai-action-debts-help"),
+  AiAction.duplicates: AiActionInfo(Icons.content_copy_rounded,
+      "ai-action-duplicates", "ai-action-duplicates-help"),
 };
 
 // The action's icon in the light primary color (the one of the send button),
@@ -338,7 +358,10 @@ Future<void> openAiAction(
           ),
         ),
       );
+    // Run by the chat page itself
     case AiAction.summary:
+    case AiAction.debts:
+    case AiAction.duplicates:
       return;
   }
 }

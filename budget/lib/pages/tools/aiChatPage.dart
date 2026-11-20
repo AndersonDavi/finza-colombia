@@ -3,6 +3,7 @@ import 'package:budget/database/tables.dart';
 import 'package:budget/functions.dart';
 import 'package:budget/pages/tools/aiActionSheets.dart';
 import 'package:budget/struct/aiActions.dart';
+import 'package:budget/struct/aiAttachmentStore.dart';
 import 'package:budget/struct/aiAttachments.dart';
 import 'package:budget/struct/aiChanges.dart';
 import 'package:budget/struct/aiQueries.dart';
@@ -80,12 +81,19 @@ class _AiChatPageState extends State<AiChatPage> {
     super.dispose();
   }
 
-  void openConversation(AiConversation saved, {bool scroll = true}) {
+  Future<void> openConversation(AiConversation saved,
+      {bool scroll = true}) async {
+    // The chat's latest file, kept so it can still be asked about
+    (int, AiAttachment)? file = await loadChatAttachment(saved.id);
+    if (!mounted) return;
     List<ChatMessage> messages = [];
     Set<ChatMessage> savedSummaries = {};
-    for (SavedMessage m in saved.messages) {
+    for (int i = 0; i < saved.messages.length; i++) {
+      SavedMessage m = saved.messages[i];
       ChatMessage message = ChatMessage(m.fromUser, m.text,
-          attachmentName: m.attachmentName, hidden: m.hidden);
+          attachment: file != null && file.$1 == i ? file.$2 : null,
+          attachmentName: m.attachmentName,
+          hidden: m.hidden);
       message.changeStatus.addAll(m.changeStatus);
       messages.add(message);
       if (m.summary) savedSummaries.add(message);
@@ -157,6 +165,7 @@ class _AiChatPageState extends State<AiChatPage> {
                   icon: Icon(Icons.delete_outline_rounded),
                   onPressed: () async {
                     await deleteAiConversation(c.id);
+                    await deleteChatAttachment(c.id);
                     if (c.id == conversationId) newConversation();
                     setSheetState(() {});
                   },
@@ -247,45 +256,63 @@ class _AiChatPageState extends State<AiChatPage> {
           onChooseModel: ready && models.length > 1 ? chooseModel : null);
       return;
     }
-    if (action == AiAction.summary && ready) {
-      runSummary();
+    if (aiChatActions.contains(action) && ready) {
+      if (action == AiAction.summary) {
+        runSummary();
+      } else {
+        askWithData(action);
+      }
     } else {
       openAiAction(context, action, ready: ready);
     }
   }
 
-  // Month summary with tips, added to the conversation as a card
-  Future<void> runSummary() async {
-    if (sending) return;
-    if (shareData == false) {
-      await openBottomSheet(
-        context,
-        PopupFramework(
-          title: "ai-action-summary".tr(),
-          child: Builder(
-            builder: (sheetContext) => Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                note("ai-summary-needs-data".tr()),
-                SizedBox(height: 10),
-                Button(
-                  label: "ai-summary-share-and-run".tr(),
-                  expandedLayout: true,
-                  onTap: () {
-                    popRoute(sheetContext);
-                    updateSettings("aiShareData", true,
-                        updateGlobalState: false);
-                    setState(() => shareData = true);
-                    runSummary();
-                  },
-                ),
-              ],
-            ),
+  // Asks to share the data first when it is off; true when it can go on
+  Future<bool> ensureShareData(AiAction action) async {
+    if (shareData) return true;
+    bool turnedOn = false;
+    await openBottomSheet(
+      context,
+      PopupFramework(
+        title: aiActionInfo[action]!.labelKey.tr(),
+        child: Builder(
+          builder: (sheetContext) => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              note("ai-summary-needs-data".tr()),
+              SizedBox(height: 10),
+              Button(
+                label: "ai-summary-share-and-run".tr(),
+                expandedLayout: true,
+                onTap: () {
+                  popRoute(sheetContext);
+                  updateSettings("aiShareData", true, updateGlobalState: false);
+                  setState(() => shareData = true);
+                  turnedOn = true;
+                },
+              ),
+            ],
           ),
         ),
-      );
-      return;
-    }
+      ),
+    );
+    return turnedOn;
+  }
+
+  // Debts and duplicates are questions to the chat: the AI reads the data,
+  // asks the app for more when needed and proposes changes to confirm
+  Future<void> askWithData(AiAction action) async {
+    if (sending || !await ensureShareData(action)) return;
+    messageController.text = switch (action) {
+      AiAction.debts => "ai-debts-request".tr(),
+      _ => "ai-duplicates-request".tr(),
+    };
+    await send();
+  }
+
+  // Month summary with tips, added to the conversation as a card
+  Future<void> runSummary() async {
+    if (sending || !await ensureShareData(AiAction.summary)) return;
     AllWallets allWallets = Provider.of<AllWallets>(context, listen: false);
     String languageCode = context.locale.languageCode;
     setState(() {
@@ -478,6 +505,7 @@ class _AiChatPageState extends State<AiChatPage> {
     if ((text == "" && attachment == null) || sending) return;
     AllWallets allWallets = Provider.of<AllWallets>(context, listen: false);
     ChatMessage answer = ChatMessage(false, "");
+    AiAttachment? sentFile = attachment;
     setState(() {
       conversation.add(ChatMessage(true, text, attachment: attachment));
       attachment = null;
@@ -486,6 +514,9 @@ class _AiChatPageState extends State<AiChatPage> {
       messageController.clear();
     });
     scrollToBottom();
+    if (sentFile != null) {
+      saveChatAttachment(conversationId, conversation.length - 1, sentFile);
+    }
     try {
       // The AI may ask the app for more data first: the results go back to
       // it as a hidden message and it answers again, a few rounds at most
@@ -512,7 +543,10 @@ class _AiChatPageState extends State<AiChatPage> {
         List<Map<String, dynamic>> queries = extractAiQueries(reply);
         if (queries.isEmpty || round >= maxAiQueryRounds) break;
         setState(() => lookingUp = true);
-        String results = await runAiQueries(queries, allWallets);
+        // Data turned off: the app says so instead of reading anything
+        String results = shareData
+            ? await runAiQueries(queries, allWallets)
+            : "The user chose not to share their data with you; answer without it.";
         answer = ChatMessage(false, "");
         setState(() {
           conversation.add(ChatMessage(true, results, hidden: true));

@@ -1,3 +1,4 @@
+import 'package:budget/database/tables.dart';
 import 'package:budget/struct/aiChanges.dart';
 import 'package:budget/struct/aiQueries.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -67,5 +68,48 @@ Y también:
   test("short ids", () {
     expect(shortTransactionId("1234567890abcdef"), "12345678");
     expect(shortTransactionId("12"), "12");
+  });
+
+  group("duplicates", () {
+    Transaction movement(String pk, double amount, DateTime date,
+            {bool income = false}) =>
+        Transaction(
+          transactionPk: pk,
+          name: pk,
+          amount: amount,
+          note: "",
+          categoryFk: "1",
+          walletFk: "0",
+          dateCreated: date,
+          income: income,
+          paid: true,
+          skipPaid: true,
+        );
+
+    test("same amount a few days apart are grouped", () {
+      List<List<Transaction>> groups = findPossibleDuplicates([
+        movement("a", -25000, DateTime(2026, 11, 1)),
+        movement("b", -25000, DateTime(2026, 11, 2)),
+        movement("c", -25000, DateTime(2026, 11, 20)),
+        movement("d", 25000, DateTime(2026, 11, 2), income: true),
+        movement("e", -9900, DateTime(2026, 11, 3)),
+      ]);
+      expect(groups.length, 1);
+      expect(groups.single.map((t) => t.transactionPk), ["a", "b"]);
+    });
+
+    test("nothing repeated, no groups", () {
+      expect(
+          findPossibleDuplicates([
+            movement("a", -1000, DateTime(2026, 1, 1)),
+            movement("b", -2000, DateTime(2026, 1, 1)),
+          ]),
+          isEmpty);
+    });
+  });
+
+  test("fixed payments are a known action", () {
+    expect(aiChangeKindOf("create_fixed_payment"),
+        AiChangeKind.createFixedPayment);
   });
 }
