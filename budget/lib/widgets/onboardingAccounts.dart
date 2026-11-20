@@ -148,6 +148,12 @@ class OnboardingAccountsStep extends StatelessWidget {
             .toList();
         return Column(
           children: [
+            // Above the list, where it is seen without scrolling
+            if (missing && groups.isEmpty)
+              Padding(
+                padding: const EdgeInsetsDirectional.only(bottom: 12),
+                child: OnboardingErrorText(text: "onb-account-required".tr()),
+              ),
             OnboardingTileGrid(
               children: [
                 for (AccountPreset preset in presets)
@@ -198,8 +204,6 @@ class OnboardingAccountsStep extends StatelessWidget {
                 ),
               ],
             ),
-            if (missing && groups.isEmpty)
-              OnboardingErrorText(text: "onb-account-required".tr()),
             // Always laid out so the chips don't move when the first one
             // is picked; it only fades in
             SizedBox(height: 15),
